@@ -7,9 +7,12 @@ import type { CSSProperties } from "react";
 export function TowerWireframe({
   className,
   style,
+  back = false,
 }: {
   className?: string;
   style?: CSSProperties;
+  /** Draw a recessed second face + connecting edges for a 3D lattice look. */
+  back?: boolean;
 }) {
   const LEVELS = 10;
   const TOP = 130;
