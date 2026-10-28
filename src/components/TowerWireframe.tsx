@@ -69,7 +69,7 @@ export function TowerWireframe({
         />
       ))}
       {ys.slice(0, -1).map((y, i) => {
-        const y2 = ys[i + 1];
+        const y2 = ys[i + 1] ?? y;
         return (
           <g key={`brace-${i}`} opacity={0.4}>
             <line x1={lx(y)} y1={y} x2={rx(y2)} y2={y2} stroke={red} strokeWidth="1.75" />
@@ -79,9 +79,16 @@ export function TowerWireframe({
       })}
 
       {/* crossarm with sector antennas mid-tower */}
-      <line x1={lx(ys[5]) - 46} y1={ys[5]} x2={rx(ys[5]) + 46} y2={ys[5]} stroke={red} strokeWidth="2.5" />
-      <rect x={lx(ys[5]) - 52} y={ys[5] - 16} width="6" height="16" fill={orange} />
-      <rect x={rx(ys[5]) + 46} y={ys[5] - 16} width="6" height="16" fill={orange} />
+      {(() => {
+        const midY = ys[5] ?? BASE;
+        return (
+          <g>
+            <line x1={lx(midY) - 46} y1={midY} x2={rx(midY) + 46} y2={midY} stroke={red} strokeWidth="2.5" />
+            <rect x={lx(midY) - 52} y={midY - 16} width="6" height="16" fill={orange} />
+            <rect x={rx(midY) + 46} y={midY - 16} width="6" height="16" fill={orange} />
+          </g>
+        );
+      })()}
 
       {/* ground pad */}
       <line x1={lx(BASE) - 40} y1={BASE} x2={rx(BASE) + 40} y2={BASE} stroke={red} strokeWidth="3" opacity="0.7" />
