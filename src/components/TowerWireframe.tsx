@@ -56,8 +56,7 @@ export function TowerWireframe({
           </g>
           {/* edges connecting front face to rear face at every rung */}
           {ys.map((y, i) => {
-            const s = 0.82;
-            const bx = (x: number) => BX + CX * 0.18 + x * s;
+            const bx = (x: number) => (x + CX * 0.18) * 0.82 + BX;
             return (
               <g key={`depth-${i}`} opacity={0.5}>
                 <line x1={lx(y)} y1={y} x2={bx(lx(y))} y2={y + BY} stroke={red} strokeWidth="1.75" />
@@ -66,7 +65,7 @@ export function TowerWireframe({
             );
           })}
           {/* mast depth edge */}
-          <line x1={CX} y1={TOP} x2={CX * 1.18 + BX * 0.82} y2={TOP + BY} stroke={red} strokeWidth="2" opacity={0.5} />
+          <line x1={CX} y1={TOP} x2={(CX + CX * 0.18) * 0.82 + BX} y2={TOP + BY} stroke={red} strokeWidth="2" opacity={0.5} />
         </g>
       )}
       {/* signal arcs above the mast */}
