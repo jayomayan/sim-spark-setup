@@ -14,6 +14,7 @@ import {
   saveConnectionProfile,
   deleteConnectionProfile,
   testConnectionProfile,
+  setupConnectionProfile,
 } from "@/lib/admin-settings.functions";
 import { setUserRole } from "@/lib/users.functions";
 import { PageHeader } from "@/components/PageHeader";
@@ -40,6 +41,7 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
   const saveProfile = useServerFn(saveConnectionProfile);
   const removeProfile = useServerFn(deleteConnectionProfile);
   const testProfile = useServerFn(testConnectionProfile);
+  const setupProfile = useServerFn(setupConnectionProfile);
 
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
@@ -50,7 +52,8 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
 
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formBusy, setFormBusy] = useState<"save" | "test" | "delete" | null>(null);
+  const [formBusy, setFormBusy] = useState<"save" | "test" | "delete" | "setup" | null>(null);
+  const [settingUpId, setSettingUpId] = useState<string | null>(null);
   const [formResult, setFormResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [rowResults, setRowResults] = useState<Record<string, { ok: boolean; text: string }>>({});
 
@@ -98,7 +101,7 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
     setFormResult(null);
   }
 
-  async function submitProfile(mode: "save" | "test") {
+  async function submitProfile(mode: "save" | "test" | "setup") {
     if (!form.label.trim() || !form.host.trim() || !form.username.trim()) {
       setFormResult({ ok: false, text: "Label, host and username are required." });
       return;
@@ -120,13 +123,20 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
         username: form.username.trim(),
         password: form.password.length > 0 ? form.password : undefined,
       };
-      if (mode === "save") {
+      if (mode === "save" || mode === "setup") {
         const { id } = await saveProfile({ data: payload });
         await qc.invalidateQueries({ queryKey: ["admin", "dbprofiles"] });
         setEditingId(id);
         setForm((current) => ({ ...current, password: "" }));
-        setFormResult({ ok: true, text: "Connection saved." });
-        toast.success("Connection profile saved");
+        if (mode === "setup") {
+          const result = await setupProfile({ data: { id } });
+          setFormResult({ ok: result.ok, text: result.message });
+          setRowResults((current) => ({ ...current, [id]: { ok: result.ok, text: result.message } }));
+          if (result.ok) toast.success("Database ready");
+        } else {
+          setFormResult({ ok: true, text: "Connection saved.");
+          toast.success("Connection profile saved");
+        }
       } else {
         const usesSavedPassword = Boolean(editingId) && form.password.length === 0;
         const result = usesSavedPassword && editingId
@@ -151,6 +161,19 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
       }));
     } catch (error) {
       setRowResults((current) => ({ ...current, [id]: { ok: false, text: error instanceof Error ? error.message : "Test failed" } }));
+    }
+  }
+
+  async function setupSavedRow(id: string) {
+    setSettingUpId(id);
+    setRowResults((current) => ({ ...current, [id]: { ok: true, text: "Connecting and setting up database…" } }));
+    try {
+      const result = await setupProfile({ data: { id } });
+      setRowResults((current) => ({ ...current, [id]: { ok: result.ok, text: result.message } }));
+    } catch {
+      setRowResults((current) => ({ ...current, [id]: { ok: false, text: "Couldn't set up this database. Please retry." } }));
+    } finally {
+      setSettingUpId(null);
     }
   }
 
@@ -239,10 +262,11 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
                         <p className="flex items-center gap-2 text-sm font-semibold"><Server className="h-4 w-4 shrink-0 text-primary" />{profile.label}</p>
                         <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{profile.host}:{profile.port}/{profile.databaseName} · {profile.username} · {profile.hasPassword ? "password saved" : "no password"}</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => testSavedRow(profile.id)}>Test</Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setupSavedRow(profile.id)} disabled={settingUpId !== null || formBusy !== null}><Database className="h-4 w-4" />{settingUpId === profile.id ? "Setting up…" : "Connect & set up"}</Button>
+                        <Button variant="outline" size="sm" onClick={() => testSavedRow(profile.id)} disabled={settingUpId !== null}>Test</Button>
                         <Button variant="outline" size="sm" onClick={() => editProfile(profile.id)}><Pencil className="h-4 w-4" />Edit</Button>
-                        <Button variant="outline" size="sm" onClick={() => deleteProfile(profile.id)} disabled={formBusy === "delete"}><Trash2 className="h-4 w-4" />Delete</Button>
+                        <Button variant="outline" size="sm" onClick={() => deleteProfile(profile.id)} disabled={formBusy !== null || settingUpId !== null}><Trash2 className="h-4 w-4" />Delete</Button>
                       </div>
                     </div>
                     {(() => {
@@ -273,10 +297,12 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
                   <div className="space-y-2"><Label htmlFor="db-pass">Password{editingId ? <span className="ml-1 font-normal text-muted-foreground">(leave blank to keep saved)</span> : ""}</Label><Input id="db-pass" type="password" autoComplete="new-password" value={form.password} onChange={(e) => setField("password", e.target.value)} /></div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button onClick={() => submitProfile("save")} disabled={formBusy !== null}>{formBusy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{editingId ? "Save changes" : "Save connection"}</Button>
+                  <Button onClick={() => submitProfile("setup")} disabled={formBusy !== null || settingUpId !== null}>{formBusy === "setup" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}{formBusy === "setup" ? "Setting up…" : "Save, connect & set up"}</Button>
+                  <Button variant="outline" onClick={() => submitProfile("save")} disabled={formBusy !== null}>{formBusy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{editingId ? "Save changes only" : "Save only"}</Button>
                   <Button variant="outline" onClick={() => submitProfile("test")} disabled={formBusy !== null}>{formBusy === "test" ? "Testing…" : "Test connection"}</Button>
                   {editingId && <Button variant="ghost" onClick={resetForm}>Cancel editing</Button>}
                 </div>
+                <p className="mt-3 text-xs text-muted-foreground">Setup creates a missing database and the required tables in the field_ops schema. The account needs database and table creation permissions. Existing data and sign-in stay unchanged; setup does not move data or switch the app's current connection.</p>
                 {formResult && (
                   <p role="status" className={`mt-3 flex items-start gap-2 text-sm ${formResult.ok ? "text-primary" : "text-destructive"}`}>
                     {formResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
