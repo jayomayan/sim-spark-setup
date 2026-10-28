@@ -245,12 +245,16 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
                         <Button variant="outline" size="sm" onClick={() => deleteProfile(profile.id)} disabled={formBusy === "delete"}><Trash2 className="h-4 w-4" />Delete</Button>
                       </div>
                     </div>
-                    {rowResults[profile.id] && (
-                      <p role="status" className={`mt-2 flex items-start gap-2 text-sm ${rowResults[profile.id].ok ? "text-primary" : "text-destructive"}`}>
-                        {rowResults[profile.id].ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
-                        {rowResults[profile.id].text}
-                      </p>
-                    )}
+                    {(() => {
+                      const rowResult = rowResults[profile.id];
+                      if (!rowResult) return null;
+                      return (
+                        <p role="status" className={`mt-2 flex items-start gap-2 text-sm ${rowResult.ok ? "text-primary" : "text-destructive"}`}>
+                          {rowResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+                          {rowResult.text}
+                        </p>
+                      );
+                    })()}
                   </div>
                 ))}
                 {profiles.isPending && <p role="status" className="py-4 text-sm text-muted-foreground">Loading saved connections…</p>}
