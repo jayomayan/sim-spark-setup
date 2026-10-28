@@ -44,6 +44,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -159,4 +160,8 @@
   .badge-active { font-family: var(--font-mono); font-size:.7rem; letter-spacing:.15em; padding:.2rem .5rem; border-radius:999px; background: color-mix(in oklch, var(--primary) 20%, transparent); color: var(--primary); }
   .spinner { width:1rem; height:1rem; border-radius:999px; border:2px solid var(--border); border-top-color: var(--primary); animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+}
+
+@layer base {
+  body { background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px); background-size: 32px 32px; }
 }
