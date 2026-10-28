@@ -33,14 +33,14 @@ function Landing() {
           Every site router,<br />one console.
         </h1>
         <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-          Activate SIMs, push firewall and time settings to UR35 routers, check devices and pull their logs.
+          Activate SIMs, push firewall and time settings to UR35 routers, and manage field devices.
         </p>
         <div className="mt-10 flex gap-3">
           <Button asChild size="lg"><Link to="/auth">Sign in</Link></Button>
           <Button asChild size="lg" variant="secondary"><Link to="/dashboard">Open dashboard</Link></Button>
         </div>
         <div className="mt-16 grid gap-px overflow-hidden rounded-lg border bg-border font-mono text-sm sm:grid-cols-3">
-          {["SIM activation", "Router tools", "Device logs"].map((t, i) => (
+          {["SIM activation", "Router tools", "Device inventory"].map((t, i) => (
             <div key={t} className="bg-card p-5"><span className="text-primary">0{i + 1}</span> {t}</div>
           ))}
         </div>

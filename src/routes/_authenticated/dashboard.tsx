@@ -9,27 +9,26 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-const count = async (table: "devices" | "device_logs" | "sim_activations") =>
+const count = async (table: "devices" | "sim_activations") =>
   (await supabase.from(table).select("*", { count: "exact", head: true })).count ?? 0;
 
 function Dashboard() {
   const { data } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const [devices, logs, sims] = await Promise.all([count("devices"), count("device_logs"), count("sim_activations")]);
-      const { data: jobs } = await supabase.from("agent_jobs").select("id,type,status,created_at,error").order("created_at", { ascending: false }).limit(8);
-      return { devices, logs, sims, jobs: jobs ?? [] };
+      const [devices, sims] = await Promise.all([count("devices"), count("sim_activations")]);
+      const { data: jobs } = await supabase.from("agent_jobs").select("id,type,status,created_at,error").in("type", ["ping", "snmp_walk", "device_ntp", "ur35_firewall", "ur35_ntp"]).order("created_at", { ascending: false }).limit(8);
+      return { devices, sims, jobs: jobs ?? [] };
     },
   });
   const stats = [
     { label: "Devices", value: data?.devices, to: "/devices" as const },
-    { label: "Log entries", value: data?.logs, to: "/devices" as const },
     { label: "SIM activations", value: data?.sims, to: "/sim-activation" as const },
   ];
   return (
     <>
       <PageHeader kicker="Overview" title="Dashboard"><HelperStatus /></PageHeader>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         {stats.map((s) => (
           <Link key={s.label} to={s.to} className="panel p-5 transition-colors hover:border-primary">
             <p className="text-sm text-muted-foreground">{s.label}</p>

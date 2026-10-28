@@ -1,0 +1,2 @@
+COMMENT ON TABLE public.device_logs IS 'DEPRECATED: router log collection and export removed from the app';
+COMMENT ON COLUMN public.devices.last_log_pulled_at IS 'DEPRECATED: router log collection removed from the app';

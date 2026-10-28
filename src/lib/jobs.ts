@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-
-export type JobType = "ping" | "snmp_walk" | "device_ntp" | "ur35_firewall" | "ur35_ntp" | "pull_logs";
+import { isSupportedJobType, type JobType } from "@/lib/job-types";
+export type { JobType } from "@/lib/job-types";
 
 export type JobResult = { status: string; result: unknown; error: string | null };
 
@@ -11,6 +11,7 @@ export async function runJob(
   payload: Record<string, unknown>,
   opts: { timeoutMs?: number; onQueued?: (id: string) => void } = {},
 ): Promise<JobResult> {
+  if (!isSupportedJobType(type)) throw new Error("Unsupported router job");
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) throw new Error("Not signed in");
   const { data, error } = await supabase
