@@ -111,8 +111,7 @@ export const deleteConnectionProfile = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export type ConnectionTest = ConnectionTestResultAlias;
-type ConnectionTestResultAlias = { ok: boolean; message: string; latencyMs: number };
+export type ConnectionTest = { ok: boolean; message: string; latencyMs: number };
 
 export const testConnectionProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
