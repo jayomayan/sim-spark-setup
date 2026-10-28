@@ -37,7 +37,7 @@ function SimActivation() {
   async function run() {
     setBusy(true); setError(null); setIp(null); setStates(STEPS.map(() => "idle"));
     const { data: u } = await supabase.auth.getUser();
-    const { data: rec } = await supabase.from("sim_activations").insert({ iccid, created_by: u.user?.id }).select("id").single();
+    const { data: rec } = await supabase.from("sim_activations").insert({ iccid, created_by: u.user?.id ?? null }).select("id").single();
     const finish = (patch: { status: string; ip?: string | null; error?: string | null; simulated?: boolean }) =>
       rec && supabase.from("sim_activations").update({ ...patch, finished_at: new Date().toISOString() }).eq("id", rec.id);
     let i = 0; let got: string | null = null; let sim = false;

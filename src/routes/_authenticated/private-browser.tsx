@@ -60,7 +60,7 @@ function PrivateBrowser() {
           <div className="panel grid gap-4 p-5 sm:grid-cols-3">
             <Field label="Router IP" value={ip} />
             <Field label="Network" value={network ?? "—"} />
-            <Field label="Reachable" value={ping ? (ping.success ? "Yes" : "No") : busy ? "Checking…" : "—"} highlight={ping?.success} />
+            <Field label="Reachable" value={ping ? (ping.success ? "Yes" : "No") : busy ? "Checking…" : "—"} highlight={!!ping?.success} />
             {ping?.packet_loss && <Field label="Packet loss" value={ping.packet_loss} />}
             {ping?.rtt && <Field label="Round trip (avg)" value={ping.rtt.avg} />}
             <div className="flex items-end gap-2">

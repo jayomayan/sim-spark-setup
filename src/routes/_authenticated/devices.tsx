@@ -47,12 +47,13 @@ function Devices() {
   async function save() {
     if (!editing) return;
     const f = editing.form;
-    if (!isPrivateIp(f.ip)) return toast.error("Enter a valid private IP address");
-    const row = Object.fromEntries(FIELDS.map((k) => [k, f[k].trim() || null])) as Partial<Device> & { ip: string };
+    if (!isPrivateIp(f.ip)) { toast.error("Enter a valid private IP address"); return; }
+    const n = (v: string) => v.trim() || null;
+    const row = { ip: f.ip.trim(), site_id: n(f.site_id), name: n(f.name), serial_number: n(f.serial_number), arm_version: n(f.arm_version), stm32_version: n(f.stm32_version), web_version: n(f.web_version), kernel_version: n(f.kernel_version), mib_version: n(f.mib_version) };
     const { error } = editing.id
       ? await supabase.from("devices").update({ ...row, updated_at: new Date().toISOString() }).eq("id", editing.id)
       : await supabase.from("devices").insert(row);
-    if (error) return toast.error(error.code === "23505" ? "This IP or serial number already exists." : error.message);
+    if (error) { toast.error(error.code === "23505" ? "This IP or serial number already exists." : error.message); return; }
     toast.success(editing.id ? "Device updated" : "Device created");
     setEditing(null);
     qc.invalidateQueries({ queryKey: ["devices"] });
@@ -87,7 +88,7 @@ function Devices() {
       rows.push(...(data ?? []));
       if (!data || data.length < 1000) break;
     }
-    if (!rows.length) return toast.info("Nothing to export yet");
+    if (!rows.length) { toast.info("Nothing to export yet"); return; }
     downloadCsv(`${table}-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   }
 
