@@ -20,11 +20,11 @@ export function SiteScene({
 
   // ---- tower geometry ----
   const CX = 800;
-  const TOP = 150;
+  const TOP = 170;
   const BASE = 860;
-  const LEVELS = 7;
-  const HALF_TOP = 26;
-  const HALF_BASE = 64;
+  const LEVELS = 12;
+  const HALF_TOP = 34;
+  const HALF_BASE = 78;
   const ys = Array.from({ length: LEVELS + 1 }, (_, i) => BASE + ((TOP - BASE) * i) / LEVELS);
   const halfAt = (y: number) => HALF_TOP + ((HALF_BASE - HALF_TOP) * (y - TOP)) / (BASE - TOP);
   const lx = (y: number) => CX - halfAt(y);
@@ -73,45 +73,64 @@ export function SiteScene({
       {/* ================= central tower ================= */}
       <g>
         {/* signal arcs */}
-        {[34, 58, 82].map((r, i) => (
+        {[30, 52, 74].map((r, i) => (
           <path
             key={r}
-            d={`M ${CX - r} 66 A ${r} ${r} 0 0 1 ${CX + r} 66`}
+            d={`M ${CX - r} 56 A ${r} ${r} 0 0 1 ${CX + r} 56`}
             stroke={i === 0 ? amber : orange}
             strokeWidth="3"
             strokeLinecap="round"
             opacity={0.9 - i * 0.25}
           />
         ))}
-        <circle cx={CX} cy={66} r="5" fill={orange} />
-        {/* mast */}
-        <line x1={CX} y1={TOP} x2={CX} y2={72} stroke={red} strokeWidth="3.5" />
         {/* legs */}
-        <line x1={lx(BASE)} y1={BASE} x2={lx(TOP)} y2={TOP} stroke={red} strokeWidth="4" />
-        <line x1={rx(BASE)} y1={BASE} x2={rx(TOP)} y2={TOP} stroke={red} strokeWidth="4" />
-        {/* rungs + X braces */}
+        <line x1={lx(BASE)} y1={BASE} x2={lx(TOP)} y2={TOP} stroke={red} strokeWidth="4.5" />
+        <line x1={rx(BASE)} y1={BASE} x2={rx(TOP)} y2={TOP} stroke={red} strokeWidth="4.5" />
+        {/* rungs */}
         {ys.map((y, i) => (
-          <line key={`r${i}`} x1={lx(y)} y1={y} x2={rx(y)} y2={y} stroke={red} strokeWidth="2.25" opacity={0.9} />
+          <line key={`r${i}`} x1={lx(y)} y1={y} x2={rx(y)} y2={y} stroke={red} strokeWidth="2" opacity={0.9} />
         ))}
+        {/* dense X braces */}
         {ys.slice(0, -1).map((y, i) => {
           const y2 = ys[i + 1] ?? y;
           return (
-            <g key={`b${i}`} opacity={0.45}>
-              <line x1={lx(y)} y1={y} x2={rx(y2)} y2={y2} stroke={red} strokeWidth="1.75" />
-              <line x1={rx(y)} y1={y} x2={lx(y2)} y2={y2} stroke={red} strokeWidth="1.75" />
+            <g key={`b${i}`} opacity={0.5}>
+              <line x1={lx(y)} y1={y} x2={rx(y2)} y2={y2} stroke={red} strokeWidth="1.5" />
+              <line x1={rx(y)} y1={y} x2={lx(y2)} y2={y2} stroke={red} strokeWidth="1.5" />
             </g>
           );
         })}
-        {/* antenna crossarms */}
-        {[235, 340].map((y) => (
-          <g key={y}>
-            <line x1={lx(y) - 62} y1={y} x2={rx(y) + 62} y2={y} stroke={red} strokeWidth="3" />
-            <rect x={lx(y) - 70} y={y - 26} width="8" height="26" fill={orange} />
-            <rect x={rx(y) + 62} y={y - 26} width="8" height="26" fill={orange} />
+        {/* center ladder */}
+        <line x1={CX - 8} y1={TOP} x2={CX - 8} y2={BASE} stroke={red} strokeWidth="2" opacity={0.8} />
+        <line x1={CX + 8} y1={TOP} x2={CX + 8} y2={BASE} stroke={red} strokeWidth="2" opacity={0.8} />
+        {Array.from({ length: 34 }, (_, i) => TOP + 14 + i * 20)
+          .filter((y) => y < BASE - 6)
+          .map((y) => (
+            <line key={`lad${y}`} x1={CX - 8} y1={y} x2={CX + 8} y2={y} stroke={red} strokeWidth="1.5" opacity={0.6} />
+          ))}
+        {/* top platform: panel antennas + microwave drum */}
+        <line x1={CX - 80} y1={TOP} x2={CX + 80} y2={TOP} stroke={red} strokeWidth="3" />
+        {[-60, -22, 16].map((dx) => (
+          <rect key={dx} x={CX + dx} y={TOP - 68} width="14" height="68" rx="6" fill={orange} />
+        ))}
+        <circle cx={CX + 56} cy={TOP - 42} r="11" stroke={amber} strokeWidth="2.5" />
+        {/* upper crossarm with panel antennas */}
+        <line x1={lx(305) - 95} y1={305} x2={rx(305) + 95} y2={305} stroke={red} strokeWidth="3" />
+        <rect x={lx(305) - 109} y={305 - 54} width="13" height="54" rx="5" fill={orange} />
+        <rect x={rx(305) + 96} y={305 - 54} width="13" height="54" rx="5" fill={orange} />
+        {/* dish pairs at two heights */}
+        {[440, 575].map((y) => (
+          <g key={y} stroke={amber} strokeWidth="2.5">
+            <line x1={lx(y)} y1={y} x2={lx(y) - 20} y2={y} stroke={red} />
+            <ellipse cx={lx(y) - 28} cy={y} rx="10" ry="24" />
+            <line x1={rx(y)} y1={y} x2={rx(y) + 20} y2={y} stroke={red} />
+            <ellipse cx={rx(y) + 28} cy={y} rx="10" ry="24" />
           </g>
         ))}
-        {/* ground */}
-        <line x1={CX - 130} y1={BASE} x2={CX + 130} y2={BASE} stroke={red} strokeWidth="3" opacity={0.7} />
+        {/* concrete footings + ground */}
+        <rect x={lx(BASE) - 24} y={BASE} width="48" height="26" stroke={red} strokeWidth="2.5" />
+        <rect x={rx(BASE) - 24} y={BASE} width="48" height="26" stroke={red} strokeWidth="2.5" />
+        <line x1={CX - 150} y1={BASE + 26} x2={CX + 150} y2={BASE + 26} stroke={red} strokeWidth="3" opacity={0.7} />
       </g>
 
       {/* ================= left side ================= */}
