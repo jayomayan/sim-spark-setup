@@ -134,7 +134,7 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
           setRowResults((current) => ({ ...current, [id]: { ok: result.ok, text: result.message } }));
           if (result.ok) toast.success("Database ready");
         } else {
-          setFormResult({ ok: true, text: "Connection saved.");
+          setFormResult({ ok: true, text: "Connection saved." });
           toast.success("Connection profile saved");
         }
       } else {
