@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin } from "@/lib/admin-access";
 import { normalizeOktaDomain, OIDC_CALLBACK_PATH } from "@/lib/okta";
+import { encryptPassword, decryptPassword, testDbConnection } from "@/lib/db-connection.server";
 
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -22,22 +23,132 @@ export const checkDatabaseConnection = createServerFn({ method: "POST" })
     };
   });
 
-export const listSettingsUsers = createServerFn({ method: "POST" })
+const connectionProfileInput = z.object({
+  id: z.string().uuid().optional(),
+  label: z.string().trim().min(1, "Label is required").max(80),
+  host: z.string().trim().min(1, "Host is required").max(253),
+  port: z.coerce.number().int().min(1).max(65535).default(5432),
+  databaseName: z.string().trim().min(1, "Database name is required").max(63).default("postgres"),
+  username: z.string().trim().min(1, "Username is required").max(63),
+  password: z.string().max(200).optional(),
+});
+
+export type ConnectionProfile = {
+  id: string;
+  label: string;
+  host: string;
+  port: number;
+  databaseName: string;
+  username: string;
+  hasPassword: boolean;
+  updatedAt: string;
+};
+
+export const listConnectionProfiles = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async ({ context }): Promise<ConnectionProfile[]> => {
     await assertAdmin(context.supabase, context.userId);
-    const [profiles, roles] = await Promise.all([
-      context.supabase.from("profiles").select("id,email,display_name,created_at").order("created_at"),
-      context.supabase.from("user_roles").select("user_id,role"),
-    ]);
-    if (profiles.error || roles.error) throw new Error("Couldn't load users");
-    return (profiles.data ?? []).map((profile) => ({
-      ...profile,
-      role: roles.data?.some((role) => role.user_id === profile.id && role.role === "admin")
-        ? "admin" as const
-        : roles.data?.some((role) => role.user_id === profile.id && role.role === "operator")
-          ? "operator" as const : "none" as const,
+    const { data, error } = await context.supabase
+      .from("database_connections")
+      .select("id,label,host,port,database_name,username,password_cipher,updated_at")
+      .order("created_at");
+    if (error) throw new Error("Couldn't load saved connections");
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      label: row.label,
+      host: row.host,
+      port: row.port,
+      databaseName: row.database_name,
+      username: row.username,
+      hasPassword: Boolean(row.password_cipher),
+      updatedAt: row.updated_at,
     }));
+  });
+
+export const saveConnectionProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => connectionProfileInput.parse(data))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const row: Record<string, unknown> = {
+      label: data.label,
+      host: data.host,
+      port: data.port,
+      database_name: data.databaseName,
+      username: data.username,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.password && data.password.length > 0) {
+      row.password_cipher = encryptPassword(data.password);
+    }
+    if (data.id) {
+      const { error } = await context.supabase
+        .from("database_connections")
+        .update(row)
+        .eq("id", data.id);
+      if (error) throw new Error("Couldn't update the saved connection");
+      return { id: data.id };
+    }
+    const { data: inserted, error } = await context.supabase
+      .from("database_connections")
+      .insert(row)
+      .select("id")
+      .single();
+    if (error || !inserted) throw new Error("Couldn't save the connection");
+    return { id: inserted.id };
+  });
+
+export const deleteConnectionProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { error } = await context.supabase
+      .from("database_connections")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error("Couldn't delete the saved connection");
+    return { ok: true };
+  });
+
+export type ConnectionTest = ConnectionTestResultAlias;
+type ConnectionTestResultAlias = { ok: boolean; message: string; latencyMs: number };
+
+export const testConnectionProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z.union([
+      z.object({ id: z.string().uuid() }),
+      z.object({ connection: connectionProfileInput }),
+    ]).parse(data),
+  )
+  .handler(async ({ context, data }): Promise<ConnectionTestResultAlias> => {
+    await assertAdmin(context.supabase, context.userId);
+    let creds;
+    if ("id" in data) {
+      const { data: row, error } = await context.supabase
+        .from("database_connections")
+        .select("host,port,database_name,username,password_cipher")
+        .eq("id", data.id)
+        .single();
+      if (error || !row) throw new Error("Couldn't find that saved connection");
+      creds = {
+        host: row.host,
+        port: row.port,
+        database: row.database_name,
+        username: row.username,
+        password: row.password_cipher ? decryptPassword(row.password_cipher) : "",
+      };
+    } else {
+      creds = {
+        host: data.connection.host,
+        port: data.connection.port,
+        database: data.connection.databaseName,
+        username: data.connection.username,
+        password: data.connection.password ?? "",
+      };
+    }
+    return testDbConnection(creds);
   });
 
 export type OktaSetup = { callbackUrl: string };
