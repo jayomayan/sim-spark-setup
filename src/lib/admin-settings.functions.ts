@@ -129,6 +129,19 @@ export const deleteConnectionProfile = createServerFn({ method: "POST" })
 
 export type ConnectionTest = { ok: boolean; message: string; latencyMs: number };
 
+export const setupConnectionProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { data: row, error } = await context.supabase.from("database_connections")
+      .select("host,port,database_name,username,password_cipher").eq("id", data.id).single();
+    if (error || !row) throw new Error("Couldn't find that saved connection");
+    const { initializeExternalDatabase } = await import("@/lib/db-provisioning.server");
+    return initializeExternalDatabase({ host: row.host, port: row.port, database: row.database_name,
+      username: row.username, password: row.password_cipher ? decryptPassword(row.password_cipher) : "" });
+  });
+
 export const testConnectionProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>

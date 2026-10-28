@@ -1,4 +1,6 @@
 # Tasks
+- [x] Add admin-only external database creation and required-table setup; preserve existing data and managed sign-in.
+- [x] Verify database setup, repeat setup, permission failures and signed-in controls.
 - [x] Add admin-only database connection status and test control.
 - [x] Add admin-only user settings with Admin and Non-Staff roles.
 - [x] Add admin-only Okta integration settings (redirect URI, sign-in status, domain test).
