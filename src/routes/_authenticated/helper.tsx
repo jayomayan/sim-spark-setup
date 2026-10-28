@@ -16,7 +16,7 @@ function HelperPage() {
       <div className="space-y-6">
         <p className="max-w-2xl text-muted-foreground">
           Routers live on your private network, so a small helper program runs on a machine there (your old server works).
-          It checks in with the console, picks up jobs like ping, SNMP, NTP and log downloads, and sends results back.
+          It checks in with the console, picks up ping, SNMP, firewall and NTP jobs, and sends results back.
           You don't need to open any ports.
         </p>
         <Button asChild><a href="/helper/field-ops-helper.mjs" download>Download helper</a></Button>
