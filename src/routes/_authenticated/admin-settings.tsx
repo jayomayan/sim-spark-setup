@@ -6,6 +6,6 @@ export const Route = createFileRoute("/_authenticated/admin-settings")({
   beforeLoad: ({ context }) => {
     if (!context.isAdmin) throw redirect({ to: "/dashboard" });
   },
-  head: () => meta("Admin Settings", "Admin-only database connection checks and user access management for Frontier Tower Associates Philippines."),
+  head: () => meta("Admin Settings", "Admin-only database, user access and Okta integration settings for Frontier Tower Associates Philippines."),
   component: AdminSettings,
 });
