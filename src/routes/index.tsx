@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import logo from "@/assets/fta-logo.png.asset.json";
-import { TowerWireframe } from "@/components/TowerWireframe";
+import { SiteScene } from "@/components/SiteScene";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
@@ -20,15 +20,7 @@ export const Route = createFileRoute("/")({
 function Landing() {
   return (
     <main className="relative flex min-h-screen flex-col justify-center overflow-hidden px-6 py-16">
-      <div className="tower-scene pointer-events-none absolute right-[-9rem] top-1/2 hidden h-[105vh] -translate-y-1/2 lg:block">
-        <div className="tower-3d h-full">
-          <TowerWireframe back className="h-full w-auto max-w-none opacity-15" />
-        </div>
-      </div>
-      <TowerWireframe
-        back
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[85vh] w-auto max-w-none -translate-x-1/2 -translate-y-1/2 opacity-[0.10] lg:hidden"
-      />
+      <SiteScene className="scene-fade pointer-events-none absolute bottom-0 left-1/2 h-[68vh] w-auto max-w-none -translate-x-1/2 opacity-25 lg:opacity-40" />
       <div className="relative mx-auto w-full max-w-3xl">
         <img src={logo.url} alt="Frontier Tower Associates Philippines" className="mb-8 w-60" />
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary">Field Ops Console</p>
