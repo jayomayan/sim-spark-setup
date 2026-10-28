@@ -8,6 +8,13 @@
       "when": 1793147061216,
       "tag": "0000_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793155323778,
+      "tag": "0001_retire_router_logs",
+      "breakpoints": true
     }
   ]
 }
