@@ -111,11 +111,11 @@ export async function initializeExternalDatabase(creds: DbConnectionCredentials)
       if (!account) throw new Error("Database account unavailable");
       await tx`GRANT USAGE ON SCHEMA field_ops TO ${tx(account.username)}`;
       for (const name of [...REQUIRED_TABLES, "schema_migrations"]) {
-        await tx`REVOKE ALL ON TABLE ${tx(EXTERNAL_SCHEMA, name)} FROM PUBLIC`;
-        await tx`GRANT ALL ON TABLE ${tx(EXTERNAL_SCHEMA, name)} TO ${tx(account.username)}`;
+        await tx`REVOKE ALL ON TABLE ${tx(`${EXTERNAL_SCHEMA}.${name}`)} FROM PUBLIC`;
+        await tx`GRANT ALL ON TABLE ${tx(`${EXTERNAL_SCHEMA}.${name}`)} TO ${tx(account.username)}`;
         // No browser or generic authenticated role is granted access. Only the owner
         // can access these staged tables until a separately authorized cutover.
-        await tx`ALTER TABLE ${tx(EXTERNAL_SCHEMA, name)} ENABLE ROW LEVEL SECURITY`;
+        await tx`ALTER TABLE ${tx(`${EXTERNAL_SCHEMA}.${name}`)} ENABLE ROW LEVEL SECURITY`;
       }
       await tx`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA field_ops TO ${tx(account.username)}`;
       return [...created];
