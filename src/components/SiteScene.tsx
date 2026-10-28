@@ -39,17 +39,21 @@ export function SiteScene({
     </g>
   );
 
-  const Label = ({ x, y, children }: { x: number; y: number; children: ReactNode }) => (
+  const Label = ({ x, y, lines }: { x: number; y: number; lines: string[] }) => (
     <text
       x={x}
       y={y}
       textAnchor="middle"
       fill={ink}
-      fontSize="17"
-      letterSpacing="2"
+      fontSize="13"
+      letterSpacing="1.5"
       style={{ fontFamily: "var(--font-mono)", textTransform: "uppercase" }}
     >
-      {children}
+      {lines.map((l, i) => (
+        <tspan key={i} x={x} dy={i === 0 ? 0 : 16}>
+          {l}
+        </tspan>
+      ))}
     </text>
   );
 
