@@ -11,4 +11,5 @@
 
 - Router work (ping, SNMP, NTP, UR35 config) never runs in the app server: queue an `agent_jobs` row and let the on-network helper (`public/helper/field-ops-helper.mjs`, via `/api/public/agent` + AGENT_TOKEN) execute it — routers are only reachable from the private network.
 - Supported router jobs are defined in `src/lib/job-types.ts` and validated before queueing and dispatching so retired jobs cannot execute.
-- Access is role-gated: data RLS requires a `user_roles` row (`is_member`); the first signup becomes admin and admins grant others on /users.
+- Access is role-gated: data RLS requires a `user_roles` row (`is_member`); the first signup becomes admin and admins grant others through Admin Settings; /users remains a guarded compatibility URL.
+- Admin Settings routes gate on the parent role context, and every settings server function independently validates the caller's admin role through RLS before any privileged work; managed database credentials are never returned.
