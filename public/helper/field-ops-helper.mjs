@@ -13,7 +13,6 @@
 //            AGENT_TOKEN   the helper key you saved in the console
 // Optional:  NODE_SCRIPTS_DIR (default ./node-scripts)
 //            UR35_USERNAME / UR35_PASSWORD  (UR35 router login)
-//            DEVICE_USERNAME / DEVICE_PASSWORD (Enetek/Eltek login, default admin/admin)
 //            UR35_FIREWALL_PATH (default /api/firewall/rules), UR35_NTP_PATH (default /api/system/ntp)
 
 import { execFile } from "node:child_process";
@@ -21,7 +20,7 @@ import { hostname } from "node:os";
 import path from "node:path";
 import https from "node:https";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SCRIPTS = path.resolve(process.env.NODE_SCRIPTS_DIR || "./node-scripts");
@@ -80,23 +79,6 @@ function routerPost(ip, p, body) {
   });
 }
 
-function parseLogCsv(text) {
-  const logs = [];
-  for (const line of text.trim().split("\n").slice(5)) {
-    const parts = line.split(",").map((s) => s.trim().replace(/^"|"$/g, ""));
-    if (parts.length < 4) continue;
-    const d = new Date(parts[1]);
-    if (isNaN(d)) continue;
-    const pad = (n) => String(n).padStart(2, "0");
-    logs.push({
-      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-      time: `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`,
-      event: parts[2], message: parts[3],
-    });
-  }
-  return logs;
-}
-
 const handlers = {
   async ping({ ip }) {
     const { code, out } = await run("ping", ["-c", "5", "-W", "2", checkIp(ip)], 30_000);
@@ -128,13 +110,6 @@ const handlers = {
   },
   async ur35_ntp({ ip }) {
     return routerPost(checkIp(ip), process.env.UR35_NTP_PATH || "/api/system/ntp", NTP_SETTINGS);
-  },
-  async pull_logs({ ip, brand }) {
-    const script = String(brand).toLowerCase() === "eltek" ? "download-logs-eltek.cjs" : "download-logs.cjs";
-    const { code, out } = await run("node", [path.join(SCRIPTS, script), checkIp(ip),
-      process.env.DEVICE_USERNAME || "admin", process.env.DEVICE_PASSWORD || "admin"], 300_000);
-    if (code !== 0) throw new Error(out.trim().slice(-500) || "Log download failed");
-    return { logs: parseLogCsv(out) };
   },
 };
 
