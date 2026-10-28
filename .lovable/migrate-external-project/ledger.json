@@ -1,0 +1,12 @@
+[
+ {"capability":"code & screens","source":"Laravel/Livewire","outcome":"rebuilt","status":"done","next_action":null},
+ {"capability":"schema devices/device_logs","source":"MySQL","outcome":"migrate","status":"done","next_action":null},
+ {"capability":"records","source":"MySQL","outcome":"migrate","status":"pending","next_action":"user exports devices/device_logs/users CSV"},
+ {"capability":"email/password auth","source":"Jetstream","outcome":"migrate","status":"built","next_action":"verify with real user"},
+ {"capability":"Okta OIDC","source":"OktaOIDCController","outcome":"migrate","status":"pending","next_action":"configure OIDC provider with Okta details"},
+ {"capability":"router tools via helper","source":"exec()","outcome":"helper agent","status":"built","next_action":"set AGENT_TOKEN, install helper"},
+ {"capability":"Aeris lookup","source":"helpers.php","outcome":"keep provider","status":"built","next_action":"AERIS_USERNAME/AERIS_PASSWORD secrets"},
+ {"capability":"SIM activation","source":"new","outcome":"built","status":"test mode","next_action":"IoT Console Connect credentials"},
+ {"capability":"BigQuery push","source":"PushToBigQueryJob","outcome":"pending decision","status":"pending","next_action":"ask user if still needed"},
+ {"capability":"scheduled commands (serials, firmware, logs)","source":"artisan","outcome":"pending","status":"pending","next_action":"add later"}
+]

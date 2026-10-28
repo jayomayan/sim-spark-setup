@@ -8,3 +8,6 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Router work (ping, SNMP, NTP, UR35 config, log pulls) never runs in the app server: queue an `agent_jobs` row and let the on-network helper (`public/helper/field-ops-helper.mjs`, via `/api/public/agent` + AGENT_TOKEN) execute it — routers are only reachable from the private network.
+- Access is role-gated: data RLS requires a `user_roles` row (`is_member`); the first signup becomes admin and admins grant others on /users.

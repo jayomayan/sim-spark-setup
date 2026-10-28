@@ -10,33 +10,182 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedDeviceNtpRouteImport } from './routes/_authenticated/device-ntp'
+import { Route as AuthenticatedDevicesRouteImport } from './routes/_authenticated/devices'
+import { Route as AuthenticatedHelperRouteImport } from './routes/_authenticated/helper'
+import { Route as AuthenticatedPrivateBrowserRouteImport } from './routes/_authenticated/private-browser'
+import { Route as AuthenticatedSimActivationRouteImport } from './routes/_authenticated/sim-activation'
+import { Route as AuthenticatedSnmpWalkRouteImport } from './routes/_authenticated/snmp-walk'
+import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
+import { Route as ApiPublicAgentRouteImport } from './routes/api/public/agent'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDeviceNtpRoute = AuthenticatedDeviceNtpRouteImport.update({
+  id: '/device-ntp',
+  path: '/device-ntp',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDevicesRoute = AuthenticatedDevicesRouteImport.update({
+  id: '/devices',
+  path: '/devices',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHelperRoute = AuthenticatedHelperRouteImport.update({
+  id: '/helper',
+  path: '/helper',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPrivateBrowserRoute =
+  AuthenticatedPrivateBrowserRouteImport.update({
+    id: '/private-browser',
+    path: '/private-browser',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSimActivationRoute =
+  AuthenticatedSimActivationRouteImport.update({
+    id: '/sim-activation',
+    path: '/sim-activation',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSnmpWalkRoute = AuthenticatedSnmpWalkRouteImport.update({
+  id: '/snmp-walk',
+  path: '/snmp-walk',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedUsersRoute = AuthenticatedUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiPublicAgentRoute = ApiPublicAgentRouteImport.update({
+  id: '/api/public/agent',
+  path: '/api/public/agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/device-ntp': typeof AuthenticatedDeviceNtpRoute
+  '/devices': typeof AuthenticatedDevicesRoute
+  '/helper': typeof AuthenticatedHelperRoute
+  '/private-browser': typeof AuthenticatedPrivateBrowserRoute
+  '/sim-activation': typeof AuthenticatedSimActivationRoute
+  '/snmp-walk': typeof AuthenticatedSnmpWalkRoute
+  '/users': typeof AuthenticatedUsersRoute
+  '/api/public/agent': typeof ApiPublicAgentRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/device-ntp': typeof AuthenticatedDeviceNtpRoute
+  '/devices': typeof AuthenticatedDevicesRoute
+  '/helper': typeof AuthenticatedHelperRoute
+  '/private-browser': typeof AuthenticatedPrivateBrowserRoute
+  '/sim-activation': typeof AuthenticatedSimActivationRoute
+  '/snmp-walk': typeof AuthenticatedSnmpWalkRoute
+  '/users': typeof AuthenticatedUsersRoute
+  '/api/public/agent': typeof ApiPublicAgentRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/device-ntp': typeof AuthenticatedDeviceNtpRoute
+  '/_authenticated/devices': typeof AuthenticatedDevicesRoute
+  '/_authenticated/helper': typeof AuthenticatedHelperRoute
+  '/_authenticated/private-browser': typeof AuthenticatedPrivateBrowserRoute
+  '/_authenticated/sim-activation': typeof AuthenticatedSimActivationRoute
+  '/_authenticated/snmp-walk': typeof AuthenticatedSnmpWalkRoute
+  '/_authenticated/users': typeof AuthenticatedUsersRoute
+  '/api/public/agent': typeof ApiPublicAgentRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/dashboard'
+    | '/device-ntp'
+    | '/devices'
+    | '/helper'
+    | '/private-browser'
+    | '/sim-activation'
+    | '/snmp-walk'
+    | '/users'
+    | '/api/public/agent'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/dashboard'
+    | '/device-ntp'
+    | '/devices'
+    | '/helper'
+    | '/private-browser'
+    | '/sim-activation'
+    | '/snmp-walk'
+    | '/users'
+    | '/api/public/agent'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/reset-password'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/device-ntp'
+    | '/_authenticated/devices'
+    | '/_authenticated/helper'
+    | '/_authenticated/private-browser'
+    | '/_authenticated/sim-activation'
+    | '/_authenticated/snmp-walk'
+    | '/_authenticated/users'
+    | '/api/public/agent'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicAgentRoute: typeof ApiPublicAgentRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +197,124 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/device-ntp': {
+      id: '/_authenticated/device-ntp'
+      path: '/device-ntp'
+      fullPath: '/device-ntp'
+      preLoaderRoute: typeof AuthenticatedDeviceNtpRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/devices': {
+      id: '/_authenticated/devices'
+      path: '/devices'
+      fullPath: '/devices'
+      preLoaderRoute: typeof AuthenticatedDevicesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/helper': {
+      id: '/_authenticated/helper'
+      path: '/helper'
+      fullPath: '/helper'
+      preLoaderRoute: typeof AuthenticatedHelperRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/private-browser': {
+      id: '/_authenticated/private-browser'
+      path: '/private-browser'
+      fullPath: '/private-browser'
+      preLoaderRoute: typeof AuthenticatedPrivateBrowserRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sim-activation': {
+      id: '/_authenticated/sim-activation'
+      path: '/sim-activation'
+      fullPath: '/sim-activation'
+      preLoaderRoute: typeof AuthenticatedSimActivationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/snmp-walk': {
+      id: '/_authenticated/snmp-walk'
+      path: '/snmp-walk'
+      fullPath: '/snmp-walk'
+      preLoaderRoute: typeof AuthenticatedSnmpWalkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/users': {
+      id: '/_authenticated/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof AuthenticatedUsersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/agent': {
+      id: '/api/public/agent'
+      path: '/api/public/agent'
+      fullPath: '/api/public/agent'
+      preLoaderRoute: typeof ApiPublicAgentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDeviceNtpRoute: typeof AuthenticatedDeviceNtpRoute
+  AuthenticatedDevicesRoute: typeof AuthenticatedDevicesRoute
+  AuthenticatedHelperRoute: typeof AuthenticatedHelperRoute
+  AuthenticatedPrivateBrowserRoute: typeof AuthenticatedPrivateBrowserRoute
+  AuthenticatedSimActivationRoute: typeof AuthenticatedSimActivationRoute
+  AuthenticatedSnmpWalkRoute: typeof AuthenticatedSnmpWalkRoute
+  AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDeviceNtpRoute: AuthenticatedDeviceNtpRoute,
+  AuthenticatedDevicesRoute: AuthenticatedDevicesRoute,
+  AuthenticatedHelperRoute: AuthenticatedHelperRoute,
+  AuthenticatedPrivateBrowserRoute: AuthenticatedPrivateBrowserRoute,
+  AuthenticatedSimActivationRoute: AuthenticatedSimActivationRoute,
+  AuthenticatedSnmpWalkRoute: AuthenticatedSnmpWalkRoute,
+  AuthenticatedUsersRoute: AuthenticatedUsersRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicAgentRoute: ApiPublicAgentRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
