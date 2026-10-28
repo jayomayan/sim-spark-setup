@@ -121,7 +121,7 @@ export const testConnectionProfile = createServerFn({ method: "POST" })
       z.object({ connection: connectionProfileInput }),
     ]).parse(data),
   )
-  .handler(async ({ context, data }): Promise<ConnectionTestResultAlias> => {
+  .handler(async ({ context, data }): Promise<ConnectionTest> => {
     await assertAdmin(context.supabase, context.userId);
     let creds;
     if ("id" in data) {
