@@ -70,17 +70,15 @@ export const saveConnectionProfile = createServerFn({ method: "POST" })
   .inputValidator((data) => connectionProfileInput.parse(data))
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
-    const row: Record<string, unknown> = {
+    const row = {
       label: data.label,
       host: data.host,
       port: data.port,
       database_name: data.databaseName,
       username: data.username,
       updated_at: new Date().toISOString(),
+      ...(data.password && data.password.length > 0 ? { password_cipher: encryptPassword(data.password) } : {}),
     };
-    if (data.password && data.password.length > 0) {
-      row.password_cipher = encryptPassword(data.password);
-    }
     if (data.id) {
       const { error } = await context.supabase
         .from("database_connections")

@@ -83,7 +83,8 @@ export async function testDbConnection(
     });
     try {
       const rows = (await sql`select version() as version`) as { version?: unknown }[];
-      const version = rows[0]?.version ? String(rows[0].version).split(" (")[0] : "Connected";
+      const raw = rows[0]?.version ? String(rows[0].version) : "";
+      const version = raw.split(" (")[0] || "Connected";
       return { ok: true, message: version, latencyMs: Date.now() - started };
     } finally {
       await sql.end({ timeout: 5 }).catch(() => undefined);
