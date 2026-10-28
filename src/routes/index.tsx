@@ -20,7 +20,7 @@ export const Route = createFileRoute("/")({
 function Landing() {
   return (
     <main className="relative flex min-h-screen flex-col justify-center overflow-hidden px-6 py-16">
-      <div className="tower-scene pointer-events-none absolute right-[-4rem] top-1/2 hidden h-[105vh] -translate-y-1/2 lg:block">
+      <div className="tower-scene pointer-events-none absolute right-[-9rem] top-1/2 hidden h-[105vh] -translate-y-1/2 lg:block">
         <div className="tower-3d h-full">
           <TowerWireframe back className="h-full w-auto max-w-none opacity-15" />
         </div>

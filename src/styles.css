@@ -189,3 +189,7 @@
     transform: rotateY(-12deg);
   }
 }
+.tower-scene {
+  mask-image: linear-gradient(to right, transparent 0%, black 38%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 38%);
+}
