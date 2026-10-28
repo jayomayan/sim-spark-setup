@@ -170,6 +170,6 @@
 
 /* connected-site line-art scene on the landing page */
 .scene-fade {
-  mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 16%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 16%);
 }
