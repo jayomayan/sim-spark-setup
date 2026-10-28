@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import logo from "@/assets/fta-logo.png.asset.json";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
@@ -19,6 +20,7 @@ function Landing() {
   return (
     <main className="flex min-h-screen flex-col justify-center px-6 py-16">
       <div className="mx-auto w-full max-w-3xl">
+        <img src={logo.url} alt="Frontier Tower Associates Philippines" className="mb-8 w-60" />
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary">Field Ops Console</p>
         <h1 className="mt-4 text-5xl font-bold leading-tight tracking-tight md:text-6xl">
           Every site router,<br />one console.

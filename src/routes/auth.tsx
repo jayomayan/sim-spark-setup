@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import logo from "@/assets/fta-logo.png.asset.json";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,6 +67,7 @@ function AuthPage() {
   return (
     <main className="flex min-h-screen items-center justify-center px-5">
       <div className="w-full max-w-sm">
+        <img src={logo.url} alt="Frontier Tower Associates Philippines" className="mb-6 w-52" />
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary">Field Ops Console</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight">
           {mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Reset password"}

@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouteContext } from "@tanstack/react-router";
+import logo from "@/assets/fta-logo.png.asset.json";
 import { useQueryClient } from "@tanstack/react-query";
 import { Cpu, Gauge, Globe, ListTree, LogOut, Radio, Server, Clock, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,7 +58,7 @@ function Layout() {
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">
-        <p className="px-2 font-mono text-xs uppercase tracking-[0.25em] text-primary">Field Ops</p>
+        <img src={logo.url} alt="Frontier Tower Associates Philippines" className="w-44 px-2" />
         <nav className="mt-6 flex-1 space-y-1">
           {items.map(({ to, label, icon: Icon }) => (
             <Link key={to} to={to}
