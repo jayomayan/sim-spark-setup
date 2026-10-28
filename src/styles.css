@@ -166,10 +166,3 @@
 @layer base {
   body { background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px); background-size: 32px 32px; }
 }
-
-
-/* connected-site line-art scene on the landing page */
-.scene-fade {
-  mask-image: linear-gradient(to bottom, transparent 0%, black 16%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 16%);
-}

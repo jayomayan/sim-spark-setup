@@ -7,12 +7,9 @@ import type { CSSProperties } from "react";
 export function TowerWireframe({
   className,
   style,
-  back = false,
 }: {
   className?: string;
   style?: CSSProperties;
-  /** Draw a recessed second face + connecting edges for a 3D lattice look. */
-  back?: boolean;
 }) {
   const LEVELS = 10;
   const TOP = 130;
@@ -30,44 +27,8 @@ export function TowerWireframe({
   const orange = "var(--chart-2)";
   const amber = "var(--chart-3)";
 
-  const BX = 86; // back-face horizontal offset
-  const BY = 34; // back-face vertical offset (raised = seen from slightly below)
-
   return (
     <svg viewBox="0 0 600 940" fill="none" aria-hidden="true" className={className} style={style}>
-      {back && (
-        <g opacity={0.42}>
-          {/* recessed rear face, narrower to fake perspective */}
-          <g transform={`translate(${BX} ${BY}) scale(0.82 1) translate(${CX * 0.18} 0)`}>
-            <line x1={lx(BASE)} y1={BASE} x2={lx(TOP)} y2={TOP} stroke={red} strokeWidth="3" />
-            <line x1={rx(BASE)} y1={BASE} x2={rx(TOP)} y2={TOP} stroke={red} strokeWidth="3" />
-            {ys.map((y, i) => (
-              <line key={`b-rung-${i}`} x1={lx(y)} y1={y} x2={rx(y)} y2={y} stroke={red} strokeWidth="1.75" opacity={0.85} />
-            ))}
-            {ys.slice(0, -1).map((y, i) => {
-              const y2 = ys[i + 1] ?? y;
-              return (
-                <g key={`b-brace-${i}`} opacity={0.4}>
-                  <line x1={lx(y)} y1={y} x2={rx(y2)} y2={y2} stroke={red} strokeWidth="1.5" />
-                  <line x1={rx(y)} y1={y} x2={lx(y2)} y2={y2} stroke={red} strokeWidth="1.5" />
-                </g>
-              );
-            })}
-          </g>
-          {/* edges connecting front face to rear face at every rung */}
-          {ys.map((y, i) => {
-            const bx = (x: number) => (x + CX * 0.18) * 0.82 + BX;
-            return (
-              <g key={`depth-${i}`} opacity={0.5}>
-                <line x1={lx(y)} y1={y} x2={bx(lx(y))} y2={y + BY} stroke={red} strokeWidth="1.75" />
-                <line x1={rx(y)} y1={y} x2={bx(rx(y))} y2={y + BY} stroke={red} strokeWidth="1.75" />
-              </g>
-            );
-          })}
-          {/* mast depth edge */}
-          <line x1={CX} y1={TOP} x2={(CX + CX * 0.18) * 0.82 + BX} y2={TOP + BY} stroke={red} strokeWidth="2" opacity={0.5} />
-        </g>
-      )}
       {/* signal arcs above the mast */}
       {[46, 76, 106].map((r, i) => (
         <path
