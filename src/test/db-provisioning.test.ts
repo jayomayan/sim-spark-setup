@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 const mock = vi.hoisted(() => ({ connect: vi.fn() }));
 vi.mock("postgres", () => ({ default: mock.connect }));
