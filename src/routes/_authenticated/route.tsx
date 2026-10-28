@@ -87,15 +87,3 @@ function Layout() {
     </div>
   );
 }
-
-export function PageHeader({ kicker, title, children }: { kicker: string; title: string; children?: React.ReactNode }) {
-  return (
-    <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary">{kicker}</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">{title}</h1>
-      </div>
-      {children}
-    </div>
-  );
-}

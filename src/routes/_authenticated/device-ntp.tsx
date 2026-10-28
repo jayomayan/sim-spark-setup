@@ -17,7 +17,7 @@ type Result = { ip: string; status: "ok" | "error" | "running"; message: string 
 
 function DeviceNtp() {
   const [hosts, setHosts] = useState("");
-  const [brand, setBrand] = useState("milesight");
+  const [brand, setBrand] = useState("enetek");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Result[]>([]);
@@ -56,8 +56,10 @@ function DeviceNtp() {
             <Select value={brand} onValueChange={setBrand}>
               <SelectTrigger className="w-60"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="milesight">Milesight (UR35)</SelectItem>
-                <SelectItem value="teltonika">Teltonika</SelectItem>
+                <SelectItem value="enetek">Enetek</SelectItem>
+                <SelectItem value="vnt" disabled>VNT</SelectItem>
+                <SelectItem value="eltek" disabled>Eltek</SelectItem>
+                <SelectItem value="huawei" disabled>Huawei</SelectItem>
               </SelectContent>
             </Select>
           </div>
