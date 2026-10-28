@@ -166,3 +166,30 @@
 @layer base {
   body { background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px); background-size: 32px 32px; }
 }
+
+/* 3D wireframe tower on the landing page */
+.tower-scene {
+  perspective: 1100px;
+}
+.tower-3d {
+  transform-style: preserve-3d;
+  animation: tower-sway 26s ease-in-out infinite;
+}
+@keyframes tower-sway {
+  0%, 100% {
+    transform: rotateY(-16deg) rotateX(2deg);
+  }
+  50% {
+    transform: rotateY(14deg) rotateX(-2deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tower-3d {
+    animation: none;
+    transform: rotateY(-12deg);
+  }
+}
+.tower-scene {
+  mask-image: linear-gradient(to right, transparent 0%, black 38%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 38%);
+}
