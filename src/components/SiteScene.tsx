@@ -20,11 +20,11 @@ export function SiteScene({
 
   // ---- tower geometry ----
   const CX = 800;
-  const TOP = 150;
+  const TOP = 170;
   const BASE = 860;
-  const LEVELS = 7;
-  const HALF_TOP = 26;
-  const HALF_BASE = 64;
+  const LEVELS = 12;
+  const HALF_TOP = 34;
+  const HALF_BASE = 78;
   const ys = Array.from({ length: LEVELS + 1 }, (_, i) => BASE + ((TOP - BASE) * i) / LEVELS);
   const halfAt = (y: number) => HALF_TOP + ((HALF_BASE - HALF_TOP) * (y - TOP)) / (BASE - TOP);
   const lx = (y: number) => CX - halfAt(y);
