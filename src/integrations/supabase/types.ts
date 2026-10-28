@@ -74,6 +74,42 @@ export type Database = {
         }
         Relationships: []
       }
+      database_connections: {
+        Row: {
+          created_at: string
+          database_name: string
+          host: string
+          id: string
+          label: string
+          password_cipher: string | null
+          port: number
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          database_name?: string
+          host: string
+          id?: string
+          label: string
+          password_cipher?: string | null
+          port?: number
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          database_name?: string
+          host?: string
+          id?: string
+          label?: string
+          password_cipher?: string | null
+          port?: number
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       device_logs: {
         Row: {
           created_at: string
