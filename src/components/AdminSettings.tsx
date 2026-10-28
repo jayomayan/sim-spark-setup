@@ -2,15 +2,30 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouteContext } from "@tanstack/react-router";
-import { Database, Users, RefreshCw, ShieldCheck, Loader2, KeyRound, Copy, CheckCircle2, XCircle } from "lucide-react";
+import { Database, Users, RefreshCw, ShieldCheck, Loader2, KeyRound, Copy, CheckCircle2, XCircle, Server, Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { checkDatabaseConnection, listSettingsUsers, getOktaSetup, checkOktaDomain, checkOktaSignIn } from "@/lib/admin-settings.functions";
+import {
+  checkDatabaseConnection,
+  listSettingsUsers,
+  getOktaSetup,
+  checkOktaDomain,
+  checkOktaSignIn,
+  listConnectionProfiles,
+  saveConnectionProfile,
+  deleteConnectionProfile,
+  testConnectionProfile,
+} from "@/lib/admin-settings.functions";
 import { setUserRole } from "@/lib/users.functions";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+type ProfileForm = { label: string; host: string; port: string; databaseName: string; username: string; password: string };
+
+const EMPTY_FORM: ProfileForm = { label: "", host: "", port: "5432", databaseName: "postgres", username: "", password: "" };
 
 export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "database" | "users" | "okta" }) {
   const { user } = useRouteContext({ from: "/_authenticated" });
@@ -21,14 +36,27 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
   const loadSetup = useServerFn(getOktaSetup);
   const testDomain = useServerFn(checkOktaDomain);
   const testSignIn = useServerFn(checkOktaSignIn);
+  const listProfiles = useServerFn(listConnectionProfiles);
+  const saveProfile = useServerFn(saveConnectionProfile);
+  const removeProfile = useServerFn(deleteConnectionProfile);
+  const testProfile = useServerFn(testConnectionProfile);
+
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
   const [tab, setTab] = useState(defaultTab);
   const [oktaDomainInput, setOktaDomainInput] = useState("");
   const [domainResult, setDomainResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [testingDomain, setTestingDomain] = useState(false);
+
+  const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formBusy, setFormBusy] = useState<"save" | "test" | "delete" | null>(null);
+  const [formResult, setFormResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [rowResults, setRowResults] = useState<Record<string, { ok: boolean; text: string }>>({});
+
   const connection = useQuery({ queryKey: ["admin", "database"], queryFn: () => check(), retry: false });
   const accounts = useQuery({ queryKey: ["admin", "users"], queryFn: () => listUsers(), retry: false, enabled: tab === "users" });
+  const profiles = useQuery({ queryKey: ["admin", "dbprofiles"], queryFn: () => listProfiles(), retry: false, enabled: tab === "database" });
   const setup = useQuery({ queryKey: ["admin", "okta", "setup"], queryFn: () => loadSetup(), retry: false, enabled: tab === "okta" });
   const signInStatus = useQuery({
     queryKey: ["admin", "okta", "signin"],
@@ -49,6 +77,94 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
       toast.error(error instanceof Error ? error.message : "Couldn't update access");
     } finally {
       setSaving(null);
+    }
+  }
+
+  function setField(field: keyof ProfileForm, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function editProfile(id: string) {
+    const profile = profiles.data?.find((item) => item.id === id);
+    if (!profile) return;
+    setEditingId(id);
+    setForm({ label: profile.label, host: profile.host, port: String(profile.port), databaseName: profile.databaseName, username: profile.username, password: "" });
+    setFormResult(null);
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFormResult(null);
+  }
+
+  async function submitProfile(mode: "save" | "test") {
+    if (!form.label.trim() || !form.host.trim() || !form.username.trim()) {
+      setFormResult({ ok: false, text: "Label, host and username are required." });
+      return;
+    }
+    const port = Number.parseInt(form.port || "5432", 10);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      setFormResult({ ok: false, text: "Port must be a number between 1 and 65535." });
+      return;
+    }
+    setFormBusy(mode);
+    setFormResult(null);
+    try {
+      const payload = {
+        id: editingId ?? undefined,
+        label: form.label.trim(),
+        host: form.host.trim(),
+        port,
+        databaseName: form.databaseName.trim() || "postgres",
+        username: form.username.trim(),
+        password: form.password.length > 0 ? form.password : undefined,
+      };
+      if (mode === "save") {
+        const { id } = await saveProfile({ data: payload });
+        await qc.invalidateQueries({ queryKey: ["admin", "dbprofiles"] });
+        setEditingId(id);
+        setForm((current) => ({ ...current, password: "" }));
+        setFormResult({ ok: true, text: "Connection saved." });
+        toast.success("Connection profile saved");
+      } else {
+        const usesSavedPassword = Boolean(editingId) && form.password.length === 0;
+        const result = usesSavedPassword && editingId
+          ? await testProfile({ data: { id: editingId } })
+          : await testProfile({ data: { connection: payload } });
+        setFormResult({ ok: result.ok, text: result.ok ? `Connected — ${result.message} (${result.latencyMs} ms)` : result.message });
+      }
+    } catch (error) {
+      setFormResult({ ok: false, text: error instanceof Error ? error.message : "Something went wrong" });
+    } finally {
+      setFormBusy(null);
+    }
+  }
+
+  async function testSavedRow(id: string) {
+    setRowResults((current) => ({ ...current, [id]: { ok: true, text: "Testing…" } }));
+    try {
+      const result = await testProfile({ data: { id } });
+      setRowResults((current) => ({
+        ...current,
+        [id]: { ok: result.ok, text: result.ok ? `Connected — ${result.message} (${result.latencyMs} ms)` : result.message },
+      }));
+    } catch (error) {
+      setRowResults((current) => ({ ...current, [id]: { ok: false, text: error instanceof Error ? error.message : "Test failed" } }));
+    }
+  }
+
+  async function deleteProfile(id: string) {
+    setFormBusy("delete");
+    try {
+      await removeProfile({ data: { id } });
+      if (editingId === id) resetForm();
+      await qc.invalidateQueries({ queryKey: ["admin", "dbprofiles"] });
+      toast.success("Connection removed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't delete");
+    } finally {
+      setFormBusy(null);
     }
   }
 
@@ -90,25 +206,86 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
           <TabsTrigger value="okta" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><KeyRound className="h-4 w-4 shrink-0" />Okta Integration</TabsTrigger>
         </TabsList>
         <TabsContent value="database">
-          <section>
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-              <h2 className="text-xl font-semibold">Current connection</h2>
-              <Button variant="outline" onClick={() => connection.refetch()} disabled={connection.isFetching}><RefreshCw className={`h-4 w-4 ${connection.isFetching ? "animate-spin" : ""}`} />{connection.isFetching ? "Testing…" : "Test connection"}</Button>
-            </div>
-            {connection.isPending && <p role="status" className="text-sm text-muted-foreground">Checking connection…</p>}
-            {connection.isError && <p role="alert" className="mb-4 text-sm text-destructive">Couldn't check the connection. Please try again.</p>}
-            <dl className="divide-y border-y text-sm">
-              {[
-                ["Provider", "Lovable Cloud"],
-                ["Database", "PostgreSQL"],
-                ["Connection", "Managed connection"],
-                ["Credentials", "Managed securely by Lovable Cloud"],
-                ["Status", connection.data ? (connection.data.connected ? "Connected" : "Connection failed") : "Not checked"],
-                ["Response time", connection.data ? `${connection.data.latencyMs} ms` : "—"],
-                ["Last checked", connection.data ? new Date(connection.data.checkedAt).toLocaleString() : "—"],
-              ].map(([label, value]) => <div key={label} className="grid grid-cols-1 gap-1 py-4 sm:grid-cols-[180px_1fr]"><dt className="text-muted-foreground">{label}</dt><dd className={label === "Status" ? "font-semibold text-primary" : "font-medium"}>{value}</dd></div>)}
-            </dl>
-          </section>
+          <div className="max-w-3xl space-y-10">
+            <section>
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                <h2 className="text-xl font-semibold">Current connection</h2>
+                <Button variant="outline" onClick={() => connection.refetch()} disabled={connection.isFetching}><RefreshCw className={`h-4 w-4 ${connection.isFetching ? "animate-spin" : ""}`} />{connection.isFetching ? "Testing…" : "Test connection"}</Button>
+              </div>
+              {connection.isPending && <p role="status" className="text-sm text-muted-foreground">Checking connection…</p>}
+              {connection.isError && <p role="alert" className="mb-4 text-sm text-destructive">Couldn't check the connection. Please try again.</p>}
+              <dl className="divide-y border-y text-sm">
+                {[
+                  ["Provider", "Lovable Cloud"],
+                  ["Database", "PostgreSQL"],
+                  ["Connection", "Managed connection"],
+                  ["Credentials", "Managed securely by Lovable Cloud"],
+                  ["Status", connection.data ? (connection.data.connected ? "Connected" : "Connection failed") : "Not checked"],
+                  ["Response time", connection.data ? `${connection.data.latencyMs} ms` : "—"],
+                  ["Last checked", connection.data ? new Date(connection.data.checkedAt).toLocaleString() : "—"],
+                ].map(([label, value]) => <div key={label} className="grid grid-cols-1 gap-1 py-4 sm:grid-cols-[180px_1fr]"><dt className="text-muted-foreground">{label}</dt><dd className={label === "Status" ? "font-semibold text-primary" : "font-medium"}>{value}</dd></div>)}
+              </dl>
+              <p className="mt-3 text-xs text-muted-foreground">The app's own data always runs on this managed connection. Save profiles below to keep other servers ready for tests and migrations.</p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold">Connection profiles</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Details for other database servers you may want to point tools at. Passwords are stored encrypted and never shown again.</p>
+              <div className="divide-y border-y">
+                {(profiles.data ?? []).map((profile) => (
+                  <div key={profile.id} className="py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1 basis-64">
+                        <p className="flex items-center gap-2 text-sm font-semibold"><Server className="h-4 w-4 shrink-0 text-primary" />{profile.label}</p>
+                        <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{profile.host}:{profile.port}/{profile.databaseName} · {profile.username} · {profile.hasPassword ? "password saved" : "no password"}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => testSavedRow(profile.id)}>Test</Button>
+                        <Button variant="outline" size="sm" onClick={() => editProfile(profile.id)}><Pencil className="h-4 w-4" />Edit</Button>
+                        <Button variant="outline" size="sm" onClick={() => deleteProfile(profile.id)} disabled={formBusy === "delete"}><Trash2 className="h-4 w-4" />Delete</Button>
+                      </div>
+                    </div>
+                    {(() => {
+                      const rowResult = rowResults[profile.id];
+                      if (!rowResult) return null;
+                      return (
+                        <p role="status" className={`mt-2 flex items-start gap-2 text-sm ${rowResult.ok ? "text-primary" : "text-destructive"}`}>
+                          {rowResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+                          {rowResult.text}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                ))}
+                {profiles.isPending && <p role="status" className="py-4 text-sm text-muted-foreground">Loading saved connections…</p>}
+                {profiles.isError && <p role="alert" className="py-4 text-sm text-destructive">Couldn't load saved connections.</p>}
+                {!profiles.isPending && !profiles.isError && (profiles.data ?? []).length === 0 && <p className="py-4 text-sm text-muted-foreground">No saved connections yet.</p>}
+              </div>
+
+              <div className="mt-6 rounded-lg border p-5">
+                <h3 className="flex items-center gap-2 font-semibold"><Plus className="h-4 w-4 text-primary" />{editingId ? "Edit connection" : "Add connection"}</h3>
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2"><Label htmlFor="db-label">Label</Label><Input id="db-label" placeholder="Old server" value={form.label} onChange={(e) => setField("label", e.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor="db-host">Host</Label><Input id="db-host" placeholder="db.example.com" value={form.host} onChange={(e) => setField("host", e.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor="db-port">Port</Label><Input id="db-port" inputMode="numeric" value={form.port} onChange={(e) => setField("port", e.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor="db-name">Database name</Label><Input id="db-name" value={form.databaseName} onChange={(e) => setField("databaseName", e.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor="db-user">Username</Label><Input id="db-user" autoComplete="off" value={form.username} onChange={(e) => setField("username", e.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor="db-pass">Password{editingId ? <span className="ml-1 font-normal text-muted-foreground">(leave blank to keep saved)</span> : ""}</Label><Input id="db-pass" type="password" autoComplete="new-password" value={form.password} onChange={(e) => setField("password", e.target.value)} /></div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <Button onClick={() => submitProfile("save")} disabled={formBusy !== null}>{formBusy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{editingId ? "Save changes" : "Save connection"}</Button>
+                  <Button variant="outline" onClick={() => submitProfile("test")} disabled={formBusy !== null}>{formBusy === "test" ? "Testing…" : "Test connection"}</Button>
+                  {editingId && <Button variant="ghost" onClick={resetForm}>Cancel editing</Button>}
+                </div>
+                {formResult && (
+                  <p role="status" className={`mt-3 flex items-start gap-2 text-sm ${formResult.ok ? "text-primary" : "text-destructive"}`}>
+                    {formResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+                    {formResult.text}
+                  </p>
+                )}
+              </div>
+            </section>
+          </div>
         </TabsContent>
         <TabsContent value="users">
           <section>
