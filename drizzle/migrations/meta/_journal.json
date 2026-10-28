@@ -15,6 +15,13 @@
       "when": 1793155323778,
       "tag": "0001_retire_router_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793166027117,
+      "tag": "0002_database_connection_profiles",
+      "breakpoints": true
     }
   ]
 }
