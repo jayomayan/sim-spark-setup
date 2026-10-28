@@ -20,7 +20,7 @@ export const Route = createFileRoute("/")({
 function Landing() {
   return (
     <main className="relative flex min-h-screen flex-col justify-center overflow-hidden px-6 py-16">
-      <SiteScene className="scene-fade pointer-events-none absolute bottom-0 left-1/2 h-[68vh] w-auto max-w-none -translate-x-1/2 opacity-25 lg:opacity-40" />
+      <SiteScene className="scene-fade pointer-events-none absolute bottom-0 left-1/2 w-[170vw] max-w-none -translate-x-1/2 opacity-25 sm:w-[125vw] lg:w-screen lg:opacity-40" />
       <div className="relative mx-auto w-full max-w-3xl">
         <img src={logo.url} alt="Frontier Tower Associates Philippines" className="mb-8 w-60" />
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary">Field Ops Console</p>
