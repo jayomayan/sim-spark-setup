@@ -117,7 +117,7 @@ export function SiteScene({
       {/* ================= left side ================= */}
       {/* generator */}
       <g stroke={ink} strokeWidth="2.5">
-        <Label x={140} y={492}>Generator Monitoring</Label>
+        <Label x={140} y={462} lines={["Generator", "Monitoring"]} />
         <Wifi x={140} y={522} />
         <rect x="92" y="592" width="96" height="66" rx="6" />
         <rect x="120" y="578" width="12" height="14" />
@@ -132,7 +132,7 @@ export function SiteScene({
 
       {/* cctv camera */}
       <g stroke={ink} strokeWidth="2.5">
-        <Label x={360} y={492}>Camera Surveillance</Label>
+        <Label x={360} y={462} lines={["Camera", "Surveillance"]} />
         <Wifi x={360} y={522} />
         <line x1="345" y1="560" x2="345" y2="586" />
         <rect x="330" y="552" width="30" height="9" />
@@ -145,7 +145,7 @@ export function SiteScene({
 
       {/* building automation */}
       <g stroke={ink} strokeWidth="2.5">
-        <Label x={545} y={492}>Building Automation</Label>
+        <Label x={545} y={462} lines={["Building", "Automation"]} />
         <Wifi x={545} y={522} />
         <rect x="508" y="566" width="74" height="102" />
         {[0, 1, 2].map((c) =>
@@ -168,7 +168,7 @@ export function SiteScene({
 
       {/* fuel tank */}
       <g stroke={ink} strokeWidth="2.5">
-        <Label x={672} y={492}>Fuel Level Monitoring</Label>
+        <Label x={686} y={462} lines={["Fuel Level", "Monitoring"]} />
         <Wifi x={672} y={522} />
         <rect x="628" y="596" width="88" height="46" rx="23" />
         <circle cx="672" cy="586" r="9" stroke={amber} />
@@ -181,7 +181,7 @@ export function SiteScene({
       {/* ================= right side ================= */}
       {/* power & battery */}
       <g stroke={ink} strokeWidth="2.5">
-        <Label x={945} y={492}>Power &amp; Battery</Label>
+        <Label x={930} y={462} lines={["Power &", "Battery"]} />
         <Wifi x={945} y={522} />
         {[0, 1, 2].map((i) => (
           <g key={i}>
@@ -199,7 +199,7 @@ export function SiteScene({
 
       {/* access control */}
       <g stroke={ink} strokeWidth="2.5">
-        <Label x={1115} y={492}>Access Control</Label>
+        <Label x={1115} y={462} lines={["Access", "Control"]} />
         <Wifi x={1115} y={522} />
         <rect x="1078" y="566" width="74" height="96" rx="6" />
         <rect x="1088" y="576" width="54" height="18" stroke={amber} />
@@ -213,7 +213,7 @@ export function SiteScene({
 
       {/* automated lighting */}
       <g stroke={ink} strokeWidth="2.5">
-        <Label x={1305} y={492}>Automated Lighting</Label>
+        <Label x={1305} y={462} lines={["Automated", "Lighting"]} />
         <Wifi x={1305} y={522} />
         <circle cx="1305" cy="596" r="27" />
         <path d="M1296 590 q9 12 18 0" stroke={amber} />
@@ -232,7 +232,7 @@ export function SiteScene({
 
       {/* perimeter defence */}
       <g stroke={ink} strokeWidth="2.5">
-        <Label x={1480} y={492}>Perimeter Defence</Label>
+        <Label x={1476} y={462} lines={["Perimeter", "Defence"]} />
         <Wifi x={1480} y={522} />
         <line x1="1480" y1="560" x2="1480" y2="640" />
         <rect x="1452" y="552" width="56" height="24" rx="5" />
