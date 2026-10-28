@@ -14,16 +14,238 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agent_jobs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          payload: Json
+          result: Json | null
+          started_at: string | null
+          status: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          payload?: Json
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          payload?: Json
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      agent_status: {
+        Row: {
+          hostname: string | null
+          id: number
+          last_seen: string | null
+          version: string | null
+        }
+        Insert: {
+          hostname?: string | null
+          id?: number
+          last_seen?: string | null
+          version?: string | null
+        }
+        Update: {
+          hostname?: string | null
+          id?: number
+          last_seen?: string | null
+          version?: string | null
+        }
+        Relationships: []
+      }
+      device_logs: {
+        Row: {
+          created_at: string
+          date: string
+          event: string | null
+          id: number
+          ip: string
+          message: string | null
+          site_id: string | null
+          time: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          event?: string | null
+          id?: never
+          ip: string
+          message?: string | null
+          site_id?: string | null
+          time: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          event?: string | null
+          id?: never
+          ip?: string
+          message?: string | null
+          site_id?: string | null
+          time?: string
+        }
+        Relationships: []
+      }
+      devices: {
+        Row: {
+          arm_version: string | null
+          created_at: string
+          id: number
+          ip: string
+          kernel_version: string | null
+          last_log_pulled_at: string | null
+          mib_version: string | null
+          name: string | null
+          serial_number: string | null
+          site_id: string | null
+          stm32_version: string | null
+          updated_at: string
+          web_version: string | null
+        }
+        Insert: {
+          arm_version?: string | null
+          created_at?: string
+          id?: never
+          ip: string
+          kernel_version?: string | null
+          last_log_pulled_at?: string | null
+          mib_version?: string | null
+          name?: string | null
+          serial_number?: string | null
+          site_id?: string | null
+          stm32_version?: string | null
+          updated_at?: string
+          web_version?: string | null
+        }
+        Update: {
+          arm_version?: string | null
+          created_at?: string
+          id?: never
+          ip?: string
+          kernel_version?: string | null
+          last_log_pulled_at?: string | null
+          mib_version?: string | null
+          name?: string | null
+          serial_number?: string | null
+          site_id?: string | null
+          stm32_version?: string | null
+          updated_at?: string
+          web_version?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      sim_activations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          iccid: string
+          id: string
+          ip: string | null
+          simulated: boolean
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          iccid: string
+          id?: string
+          ip?: string | null
+          simulated?: boolean
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          iccid?: string
+          id?: string
+          ip?: string | null
+          simulated?: boolean
+          status?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_member: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "operator"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +372,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "operator"],
+    },
   },
 } as const
