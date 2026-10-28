@@ -1,7 +1,8 @@
 import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouteContext } from "@tanstack/react-router";
 import logo from "@/assets/fta-logo.png.asset.json";
 import { useQueryClient } from "@tanstack/react-query";
-import { Cpu, Gauge, Globe, ListTree, LogOut, Radio, Server, Clock, Users } from "lucide-react";
+import { Cpu, Gauge, Globe, ListTree, LogOut, Radio, Server, Clock, Settings } from "lucide-react";
+import { canAccessAdminSettings, canAccessOperationalTools } from "@/lib/admin-access";
 import { supabase } from "@/integrations/supabase/client";
 import { HelperStatus } from "@/components/HelperStatus";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/_authenticated")({
     if (!data.user) throw redirect({ to: "/auth" });
     const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
     const list = (roles ?? []).map((r) => r.role);
-    return { user: data.user, isAdmin: list.includes("admin"), isMember: list.length > 0 };
+    return { user: data.user, isAdmin: canAccessAdminSettings(list), isMember: canAccessOperationalTools(list) };
   },
   component: Layout,
 });
@@ -54,7 +55,7 @@ function Layout() {
     );
   }
 
-  const items = isAdmin ? [...NAV, { to: "/users", label: "Users", icon: Users } as const] : NAV;
+  const items = isAdmin ? [...NAV, { to: "/admin-settings", label: "Admin Settings", icon: Settings } as const] : NAV;
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">
