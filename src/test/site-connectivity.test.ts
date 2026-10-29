@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { BROWSER_PORTS, captureInputSchema, isRouterIp, routerUrl } from "@/lib/private-browser";
-describe("Private Browser targets", () => {
+import { BROWSER_PORTS, captureInputSchema, isRouterIp, routerUrl } from "@/lib/site-connectivity";
+describe("Site Connectivity Check targets", () => {
   it("browses exactly ports 80, 443 and 8443", () => {
     expect(BROWSER_PORTS).toEqual([80, 443, 8443]);
     expect(routerUrl("10.194.72.40", 80)).toBe("http://10.194.72.40:80");

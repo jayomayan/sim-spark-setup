@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_authenticated")({
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: Gauge },
   { to: "/sim-activation", label: "SIM Activation", icon: Radio },
-  { to: "/private-browser", label: "Private Browser", icon: Globe },
+  { to: "/site-connectivity-check", label: "Site Connectivity Check", icon: Globe },
   { to: "/devices", label: "Devices", icon: Cpu },
   { to: "/snmp-walk", label: "SNMP Walk", icon: ListTree },
   { to: "/device-ntp", label: "Device NTP", icon: Clock },

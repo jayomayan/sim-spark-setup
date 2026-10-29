@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download } from "lucide-react";
 import { lookupSite } from "@/lib/aeris.functions";
-import { captureRouterPort } from "@/lib/private-browser.functions";
-import { BROWSER_PORTS, isRouterIp, routerUrl, type BrowserPort, type CaptureResult } from "@/lib/private-browser";
+import { captureRouterPort } from "@/lib/site-connectivity.functions";
+import { BROWSER_PORTS, isRouterIp, routerUrl, type BrowserPort, type CaptureResult } from "@/lib/site-connectivity";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/site-connectivity-check")(
 type Tile = { state: "idle" | "loading" | "done" | "error"; capture?: CaptureResult; error?: string };
 const emptyTiles = (): Record<BrowserPort, Tile> => ({ 80: { state: "idle" }, 443: { state: "idle" }, 8443: { state: "idle" } });
 
-function PrivateBrowser() {
+function SiteConnectivityCheck() {
   const lookup = useServerFn(lookupSite);
   const capture = useServerFn(captureRouterPort);
   const [query, setQuery] = useState("");
@@ -66,8 +66,8 @@ function PrivateBrowser() {
 
   return (
     <>
-      <PageHeader kicker="Remote access" title="Private Browser">
-        <Button asChild variant="outline" size="sm"><a href="/private-browser-service/service.zip" download><Download className="h-4 w-4" />Screenshot service</a></Button>
+      <PageHeader kicker="Remote access" title="Site Connectivity Check">
+        <Button asChild variant="outline" size="sm"><a href="/site-connectivity-service/service.zip" download><Download className="h-4 w-4" />Screenshot service</a></Button>
       </PageHeader>
       <div className="space-y-6">
         <form onSubmit={connect} className="flex flex-col gap-3 border-b pb-6 sm:flex-row">
