@@ -7,7 +7,9 @@
 //   1. Install Node.js 18+ and the `snmpwalk` and `ping` tools on this machine.
 //   2. Copy the `node-scripts` folder from your old app next to this file
 //      (or set NODE_SCRIPTS_DIR to where it lives) and run `npm install` there.
-//   3. Set the environment variables below, then run:  node field-ops-helper.mjs
+//   3. For Site Connectivity Check screenshots, run `npm install` next to this
+//      file, then `npx playwright install --with-deps chromium`.
+//   4. Set the environment variables below, then run:  node field-ops-helper.mjs
 //
 // Required:  CONSOLE_URL   e.g. https://your-app.lovable.app
 //            AGENT_TOKEN   the helper key you saved in the console
@@ -20,7 +22,7 @@ import { hostname } from "node:os";
 import path from "node:path";
 import https from "node:https";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SCRIPTS = path.resolve(process.env.NODE_SCRIPTS_DIR || "./node-scripts");
@@ -79,6 +81,31 @@ function routerPost(ip, p, body) {
   });
 }
 
+// --- Site Connectivity Check: port screenshots + ping, run on this machine ---
+// Devices answer on either protocol on port 8080, so both are tried there.
+const SITE_PORTS = { 80: ["http"], 443: ["https"], 8443: ["https"], 8080: ["http", "https"] };
+let browser = null;
+async function getBrowser() {
+  if (browser?.isConnected()) return browser;
+  let chromium;
+  try {
+    ({ chromium } = await import("playwright"));
+  } catch {
+    throw new Error("Screenshots need the helper dependencies: run `npm install` then `npx playwright install --with-deps chromium` next to this file.");
+  }
+  browser = await chromium.launch({ headless: true, args: ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--disable-quic"] });
+  return browser;
+}
+// Only requests back to the very same router IP on a checked port may leave the browser.
+const sameTarget = (raw, ip) => {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    const port = Number(u.port || (u.protocol === "https:" ? 443 : 80));
+    return u.hostname === ip && Object.prototype.hasOwnProperty.call(SITE_PORTS, port);
+  } catch { return false; }
+};
+
 const handlers = {
   async ping({ ip }) {
     const { code, out } = await run("ping", ["-c", "5", "-W", "2", checkIp(ip)], 30_000);
@@ -110,6 +137,56 @@ const handlers = {
   },
   async ur35_ntp({ ip }) {
     return routerPost(checkIp(ip), process.env.UR35_NTP_PATH || "/api/system/ntp", NTP_SETTINGS);
+  },
+  async site_ping({ ip }) {
+    const { out } = await run("ping", ["-n", "-c", "4", "-W", "2", "-w", "10", checkIp(ip)], 15_000);
+    const packets = out.match(/(\d+) packets transmitted,\s*(\d+) (?:packets )?received,.*?([\d.]+)% packet loss/);
+    if (!packets) throw new Error("Ping returned an unreadable result. Check ping is installed on this machine.");
+    const transmitted = Number(packets[1]), received = Number(packets[2]);
+    if (transmitted !== 4 || received > transmitted) throw new Error("Unexpected ping result.");
+    const timing = out.match(/(?:rtt|round-trip)[^=]*=\s*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/);
+    return {
+      reachable: received > 0, transmitted, received,
+      packetLoss: (transmitted - received) / transmitted * 100,
+      minMs: timing ? Number(timing[1]) : null,
+      avgMs: timing ? Number(timing[2]) : null,
+      maxMs: timing ? Number(timing[3]) : null,
+    };
+  },
+  async site_capture({ ip, port }) {
+    port = Number(port);
+    if (!Object.prototype.hasOwnProperty.call(SITE_PORTS, port)) throw new Error("Unsupported port");
+    const target = checkIp(ip);
+    const context = await (await getBrowser()).newContext({ viewport: { width: 1024, height: 768 }, ignoreHTTPSErrors: true, serviceWorkers: "block", acceptDownloads: false });
+    try {
+      await context.route("**/*", (route) => (sameTarget(route.request().url(), target) ? route.continue() : route.abort()));
+      await context.routeWebSocket("**/*", (socket) => socket.close());
+      let httpStatus = null;
+      for (const scheme of SITE_PORTS[port]) {
+        const page = await context.newPage();
+        page.on("popup", (popup) => void popup.close());
+        page.on("dialog", (dialog) => void dialog.dismiss());
+        page.on("download", (download) => void download.cancel());
+        try {
+          const response = await page.goto(`${scheme}://${target}:${port}`, { waitUntil: "domcontentloaded", timeout: 15_000 });
+          httpStatus = response?.status() ?? null;
+          // Login/forbidden pages are browsable; a responding HTTP server is accessible.
+          if (response !== null && sameTarget(page.url(), target)) {
+            await page.waitForTimeout(1000);
+            const image = await page.screenshot({ type: "jpeg", quality: 70, timeout: 5000, animations: "disabled" });
+            return { port, accessible: true, httpStatus, screenshot: `data:image/jpeg;base64,${image.toString("base64")}` };
+          }
+        } catch (error) {
+          // A filtered port answers no protocol, so a timeout needs no further attempt.
+          if (error?.name === "TimeoutError") break;
+        }
+        await page.close();
+      }
+      const page = await context.newPage();
+      await page.setContent(`<html><head><style>body{margin:0;background:#fff;color:#303030;font-family:Arial,sans-serif;display:grid;place-items:center;height:100vh}.message{text-align:center}h1{font-size:32px;color:#B0262D}p{font-size:20px;color:#686868}</style></head><body><div class="message"><h1>Not able to access Port ${port}</h1><p>${target}</p></div></body></html>`);
+      const image = await page.screenshot({ type: "jpeg", quality: 70, timeout: 5000, animations: "disabled" });
+      return { port, accessible: false, httpStatus, screenshot: `data:image/jpeg;base64,${image.toString("base64")}` };
+    } finally { await context.close(); }
   },
 };
 

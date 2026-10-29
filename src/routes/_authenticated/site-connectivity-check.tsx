@@ -1,10 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity } from "lucide-react";
+import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity, Server } from "lucide-react";
 import { lookupSite } from "@/lib/aeris.functions";
-import { captureRouterPort, pingRouter } from "@/lib/site-connectivity.functions";
-import { BROWSER_PORTS, isRouterIp, portLabel, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
+import { runJob } from "@/lib/jobs";
+import { BROWSER_PORTS, captureResultSchema, isRouterIp, pingResultSchema, portLabel, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,6 @@ const emptyTiles = (): Record<BrowserPort, Tile> => ({ 80: { state: "idle" }, 44
 
 function SiteConnectivityCheck() {
   const lookup = useServerFn(lookupSite);
-  const capture = useServerFn(captureRouterPort);
-  const ping = useServerFn(pingRouter);
   const [pingState, setPingState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [pingError, setPingError] = useState<string | null>(null);
@@ -36,19 +34,25 @@ function SiteConnectivityCheck() {
   async function testPing(target: string) {
     setPingState("loading"); setPingResult(null); setPingError(null);
     try {
-      const result = await ping({ data: { ip: target } });
-      if (result.ping) { setPingResult(result.ping); setPingState("done"); }
-      else { setPingError(result.error ?? "Ping unavailable"); setPingState("error"); }
-    } catch { setPingError("Could not run the ping test. Please try again."); setPingState("error"); }
+      const job = await runJob("site_ping", { ip: target }, { timeoutMs: 60_000 });
+      if (job.status === "done") { setPingResult(pingResultSchema.parse(job.result)); setPingState("done"); }
+      else { setPingError(job.error ?? "Ping unavailable"); setPingState("error"); }
+    } catch (err) { setPingError(err instanceof Error ? err.message : "Could not run the ping test. Please try again."); setPingState("error"); }
   }
 
   async function browsePort(target: string, port: BrowserPort) {
     setTiles((previous) => ({ ...previous, [port]: { state: "loading" } }));
     try {
-      const result = await capture({ data: { ip: target, port } });
-      setTiles((previous) => ({ ...previous, [port]: result.capture ? { state: "done", capture: result.capture } : { state: "error", error: result.error ?? "Screenshot unavailable" } }));
-    } catch {
-      setTiles((previous) => ({ ...previous, [port]: { state: "error", error: "Could not capture this port. Please try again." } }));
+      const job = await runJob("site_capture", { ip: target, port }, { timeoutMs: 180_000 });
+      if (job.status === "done") {
+        const capture = captureResultSchema.parse(job.result);
+        if (capture.port !== port) throw new Error("Unexpected port");
+        setTiles((previous) => ({ ...previous, [port]: { state: "done", capture } }));
+      } else {
+        setTiles((previous) => ({ ...previous, [port]: { state: "error", error: job.error ?? "Screenshot unavailable" } }));
+      }
+    } catch (err) {
+      setTiles((previous) => ({ ...previous, [port]: { state: "error", error: err instanceof Error ? err.message : "Could not capture this port. Please try again." } }));
     }
   }
 
@@ -81,7 +85,7 @@ function SiteConnectivityCheck() {
   return (
     <>
       <PageHeader kicker="Remote access" title="Site Connectivity Check">
-        <Button asChild variant="outline" size="sm"><a href="/site-connectivity-service/service.zip" download><Download className="h-4 w-4" />Screenshot service</a></Button>
+        <Button asChild variant="outline" size="sm"><Link to="/helper"><Server className="h-4 w-4" />Helper setup</Link></Button>
       </PageHeader>
       <div className="space-y-6">
         <form onSubmit={connect} className="flex flex-col gap-3 border-b pb-6 sm:flex-row">

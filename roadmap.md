@@ -1,4 +1,5 @@
 # Tasks
+- [x] Merge Site Connectivity Check screenshots and ping into the network helper (site_capture/site_ping jobs, Playwright in helper, helper.zip download); retire the standalone service to reference-only.
 - [x] Share current Site ID Lookup credentials with SIM Activation; verify saved/environment selection, live sharing, signed-in settings and reload.
 - [x] Add port 8080 to Site Connectivity Check as a fourth tile (HTTP then HTTPS), with service policy, capture, concurrency and test updates.
 - [x] Add helper-free ping tests and results to Site Connectivity Check through the dedicated service; verify parser with real Linux ICMP, signed-in unavailable-service/retry states, and mobile layout.
@@ -7,7 +8,7 @@
 - [x] Replace Private Browser ping/helper with Console Connect lookup and three screenshot tiles.
 - [x] Rename Private Browser to Site Connectivity Check across screens, files and the service package.
 - [x] Build and test a dedicated network screenshot service with secure deployment instructions.
-- [ ] Connect the screenshot service on the company network (needs deployment address and shared token).
+- [ ] Install the updated helper (1.2.0) on the company network with Playwright/Chromium so Site Connectivity Check returns live results.
 - [ ] Enable live Console Connect Site ID resolution and SIM activation (needs provider account details in Admin Settings and SIM API address).
 - [x] Add admin-only external database creation and required-table setup; preserve existing data and managed sign-in.
 - [x] Verify database setup, repeat setup, permission failures and signed-in controls.
