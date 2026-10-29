@@ -1,4 +1,7 @@
 import { readFileSync } from "node:fs";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { tmpdir } from "node:os";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import {
@@ -95,6 +98,34 @@ describe("multiple router logins", () => {
     });
     await expect(post("10.0.0.1", "/api/system/ntp", {})).rejects.toThrow("Router rejected settings (500)");
     expect(attempts).toEqual(["one"]);
+  });
+});
+
+describe("router credentials file", () => {
+  it("writes one pair per line with owner-only permissions and replaces removed logins", async () => {
+    const directory = await fs.mkdtemp(path.join(tmpdir(), "helper-credentials-"));
+    try {
+      const start = helperSource.indexOf("async function writeRouterCredentials(");
+      const end = helperSource.indexOf("async function loadConfig(");
+      const write = runInNewContext(`${helperSource.slice(start, end)}; writeRouterCredentials`, {
+        fs, path, SELF_DIR: directory, process: { pid: process.pid },
+      });
+      await write([{ username: "first", password: "one" }, { username: "second", password: "two words" }]);
+      const target = path.join(directory, "UR35_Credentials.txt");
+      expect(await fs.readFile(target, "utf8")).toBe("first one\nsecond two words\n");
+      expect((await fs.stat(target)).mode & 0o777).toBe(0o600);
+      await write([{ username: "second", password: "new" }]);
+      expect(await fs.readFile(target, "utf8")).toBe("second new\n");
+      await write([]);
+      expect(await fs.readFile(target, "utf8")).toBe("");
+      expect(await fs.readdir(directory)).toEqual(["UR35_Credentials.txt"]);
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
+  });
+
+  it("rejects extra lines in passwords", () => {
+    expect(helperSettingsInput.safeParse({ firewallRules: [], routerLogins: [{
+      id: "00000000-0000-4000-8000-000000000001", username: "first", password: "one\nsecond two",
+    }] }).success).toBe(false);
   });
 });
 

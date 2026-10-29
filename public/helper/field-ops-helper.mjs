@@ -23,7 +23,7 @@ import path from "node:path";
 import https from "node:https";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.6.0";
+const VERSION = "1.7.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -54,6 +54,32 @@ let config = {
   ntp: FALLBACK_NTP,
 };
 
+async function writeRouterCredentials(logins) {
+  const lines = logins.map(({ username, password }) => {
+    if (typeof username !== "string" || !username || /\s/.test(username) ||
+        typeof password !== "string" || !password || /[\r\n]/.test(password)) {
+      throw new Error("Router logins need a username without spaces and a password without line breaks.");
+    }
+    return `${username} ${password}\n`;
+  }).join("");
+  const target = path.join(SELF_DIR, "UR35_Credentials.txt");
+  const temp = `${target}.${process.pid}.tmp`;
+  let file;
+  try {
+    // Exclusive creation refuses symlinks; permissions are set before any secret is written.
+    file = await fs.open(temp, "wx", 0o600);
+    await file.chmod(0o600);
+    await file.writeFile(lines, "utf8");
+    await file.sync();
+    await file.close();
+    file = undefined;
+    await fs.rename(temp, target);
+  } finally {
+    if (file) await file.close();
+    await fs.unlink(temp).catch(() => {});
+  }
+}
+
 async function loadConfig() {
   const res = await fetch(`${URL_BASE}/api/public/helper/config`, {
     headers: { Authorization: `Bearer ${TOKEN}` },
@@ -61,7 +87,7 @@ async function loadConfig() {
   });
   if (!res.ok) throw new Error(`Settings fetch failed (${res.status})`);
   const body = await res.json();
-  config = {
+  const next = {
     configVersion: Number(body.configVersion) || 0,
     ur35Username: String(body.ur35Username || ""),
     ur35Password: String(body.ur35Password || ""),
@@ -71,6 +97,8 @@ async function loadConfig() {
     firewallRules: Array.isArray(body.firewallRules) && body.firewallRules.length ? body.firewallRules : FALLBACK_RULES,
     ntp: body.ntp && typeof body.ntp === "object" ? body.ntp : FALLBACK_NTP,
   };
+  await writeRouterCredentials(next.routerLogins ?? (next.ur35Username ? [{ username: next.ur35Username, password: next.ur35Password }] : []));
+  config = next;
 }
 
 const IP_RE = /^(10|127|192\.168|172\.(1[6-9]|2\d|3[01]))\.[\d.]+$/;
