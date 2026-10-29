@@ -78,13 +78,13 @@ export async function helperConfig(db: Client): Promise<HelperConfig> {
   const stored = Array.isArray(row.firewall_rules) ? (row.firewall_rules as Record<string, unknown>[]) : [];
   const rules: FirewallRule[] = stored
     .map((r) => {
-      if (typeof r?.rule === "string") {
-        return { rule: r.rule, description: typeof r.description === "string" ? r.description : "" };
+      if (typeof r?.["rule"] === "string") {
+        return { rule: r["rule"], description: typeof r["description"] === "string" ? r["description"] : "" };
       }
-      if (typeof r?.action === "string" && typeof r?.protocol === "string" && typeof r?.port === "number") {
+      if (typeof r?.["action"] === "string" && typeof r?.["protocol"] === "string" && typeof r?.["port"] === "number") {
         return {
-          rule: `${r.action} ${r.protocol}/${r.port}`,
-          description: typeof r.name === "string" ? r.name : "",
+          rule: `${r["action"]} ${r["protocol"]}/${r["port"]}`,
+          description: typeof r["name"] === "string" ? r["name"] : "",
         };
       }
       return null;
