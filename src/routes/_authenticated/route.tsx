@@ -26,7 +26,6 @@ const NAV = [
   { to: "/devices", label: "Devices", icon: Cpu },
   { to: "/snmp-walk", label: "SNMP Walk", icon: ListTree },
   { to: "/device-ntp", label: "Device NTP", icon: Clock },
-  { to: "/helper", label: "Helper", icon: Server },
 ] as const;
 
 function Layout() {
@@ -55,7 +54,7 @@ function Layout() {
     );
   }
 
-  const items = isAdmin ? [...NAV, { to: "/admin-settings", label: "Admin Settings", icon: Settings } as const] : NAV;
+  const items = isAdmin ? [...NAV, { to: "/helper", label: "Helper", icon: Server } as const, { to: "/admin-settings", label: "Admin Settings", icon: Settings } as const] : NAV;
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">

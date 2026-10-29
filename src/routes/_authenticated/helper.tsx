@@ -1,9 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { HelperStatus } from "@/components/HelperStatus";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/helper")({
+  beforeLoad: ({ context }) => {
+    if (!context.isAdmin) throw redirect({ to: "/dashboard" });
+  },
   head: () => meta("Network Helper", "Install the helper that lets the console reach routers on your network."),
   component: HelperPage,
 });
