@@ -35,7 +35,8 @@ export function allowedTarget(ip, port, cidrs) {
 export function allowedRequest(raw, ip) {
   try {
     const url = new URL(raw);
+    const scheme = url.protocol === "https:" ? "https" : url.protocol === "http:" ? "http" : null;
     const port = Number(url.port || (url.protocol === "https:" ? 443 : 80));
-    return url.hostname === ip && !url.username && !url.password && portSchemes(port).includes(url.protocol === "https:" ? "https" : "http");
+    return scheme !== null && url.hostname === ip && !url.username && !url.password && portSchemes(port).includes(scheme);
   } catch { return false; }
 }
