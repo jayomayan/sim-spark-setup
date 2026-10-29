@@ -1,4 +1,4 @@
-# Frontier Private Browser screenshot service
+# Frontier Site Connectivity Check screenshot service
 
 Run this dedicated service on a Linux machine on the router network. It does not use the Field Ops helper or job queue. The hosted app cannot reach private routers directly.
 
@@ -6,7 +6,7 @@ Run this dedicated service on a Linux machine on the router network. It does not
 1. Install Node.js 22 or newer. Download `package.json`, `server.mjs`, `policy.mjs`, `policy.test.mjs`, and optionally `capture.test.mjs` into one folder.
 2. In that folder run `npm install`, then `npx playwright install --with-deps chromium`.
 3. Configure the following environment variables through your service manager or an untracked, owner-readable environment file:
-   - `SERVICE_TOKEN`: a strong shared key of at least 32 characters. Use the same value for the app's `PRIVATE_BROWSER_SERVICE_TOKEN` secret. Never put it in a URL or source control.
+   - `SERVICE_TOKEN`: a strong shared key of at least 32 characters. Use the same value for the app's `SITE_CONNECTIVITY_SERVICE_TOKEN` secret. Never put it in a URL or source control.
    - `ALLOWED_CIDRS`: comma-separated actual router ranges, such as `10.194.72.0/24`. This example is not your confirmed network range. Do not allow unrelated infrastructure.
    - `LISTEN_HOST`: defaults to `127.0.0.1`.
    - `PORT`: defaults to `8090`.
@@ -14,7 +14,7 @@ Run this dedicated service on a Linux machine on the router network. It does not
 
 ## Connect securely
 - Expose only this local service through a company-approved HTTPS reverse proxy or outbound tunnel. Keep its listening port closed to inbound public connections. Configure the proxy to allow only `/capture` and `/health`, limit bodies to 1 KB and add rate limits. Do not log the Authorization header.
-- In the app's secrets, set `PRIVATE_BROWSER_SERVICE_URL` to the real HTTPS service base address (no `/capture` suffix), and `PRIVATE_BROWSER_SERVICE_TOKEN` to the same shared key.
+- In the app's secrets, set `SITE_CONNECTIVITY_SERVICE_URL` to the real HTTPS service base address (no `/capture` suffix), and `SITE_CONNECTIVITY_SERVICE_TOKEN` to the same shared key.
 - Console Connect Site ID lookup separately requires the existing `AERIS_USERNAME` and `AERIS_PASSWORD` secrets. Without them, direct IP browsing still works once the service is connected.
 - The screenshot service needs outbound access only to your approved router CIDRs on TCP ports 80, 443 and 8443. Enforce that independently in your host/container firewall, deny other destinations and UDP, and deny access to cloud metadata and other host services. Browser URL filtering is an additional guard, not a replacement for network isolation.
 - Publish the app after changing secrets if you want those changes on a published version.

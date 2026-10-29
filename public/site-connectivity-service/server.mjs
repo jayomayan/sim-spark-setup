@@ -71,6 +71,6 @@ export async function startService({ token, cidrs, host = "127.0.0.1", port = 80
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   startService({ token: process.env.SERVICE_TOKEN, cidrs: process.env.ALLOWED_CIDRS || "", host: process.env.LISTEN_HOST || "127.0.0.1", port: Number(process.env.PORT || 8090) })
-    .then(({ close }) => { console.log("Private Browser screenshot service ready"); for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => void close().then(() => process.exit(0))); })
+    .then(({ close }) => { console.log("Site Connectivity Check screenshot service ready"); for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => void close().then(() => process.exit(0))); })
     .catch(() => { console.error("Screenshot service could not start. Check configuration and Chromium installation."); process.exit(1); });
 }

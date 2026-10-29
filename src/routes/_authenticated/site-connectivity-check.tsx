@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/site-connectivity-check")({
-  head: () => meta("Private Browser", "Resolve router Site IDs through Console Connect and view screenshots of ports 80, 443 and 8443."),
-  component: PrivateBrowser,
+  head: () => meta("Site Connectivity Check", "Resolve router Site IDs through Console Connect and check screenshots of ports 80, 443 and 8443."),
+  component: SiteConnectivityCheck,
 });
 
 type Tile = { state: "idle" | "loading" | "done" | "error"; capture?: CaptureResult; error?: string };

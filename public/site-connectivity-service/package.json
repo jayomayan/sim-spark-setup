@@ -1,5 +1,5 @@
 {
-  "name": "frontier-private-browser-service",
+  "name": "frontier-site-connectivity-service",
   "version": "1.0.0",
   "private": true,
   "type": "module",
