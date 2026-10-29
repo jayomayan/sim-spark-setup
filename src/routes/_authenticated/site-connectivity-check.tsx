@@ -69,14 +69,17 @@ function SiteConnectivityCheck() {
     setPingState("idle"); setPingResult(null); setPingError(null);
     try {
       let target = query.trim();
+      let siteId: string | null = null;
+      let resolvedNetwork: string | null = null;
       if (/^PH/i.test(target)) {
         if (!/^PH[A-Z0-9-]{1,30}$/i.test(target)) throw new Error("Site ID should look like PH010010.");
         setResolving(true);
-        setSite(target.toUpperCase());
-        const r = await lookup({ data: { siteId: target.toUpperCase() } });
+        siteId = target.toUpperCase();
+        setSite(siteId);
+        const r = await lookup({ data: { siteId } });
         setResolving(false);
         if (r.error || !r.ip) throw new Error(r.error ?? "No IP found");
-        target = r.ip; setNetwork(r.network);
+        target = r.ip; resolvedNetwork = r.network; setNetwork(r.network);
       }
       if (!isRouterIp(target)) throw new Error("Please enter a Site ID or a private IP address.");
       setIp(target);
@@ -84,7 +87,7 @@ function SiteConnectivityCheck() {
       const captures = ports.filter((capture): capture is CaptureResult => capture !== null);
       if (ping || captures.length) {
         try {
-          await saveSiteCheck({ siteId: /^PH/i.test(query.trim()) ? query.trim().toUpperCase() : null, ip: target, network: null, ping, ports: captures });
+          await saveSiteCheck({ siteId, ip: target, network: resolvedNetwork, ping, ports: captures });
           setHistoryKey((key) => key + 1);
         } catch { /* History is best-effort; a failed save never blocks the check. */ }
       }
