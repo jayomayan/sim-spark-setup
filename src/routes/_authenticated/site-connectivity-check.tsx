@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ExternalLink, Camera, LoaderCircle, RefreshCw, Activity, Server } from "lucide-react";
+import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity, Server } from "lucide-react";
 import { lookupSite } from "@/lib/aeris.functions";
 import { runJob } from "@/lib/jobs";
 import { BROWSER_PORTS, captureResultSchema, isRouterIp, pingResultSchema, portLabel, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
