@@ -45,12 +45,15 @@ describe("firewall rules", () => {
     expect(() => helperSettingsInput.parse({ firewallRules: DEFAULT_FIREWALL_RULES })).not.toThrow();
   });
 
-  it("rejects a port outside 0-65535", () => {
-    expect(() => firewallRuleSchema.parse({ name: "x", action: "accept", protocol: "tcp", port: 70000 })).toThrow();
+  it("requires the rule text", () => {
+    expect(() => firewallRuleSchema.parse({ rule: "", description: "empty" })).toThrow();
   });
 
-  it("rejects an unknown action", () => {
-    expect(() => firewallRuleSchema.parse({ name: "x", action: "log", protocol: "tcp", port: 80 })).toThrow();
+  it("keeps a rule without a description", () => {
+    expect(firewallRuleSchema.parse({ rule: "accept tcp/443" })).toEqual({
+      rule: "accept tcp/443",
+      description: "",
+    });
   });
 });
 
