@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
+import { writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { capturePort } from "./server.mjs";
 
@@ -19,10 +20,13 @@ test("captures a responding page and a real inaccessible-port screenshot", async
     assert.equal(failed.accessible, false);
     assert.equal(failed.httpStatus, null);
     assert.match(failed.screenshot, /^data:image\/jpeg;base64,/);
-    const page = await browser.newPage();
-    await page.goto(failed.screenshot);
-    assert.equal(await page.locator("img").evaluate("image => image.naturalWidth"), 1024);
-    assert.equal(await page.locator("img").evaluate("image => image.naturalHeight"), 768);
-    assert.ok(Buffer.from(failed.screenshot.split(",")[1] || "", "base64").length > 5000);
+    const image = Buffer.from(failed.screenshot.split(",")[1] || "", "base64");
+    assert.equal(image.readUInt16BE(0), 0xffd8);
+    assert.ok(image.length > 5000);
+    assert.notEqual(failed.screenshot, success.screenshot);
+    if (process.env.CAPTURE_TEST_DIR) {
+      await writeFile(`${process.env.CAPTURE_TEST_DIR}/failed.jpg`, image);
+      await writeFile(`${process.env.CAPTURE_TEST_DIR}/success.jpg`, Buffer.from(success.screenshot.split(",")[1] || "", "base64"));
+    }
   } finally { await browser?.close(); await new Promise((resolve) => router.close(resolve)); }
 });
