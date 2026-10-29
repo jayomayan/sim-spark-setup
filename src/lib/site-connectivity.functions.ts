@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { captureInputSchema, captureResultSchema } from "@/lib/private-browser";
+import { captureInputSchema, captureResultSchema } from "@/lib/site-connectivity";
 
 export const captureRouterPort = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -8,8 +8,8 @@ export const captureRouterPort = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: member, error } = await context.supabase.rpc("is_member", { _user_id: context.userId });
     if (error || !member) throw new Error("Operational access is required.");
-    const endpoint = process.env["PRIVATE_BROWSER_SERVICE_URL"];
-    const token = process.env["PRIVATE_BROWSER_SERVICE_TOKEN"];
+    const endpoint = process.env["SITE_CONNECTIVITY_SERVICE_URL"];
+    const token = process.env["SITE_CONNECTIVITY_SERVICE_TOKEN"];
     if (!endpoint || !token) return { capture: null, error: "The screenshot service is not connected yet." };
     let url: URL;
     try {

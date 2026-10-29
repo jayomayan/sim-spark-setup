@@ -20,6 +20,7 @@ import { Route as AuthenticatedDevicesRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedHelperRouteImport } from './routes/_authenticated/helper'
 import { Route as AuthenticatedPrivateBrowserRouteImport } from './routes/_authenticated/private-browser'
 import { Route as AuthenticatedSimActivationRouteImport } from './routes/_authenticated/sim-activation'
+import { Route as AuthenticatedSiteConnectivityCheckRouteImport } from './routes/_authenticated/site-connectivity-check'
 import { Route as AuthenticatedSnmpWalkRouteImport } from './routes/_authenticated/snmp-walk'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as ApiPublicAgentRouteImport } from './routes/api/public/agent'
@@ -81,6 +82,12 @@ const AuthenticatedSimActivationRoute =
     path: '/sim-activation',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSiteConnectivityCheckRoute =
+  AuthenticatedSiteConnectivityCheckRouteImport.update({
+    id: '/site-connectivity-check',
+    path: '/site-connectivity-check',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSnmpWalkRoute = AuthenticatedSnmpWalkRouteImport.update({
   id: '/snmp-walk',
   path: '/snmp-walk',
@@ -108,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/helper': typeof AuthenticatedHelperRoute
   '/private-browser': typeof AuthenticatedPrivateBrowserRoute
   '/sim-activation': typeof AuthenticatedSimActivationRoute
+  '/site-connectivity-check': typeof AuthenticatedSiteConnectivityCheckRoute
   '/snmp-walk': typeof AuthenticatedSnmpWalkRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/agent': typeof ApiPublicAgentRoute
@@ -123,6 +131,7 @@ export interface FileRoutesByTo {
   '/helper': typeof AuthenticatedHelperRoute
   '/private-browser': typeof AuthenticatedPrivateBrowserRoute
   '/sim-activation': typeof AuthenticatedSimActivationRoute
+  '/site-connectivity-check': typeof AuthenticatedSiteConnectivityCheckRoute
   '/snmp-walk': typeof AuthenticatedSnmpWalkRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/agent': typeof ApiPublicAgentRoute
@@ -140,6 +149,7 @@ export interface FileRoutesById {
   '/_authenticated/helper': typeof AuthenticatedHelperRoute
   '/_authenticated/private-browser': typeof AuthenticatedPrivateBrowserRoute
   '/_authenticated/sim-activation': typeof AuthenticatedSimActivationRoute
+  '/_authenticated/site-connectivity-check': typeof AuthenticatedSiteConnectivityCheckRoute
   '/_authenticated/snmp-walk': typeof AuthenticatedSnmpWalkRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/api/public/agent': typeof ApiPublicAgentRoute
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/helper'
     | '/private-browser'
     | '/sim-activation'
+    | '/site-connectivity-check'
     | '/snmp-walk'
     | '/users'
     | '/api/public/agent'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/helper'
     | '/private-browser'
     | '/sim-activation'
+    | '/site-connectivity-check'
     | '/snmp-walk'
     | '/users'
     | '/api/public/agent'
@@ -188,6 +200,7 @@ export interface FileRouteTypes {
     | '/_authenticated/helper'
     | '/_authenticated/private-browser'
     | '/_authenticated/sim-activation'
+    | '/_authenticated/site-connectivity-check'
     | '/_authenticated/snmp-walk'
     | '/_authenticated/users'
     | '/api/public/agent'
@@ -280,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSimActivationRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/site-connectivity-check': {
+      id: '/_authenticated/site-connectivity-check'
+      path: '/site-connectivity-check'
+      fullPath: '/site-connectivity-check'
+      preLoaderRoute: typeof AuthenticatedSiteConnectivityCheckRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/snmp-walk': {
       id: '/_authenticated/snmp-walk'
       path: '/snmp-walk'
@@ -312,6 +332,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHelperRoute: typeof AuthenticatedHelperRoute
   AuthenticatedPrivateBrowserRoute: typeof AuthenticatedPrivateBrowserRoute
   AuthenticatedSimActivationRoute: typeof AuthenticatedSimActivationRoute
+  AuthenticatedSiteConnectivityCheckRoute: typeof AuthenticatedSiteConnectivityCheckRoute
   AuthenticatedSnmpWalkRoute: typeof AuthenticatedSnmpWalkRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
 }
@@ -324,6 +345,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHelperRoute: AuthenticatedHelperRoute,
   AuthenticatedPrivateBrowserRoute: AuthenticatedPrivateBrowserRoute,
   AuthenticatedSimActivationRoute: AuthenticatedSimActivationRoute,
+  AuthenticatedSiteConnectivityCheckRoute:
+    AuthenticatedSiteConnectivityCheckRoute,
   AuthenticatedSnmpWalkRoute: AuthenticatedSnmpWalkRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
 }
