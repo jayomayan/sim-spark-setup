@@ -20,8 +20,9 @@ test("captures a responding page and a real inaccessible-port screenshot", async
     assert.equal(failed.httpStatus, null);
     assert.match(failed.screenshot, /^data:image\/jpeg;base64,/);
     const page = await browser.newPage();
-    const response = await page.goto(failed.screenshot);
-    assert.ok(response);
+    await page.goto(failed.screenshot);
+    assert.equal(await page.locator("img").evaluate("image => image.naturalWidth"), 1024);
+    assert.equal(await page.locator("img").evaluate("image => image.naturalHeight"), 768);
     assert.ok(Buffer.from(failed.screenshot.split(",")[1] || "", "base64").length > 5000);
   } finally { await browser?.close(); await new Promise((resolve) => router.close(resolve)); }
 });
