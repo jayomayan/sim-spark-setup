@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity, Server } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity, Server, History, ChevronDown } from "lucide-react";
 import { lookupSite } from "@/lib/aeris.functions";
 import { runJob } from "@/lib/jobs";
+import { listSiteChecks, saveSiteCheck, type SiteCheck } from "@/lib/site-checks";
 import { BROWSER_PORTS, captureResultSchema, isRouterIp, pingResultSchema, portLabel, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -30,17 +31,23 @@ function SiteConnectivityCheck() {
   const [tiles, setTiles] = useState(emptyTiles);
   const [site, setSite] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
 
-  async function testPing(target: string) {
+  async function testPing(target: string): Promise<PingResult | null> {
     setPingState("loading"); setPingResult(null); setPingError(null);
     try {
       const job = await runJob("site_ping", { ip: target }, { timeoutMs: 60_000 });
-      if (job.status === "done") { setPingResult(pingResultSchema.parse(job.result)); setPingState("done"); }
-      else { setPingError(job.error ?? "Ping unavailable"); setPingState("error"); }
+      if (job.status === "done") {
+        const result = pingResultSchema.parse(job.result);
+        setPingResult(result); setPingState("done");
+        return result;
+      }
+      setPingError(job.error ?? "Ping unavailable"); setPingState("error");
     } catch (err) { setPingError(err instanceof Error ? err.message : "Could not run the ping test. Please try again."); setPingState("error"); }
+    return null;
   }
 
-  async function browsePort(target: string, port: BrowserPort) {
+  async function browsePort(target: string, port: BrowserPort): Promise<CaptureResult | null> {
     setTiles((previous) => ({ ...previous, [port]: { state: "loading" } }));
     try {
       const job = await runJob("site_capture", { ip: target, port }, { timeoutMs: 180_000 });
@@ -48,12 +55,13 @@ function SiteConnectivityCheck() {
         const capture = captureResultSchema.parse(job.result);
         if (capture.port !== port) throw new Error("Unexpected port");
         setTiles((previous) => ({ ...previous, [port]: { state: "done", capture } }));
-      } else {
-        setTiles((previous) => ({ ...previous, [port]: { state: "error", error: job.error ?? "Screenshot unavailable" } }));
+        return capture;
       }
+      setTiles((previous) => ({ ...previous, [port]: { state: "error", error: job.error ?? "Screenshot unavailable" } }));
     } catch (err) {
       setTiles((previous) => ({ ...previous, [port]: { state: "error", error: err instanceof Error ? err.message : "Could not capture this port. Please try again." } }));
     }
+    return null;
   }
 
   async function connect(e: React.FormEvent) {
@@ -62,18 +70,28 @@ function SiteConnectivityCheck() {
     setPingState("idle"); setPingResult(null); setPingError(null);
     try {
       let target = query.trim();
+      let siteId: string | null = null;
+      let resolvedNetwork: string | null = null;
       if (/^PH/i.test(target)) {
         if (!/^PH[A-Z0-9-]{1,30}$/i.test(target)) throw new Error("Site ID should look like PH010010.");
         setResolving(true);
-        setSite(target.toUpperCase());
-        const r = await lookup({ data: { siteId: target.toUpperCase() } });
+        siteId = target.toUpperCase();
+        setSite(siteId);
+        const r = await lookup({ data: { siteId } });
         setResolving(false);
         if (r.error || !r.ip) throw new Error(r.error ?? "No IP found");
-        target = r.ip; setNetwork(r.network);
+        target = r.ip; resolvedNetwork = r.network; setNetwork(r.network);
       }
       if (!isRouterIp(target)) throw new Error("Please enter a Site ID or a private IP address.");
       setIp(target);
-      await Promise.all([testPing(target), ...BROWSER_PORTS.map((port) => browsePort(target, port))]);
+      const [ping, ...ports] = await Promise.all([testPing(target), ...BROWSER_PORTS.map((port) => browsePort(target, port))]);
+      const captures = ports.filter((capture): capture is CaptureResult => capture !== null);
+      if (ping || captures.length) {
+        try {
+          await saveSiteCheck({ siteId, ip: target, network: resolvedNetwork, ping, ports: captures });
+          setHistoryKey((key) => key + 1);
+        } catch { /* History is best-effort; a failed save never blocks the check. */ }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -149,8 +167,78 @@ function SiteConnectivityCheck() {
             </article>;
           })}
         </div>
+        <CheckHistory siteId={site} ip={ip} refreshKey={historyKey} />
       </div>
     </>
+  );
+}
+
+function CheckHistory({ siteId, ip, refreshKey }: { siteId: string | null; ip: string | null; refreshKey: number }) {
+  const [checks, setChecks] = useState<SiteCheck[] | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!siteId && !ip) { setChecks(null); return; }
+    let cancelled = false;
+    listSiteChecks({ siteId, ip })
+      .then((rows) => { if (!cancelled) { setChecks(rows); setLoadError(null); } })
+      .catch((err) => { if (!cancelled) setLoadError(err instanceof Error ? err.message : "Could not load past checks."); });
+    return () => { cancelled = true; };
+  }, [siteId, ip, refreshKey]);
+
+  if (!siteId && !ip) return null;
+  return (
+    <section aria-label="Past checks for this site" className="space-y-3 border-t pt-5">
+      <h2 className="flex items-center gap-2 font-semibold"><History className="h-4 w-4 text-primary" />Past checks{siteId ? ` — ${siteId}` : ip ? ` — ${ip}` : ""}</h2>
+      {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+      {checks === null && !loadError && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {checks?.length === 0 && <p className="text-sm text-muted-foreground">No saved checks yet. Run a check and it will appear here.</p>}
+      <ul className="space-y-2">
+        {checks?.map((check) => {
+          const accessible = check.ports.filter((p) => p.accessible).length;
+          const expanded = open === check.id;
+          return (
+            <li key={check.id} className="rounded-lg border bg-card">
+              <button type="button" onClick={() => setOpen(expanded ? null : check.id)} aria-expanded={expanded} className="flex w-full flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 text-left text-sm">
+                <span className="font-mono text-muted-foreground">{new Date(check.created_at).toLocaleString()}</span>
+                <span className="font-mono">{check.ip}</span>
+                <span className={check.ping?.reachable ? "text-primary" : "text-muted-foreground"}>{check.ping ? (check.ping.reachable ? `Ping OK · ${check.ping.packetLoss}% loss` : "No ping replies") : "Ping not run"}</span>
+                <span className="text-muted-foreground">Ports {accessible} / {check.ports.length || BROWSER_PORTS.length} accessible</span>
+                <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
+              </button>
+              {expanded && (
+                <div className="space-y-4 border-t px-4 py-4">
+                  {check.ping && (
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+                      <Field label="Sent" value={String(check.ping.transmitted)} />
+                      <Field label="Received" value={String(check.ping.received)} />
+                      <Field label="Packet loss" value={`${check.ping.packetLoss}%`} />
+                      <Field label="Minimum" value={check.ping.minMs === null ? "—" : `${check.ping.minMs.toFixed(2)} ms`} />
+                      <Field label="Average" value={check.ping.avgMs === null ? "—" : `${check.ping.avgMs.toFixed(2)} ms`} />
+                      <Field label="Maximum" value={check.ping.maxMs === null ? "—" : `${check.ping.maxMs.toFixed(2)} ms`} />
+                    </div>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {check.ports.map((capture) => (
+                      <figure key={capture.port} className="overflow-hidden rounded-md border">
+                        <a href={capture.screenshot} download={`router-${check.ip}-port-${capture.port}-${check.created_at.slice(0, 10)}.jpg`} title={`Download port ${capture.port} screenshot`}>
+                          <img src={capture.screenshot} alt={capture.accessible ? `Port ${capture.port} accessible` : `Not able to access Port ${capture.port}`} className="aspect-[4/3] w-full bg-muted/40 object-contain" />
+                        </a>
+                        <figcaption className="flex items-center justify-between px-3 py-2 text-xs">
+                          <span className="font-mono">Port {capture.port}</span>
+                          <span className={capture.accessible ? "text-primary" : "text-muted-foreground"}>{capture.accessible ? "Accessible" : "Not accessible"}</span>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

@@ -1,4 +1,5 @@
 # Tasks
+- [x] Save Site Connectivity Check results per site (site_checks table, screenshots + ping metrics, expandable past-checks history); verified with a seeded row.
 - [x] Merge Site Connectivity Check screenshots and ping into the network helper (site_capture/site_ping jobs, Playwright in helper, helper.zip download); retire the standalone service to reference-only.
 - [x] Share current Site ID Lookup credentials with SIM Activation; verify saved/environment selection, live sharing, signed-in settings and reload.
 - [x] Add port 8080 to Site Connectivity Check as a fourth tile (HTTP then HTTPS), with service policy, capture, concurrency and test updates.

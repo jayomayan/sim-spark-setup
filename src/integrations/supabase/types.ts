@@ -278,6 +278,39 @@ export type Database = {
         }
         Relationships: []
       }
+      site_checks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          ip: string
+          network: string | null
+          ping: Json | null
+          ports: Json
+          site_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ip: string
+          network?: string | null
+          ping?: Json | null
+          ports?: Json
+          site_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ip?: string
+          network?: string | null
+          ping?: Json | null
+          ports?: Json
+          site_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
