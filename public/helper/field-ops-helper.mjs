@@ -7,7 +7,9 @@
 //   1. Install Node.js 18+ and the `snmpwalk` and `ping` tools on this machine.
 //   2. Copy the `node-scripts` folder from your old app next to this file
 //      (or set NODE_SCRIPTS_DIR to where it lives) and run `npm install` there.
-//   3. Set the environment variables below, then run:  node field-ops-helper.mjs
+//   3. For Site Connectivity Check screenshots, run `npm install` next to this
+//      file, then `npx playwright install --with-deps chromium`.
+//   4. Set the environment variables below, then run:  node field-ops-helper.mjs
 //
 // Required:  CONSOLE_URL   e.g. https://your-app.lovable.app
 //            AGENT_TOKEN   the helper key you saved in the console
@@ -20,7 +22,7 @@ import { hostname } from "node:os";
 import path from "node:path";
 import https from "node:https";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SCRIPTS = path.resolve(process.env.NODE_SCRIPTS_DIR || "./node-scripts");
