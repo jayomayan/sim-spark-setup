@@ -1,0 +1,10 @@
+{
+  "name": "field-ops-helper",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "description": "On-network helper for the Field Ops Console. Runs router jobs and Site Connectivity Check screenshots.",
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}
