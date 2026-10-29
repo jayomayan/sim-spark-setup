@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { JOB_TYPES, isSupportedJobType } from "@/lib/job-types";
 
-// Endpoint used by the on-network helper. Authenticated with the AGENT_TOKEN shared secret.
-function authorized(request: Request) {
-  const token = process.env["AGENT_TOKEN"];
+// Endpoint used by the on-network helper. The helper key is created in Admin Settings;
+// an AGENT_TOKEN secret still works as a fallback for machines installed the old way.
+async function authorized(request: Request) {
   const got = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!token || got.length !== token.length) return false;
-  let diff = 0;
-  for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ got.charCodeAt(i);
-  return diff === 0;
+  if (!got) return false;
+  if (process.env["AGENT_TOKEN"] && process.env["AGENT_TOKEN"] === got) return true;
+  const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+  const { matchesHelperToken } = await import("@/lib/helper-settings.server");
+  return matchesHelperToken(db, got);
 }
 
 export const Route = createFileRoute("/api/public/agent")({
