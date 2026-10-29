@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { BROWSER_PORTS, captureInputSchema, isRouterIp, routerUrl, pingInputSchema, pingResultSchema } from "@/lib/site-connectivity";
+import { BROWSER_PORTS, captureInputSchema, isRouterIp, portLabel, routerUrl, pingInputSchema, pingResultSchema } from "@/lib/site-connectivity";
 describe("Site Connectivity Check targets", () => {
-  it("browses exactly ports 80, 443 and 8443", () => {
-    expect(BROWSER_PORTS).toEqual([80, 443, 8443]);
+  it("browses exactly ports 80, 443, 8443 and 8080", () => {
+    expect(BROWSER_PORTS).toEqual([80, 443, 8443, 8080]);
     expect(routerUrl("10.194.72.40", 80)).toBe("http://10.194.72.40:80");
     expect(routerUrl("10.194.72.40", 443)).toBe("https://10.194.72.40:443");
     expect(routerUrl("10.194.72.40", 8443)).toBe("https://10.194.72.40:8443");
-    expect(captureInputSchema.safeParse({ ip: "10.194.72.40", port: 22 }).success).toBe(false);
+    expect(routerUrl("10.194.72.40", 8080)).toBe("http://10.194.72.40:8080");
+    expect(portLabel(8080)).toBe("HTTP / HTTPS");
+    expect(portLabel(443)).toBe("HTTPS");
+    for (const port of BROWSER_PORTS) expect(captureInputSchema.safeParse({ ip: "10.194.72.40", port }).success).toBe(true);
+    for (const port of [22, 8081, 8080.5]) expect(captureInputSchema.safeParse({ ip: "10.194.72.40", port }).success).toBe(false);
   });
   it("limits browser targets to canonical RFC1918 addresses", () => {
     expect(isRouterIp("10.194.72.40")).toBe(true);
