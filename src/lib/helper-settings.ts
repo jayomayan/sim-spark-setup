@@ -1,24 +1,20 @@
 import { z } from "zod";
 
 // Shared between the Admin Settings form and the server functions that store the values.
-export const FIREWALL_ACTIONS = ["accept", "drop"] as const;
-export const FIREWALL_PROTOCOLS = ["tcp", "udp", "any"] as const;
-
+// Each rule is exactly what the UR35 expects, plus a human description.
 export const firewallRuleSchema = z.object({
-  name: z.string().trim().min(1, "Rule name is required").max(60),
-  action: z.enum(FIREWALL_ACTIONS),
-  protocol: z.enum(FIREWALL_PROTOCOLS),
-  port: z.coerce.number().int().min(0).max(65535),
+  rule: z.string().trim().min(1, "Firewall rule is required").max(240),
+  description: z.string().trim().max(240).default(""),
 });
 export type FirewallRule = z.infer<typeof firewallRuleSchema>;
 
 export type NtpSettings = { enabled: boolean; servers: string[]; timezone: string };
 
 export const DEFAULT_FIREWALL_RULES: FirewallRule[] = [
-  { name: "Allow HTTPS mgmt", action: "accept", protocol: "tcp", port: 443 },
-  { name: "Allow SSH mgmt", action: "accept", protocol: "tcp", port: 22 },
-  { name: "Drop WAN HTTP", action: "drop", protocol: "tcp", port: 80 },
-  { name: "Drop all other inbound", action: "drop", protocol: "any", port: 0 },
+  { rule: "allow tcp/443", description: "Allow HTTPS management" },
+  { rule: "allow tcp/22", description: "Allow SSH management" },
+  { rule: "drop tcp/80", description: "Drop WAN HTTP" },
+  { rule: "drop any/0", description: "Drop all other inbound" },
 ];
 
 export const DEFAULT_NTP_SETTINGS: NtpSettings = {
