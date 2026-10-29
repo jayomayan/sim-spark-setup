@@ -3,7 +3,10 @@ import type { Database } from "@/integrations/supabase/types";
 import { CONSOLE_DEFAULTS, type ConsoleIntegration } from "@/lib/console-connect";
 import { decryptPassword } from "@/lib/db-connection.server";
 
-export async function readConsoleConfig(client: SupabaseClient<Database>, integration: ConsoleIntegration) {
+export async function readConsoleConfig(client: SupabaseClient<Database>, integration: ConsoleIntegration): Promise<{
+  integration: ConsoleIntegration; tokenUrl: string; apiUrl: string; clientId: string;
+  username: string; password: string; source: string; credentialSource: string; updatedAt: string | null;
+}> {
   const { data, error } = await client.from("console_connect_settings").select("*").eq("integration", integration).maybeSingle();
   if (error) throw new Error("Couldn't load Console Connect settings.");
   const defaults = CONSOLE_DEFAULTS[integration];
