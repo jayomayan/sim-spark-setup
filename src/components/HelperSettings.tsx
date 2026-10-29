@@ -4,20 +4,21 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, KeyRound, Loader2, Plus, RefreshCw, Save, Terminal, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { createHelperInstallCode, getHelperSettings, rotateHelperKey, saveHelperSettings } from "@/lib/helper.functions";
-import { buildInstallCommand, ENROLLMENT_TTL_MINUTES, type FirewallRule, type RouterLogin } from "@/lib/helper-settings";
+import { buildInstallCommand, ENROLLMENT_TTL_MINUTES, type RouterLogin } from "@/lib/helper-settings";
 import { HELPER_VERSION } from "@/lib/helper-release";
 import { useHelperStatus } from "@/components/HelperStatus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 type Settings = Awaited<ReturnType<typeof getHelperSettings>>;
 type Form = {
   routerLogins: RouterLogin[];
   ur35FirewallPath: string;
   ur35NtpPath: string;
-  firewallRules: FirewallRule[];
+  firewallCommands: string;
   ntpEnabled: boolean;
   ntpServers: string;
   ntpTimezone: string;
@@ -27,7 +28,7 @@ const toForm = (s: Settings): Form => ({
   routerLogins: s.routerLogins.map(({ id, username }) => ({ id, username, password: "" })),
   ur35FirewallPath: s.ur35FirewallPath,
   ur35NtpPath: s.ur35NtpPath,
-  firewallRules: s.firewallRules,
+  firewallCommands: s.firewallRules.map((rule) => rule.rule).join("\n"),
   ntpEnabled: s.ntp.enabled,
   ntpServers: s.ntp.servers.join(", "),
   ntpTimezone: s.ntp.timezone,
@@ -112,34 +113,6 @@ function InstallPanel() {
   );
 }
 
-function RuleRow({ rule, index, onChange, onRemove }: { rule: FirewallRule; index: number; onChange: (r: FirewallRule) => void; onRemove: () => void }) {
-  return (
-    <div className="flex flex-wrap items-end gap-2">
-      <div className="min-w-[200px] flex-1 space-y-1">
-        <Label htmlFor={`rule-text-${index}`}>Firewall rule</Label>
-        <Input
-          id={`rule-text-${index}`}
-          value={rule.rule}
-          placeholder="e.g. accept tcp/443"
-          onChange={(e) => onChange({ ...rule, rule: e.target.value })}
-        />
-      </div>
-      <div className="min-w-[200px] flex-1 space-y-1">
-        <Label htmlFor={`rule-desc-${index}`}>Description</Label>
-        <Input
-          id={`rule-desc-${index}`}
-          value={rule.description}
-          placeholder="What this rule is for"
-          onChange={(e) => onChange({ ...rule, description: e.target.value })}
-        />
-      </div>
-      <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remove rule ${rule.description || index + 1}`}>
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
-    </div>
-  );
-}
-
 export function HelperSettings() {
   const qc = useQueryClient();
   const load = useServerFn(getHelperSettings);
@@ -169,13 +142,17 @@ export function HelperSettings() {
   }
 
   const setField = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => (f ? { ...f, [key]: value } : f));
-  const setRule = (index: number, rule: FirewallRule) =>
-    setForm((f) => (f ? { ...f, firewallRules: f.firewallRules.map((r, i) => (i === index ? rule : r)) } : f));
 
   async function submit() {
     setSaving(true);
     try {
-      await save({ data: form });
+      if (!form) return;
+      const { firewallCommands, ...fields } = form;
+      const firewallRules = firewallCommands.split(/\r?\n/).map((rule) => rule.trim()).filter(Boolean).map((rule) => ({
+        rule,
+        description: current?.firewallRules.find((saved) => saved.rule === rule)?.description ?? "",
+      }));
+      await save({ data: { ...fields, firewallRules } });
       setForm((f) => (f ? { ...f, routerLogins: f.routerLogins.map((login) => ({ ...login, password: "" })) } : f));
       toast.success("Saved — the helper picks the changes up within a minute.");
       await qc.invalidateQueries({ queryKey: ["admin", "helper"] });
@@ -234,7 +211,7 @@ export function HelperSettings() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="ur35-fw">Firewall rules path</Label>
+            <Label htmlFor="ur35-fw">Firewall commands path</Label>
             <Input id="ur35-fw" value={form.ur35FirewallPath} onChange={(e) => setField("ur35FirewallPath", e.target.value)} />
           </div>
           <div className="space-y-2">
@@ -244,28 +221,18 @@ export function HelperSettings() {
         </div>
 
         <div className="space-y-3 border-t pt-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-medium">Firewall rules applied during SIM activation</h4>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={form.firewallRules.length >= 50}
-              onClick={() => setField("firewallRules", [...form.firewallRules, { rule: "", description: "" }])}
-            >
-              <Plus className="h-4 w-4" />Add rule
-            </Button>
-          </div>
-          {form.firewallRules.map((rule, index) => (
-            <RuleRow
-              key={index}
-              rule={rule}
-              index={index}
-              onChange={(next) => setRule(index, next)}
-              onRemove={() => setField("firewallRules", form.firewallRules.filter((_, i) => i !== index))}
-            />
-          ))}
-          {form.firewallRules.length === 0 && <p className="text-sm text-muted-foreground">No rules yet — the built-in template is used instead.</p>}
+          <Label htmlFor="firewall-commands" className="font-medium">Firewall commands applied during SIM activation</Label>
+          <Textarea
+            id="firewall-commands"
+            aria-label="Firewall commands"
+            value={form.firewallCommands}
+            onChange={(e) => setField("firewallCommands", e.target.value)}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            rows={14}
+            className="min-h-72 resize-y whitespace-pre font-mono text-sm leading-6"
+          />
         </div>
 
         <div className="space-y-3 border-t pt-4">
