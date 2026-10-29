@@ -81,6 +81,31 @@ function routerPost(ip, p, body) {
   });
 }
 
+// --- Site Connectivity Check: port screenshots + ping, run on this machine ---
+// Devices answer on either protocol on port 8080, so both are tried there.
+const SITE_PORTS = { 80: ["http"], 443: ["https"], 8443: ["https"], 8080: ["http", "https"] };
+let browser = null;
+async function getBrowser() {
+  if (browser?.isConnected()) return browser;
+  let chromium;
+  try {
+    ({ chromium } = await import("playwright"));
+  } catch {
+    throw new Error("Screenshots need the helper dependencies: run `npm install` then `npx playwright install --with-deps chromium` next to this file.");
+  }
+  browser = await chromium.launch({ headless: true, args: ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--disable-quic"] });
+  return browser;
+}
+// Only requests back to the very same router IP on a checked port may leave the browser.
+const sameTarget = (raw, ip) => {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    const port = Number(u.port || (u.protocol === "https:" ? 443 : 80));
+    return u.hostname === ip && Object.prototype.hasOwnProperty.call(SITE_PORTS, port);
+  } catch { return false; }
+};
+
 const handlers = {
   async ping({ ip }) {
     const { code, out } = await run("ping", ["-c", "5", "-W", "2", checkIp(ip)], 30_000);
