@@ -23,12 +23,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConsoleConnectSettings } from "@/components/ConsoleConnectSettings";
 
 type ProfileForm = { label: string; host: string; port: string; databaseName: string; username: string; password: string };
 
 const EMPTY_FORM: ProfileForm = { label: "", host: "", port: "5432", databaseName: "postgres", username: "", password: "" };
 
-export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "database" | "users" | "okta" }) {
+export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "database" | "users" | "okta" | "console-connect" }) {
   const { user } = useRouteContext({ from: "/_authenticated" });
   const qc = useQueryClient();
   const check = useServerFn(checkDatabaseConnection);
@@ -222,12 +223,14 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
       <PageHeader kicker="Administration" title="Admin Settings">
         <span className="flex items-center gap-2 text-xs font-semibold text-primary"><ShieldCheck className="h-4 w-4" />Admins only</span>
       </PageHeader>
-      <Tabs value={tab} onValueChange={(value) => { if (value === "database" || value === "users" || value === "okta") setTab(value); }}>
+      <Tabs value={tab} onValueChange={(value) => { if (value === "database" || value === "users" || value === "okta" || value === "console-connect") setTab(value); }}>
         <TabsList className="mb-8 h-auto w-full justify-start gap-2 overflow-x-auto rounded-none border-b bg-transparent p-0">
           <TabsTrigger value="database" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Database className="h-4 w-4 shrink-0" />Database Connection Settings</TabsTrigger>
           <TabsTrigger value="users" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Users className="h-4 w-4 shrink-0" />User Settings</TabsTrigger>
           <TabsTrigger value="okta" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><KeyRound className="h-4 w-4 shrink-0" />Okta Integration</TabsTrigger>
+          <TabsTrigger value="console-connect" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Server className="h-4 w-4 shrink-0" />Console Connect</TabsTrigger>
         </TabsList>
+        <TabsContent value="console-connect"><ConsoleConnectSettings /></TabsContent>
         <TabsContent value="database">
           <div className="max-w-3xl space-y-10">
             <section>

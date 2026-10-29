@@ -4,28 +4,23 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const validIccid = (s: string) => /^\d{18,22}$/.test(s);
 
-function iotConfig() {
-  const base = process.env["IOT_CC_BASE_URL"];
-  const user = process.env["IOT_CC_USERNAME"];
-  const pass = process.env["IOT_CC_PASSWORD"];
-  if (!base || !user || !pass) return null;
-  return { base: base.replace(/\/$/, ""), auth: "Basic " + btoa(`${user}:${pass}`) };
-}
-
 export const activateSim = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { iccid: string }) => {
     if (!validIccid(d.iccid)) throw new Error("ICCID must be 18–22 digits");
     return d;
   })
-  .handler(async ({ data }) => {
-    const cfg = iotConfig();
+  .handler(async ({ data, context }) => {
+    const { memberConsoleConfig } = await import("@/lib/console-connect.server");
+    const config = await memberConsoleConfig(context.supabase, context.userId, "sim_activation");
+    const cfg = config.apiUrl && config.username && config.password ? { base: config.apiUrl, auth: "Basic " + btoa(`${config.username}:${config.password}`) } : null;
     if (!cfg) {
       await wait(1200);
       return { ok: true, simulated: true };
     }
     const res = await fetch(`${cfg.base}/devices/${data.iccid}`, {
       method: "PUT",
+      redirect: "error", signal: AbortSignal.timeout(10000),
       headers: { Authorization: cfg.auth, "Content-Type": "application/json" },
       body: JSON.stringify({ status: "ACTIVATED" }),
     });
@@ -36,8 +31,10 @@ export const activateSim = createServerFn({ method: "POST" })
 export const getSimIp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { iccid: string; attempt: number }) => d)
-  .handler(async ({ data }) => {
-    const cfg = iotConfig();
+  .handler(async ({ data, context }) => {
+    const { memberConsoleConfig } = await import("@/lib/console-connect.server");
+    const config = await memberConsoleConfig(context.supabase, context.userId, "sim_activation");
+    const cfg = config.apiUrl && config.username && config.password ? { base: config.apiUrl, auth: "Basic " + btoa(`${config.username}:${config.password}`) } : null;
     if (!cfg) {
       await wait(800);
       if (data.attempt < 3) return { ip: null as string | null, status: "PENDING", simulated: true };
@@ -45,6 +42,7 @@ export const getSimIp = createServerFn({ method: "POST" })
       return { ip: `10.${(n >> 8) % 255}.${n % 255}.${((data.attempt * 7) % 250) + 2}`, status: "ACTIVE", simulated: true };
     }
     const res = await fetch(`${cfg.base}/devices/${data.iccid}`, {
+      redirect: "error", signal: AbortSignal.timeout(10000),
       headers: { Authorization: cfg.auth, Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`Status lookup failed (${res.status})`);

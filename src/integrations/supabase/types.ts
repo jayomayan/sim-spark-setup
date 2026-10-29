@@ -74,6 +74,36 @@ export type Database = {
         }
         Relationships: []
       }
+      console_connect_settings: {
+        Row: {
+          api_url: string
+          client_id: string
+          integration: string
+          password_cipher: string | null
+          token_url: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          api_url: string
+          client_id?: string
+          integration: string
+          password_cipher?: string | null
+          token_url?: string
+          updated_at?: string
+          username?: string
+        }
+        Update: {
+          api_url?: string
+          client_id?: string
+          integration?: string
+          password_cipher?: string | null
+          token_url?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       database_connections: {
         Row: {
           created_at: string
