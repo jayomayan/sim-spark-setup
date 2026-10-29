@@ -80,7 +80,14 @@ function SiteConnectivityCheck() {
       }
       if (!isRouterIp(target)) throw new Error("Please enter a Site ID or a private IP address.");
       setIp(target);
-      await Promise.all([testPing(target), ...BROWSER_PORTS.map((port) => browsePort(target, port))]);
+      const [ping, ...ports] = await Promise.all([testPing(target), ...BROWSER_PORTS.map((port) => browsePort(target, port))]);
+      const captures = ports.filter((capture): capture is CaptureResult => capture !== null);
+      if (ping || captures.length) {
+        try {
+          await saveSiteCheck({ siteId: /^PH/i.test(query.trim()) ? query.trim().toUpperCase() : null, ip: target, network: null, ping, ports: captures });
+          setHistoryKey((key) => key + 1);
+        } catch { /* History is best-effort; a failed save never blocks the check. */ }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
