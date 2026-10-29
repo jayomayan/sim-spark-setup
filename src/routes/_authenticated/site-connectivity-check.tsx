@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity, Server } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity, Server, History, ChevronDown } from "lucide-react";
 import { lookupSite } from "@/lib/aeris.functions";
 import { runJob } from "@/lib/jobs";
+import { listSiteChecks, saveSiteCheck, type SiteCheck } from "@/lib/site-checks";
 import { BROWSER_PORTS, captureResultSchema, isRouterIp, pingResultSchema, portLabel, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -31,16 +32,21 @@ function SiteConnectivityCheck() {
   const [site, setSite] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
 
-  async function testPing(target: string) {
+  async function testPing(target: string): Promise<PingResult | null> {
     setPingState("loading"); setPingResult(null); setPingError(null);
     try {
       const job = await runJob("site_ping", { ip: target }, { timeoutMs: 60_000 });
-      if (job.status === "done") { setPingResult(pingResultSchema.parse(job.result)); setPingState("done"); }
-      else { setPingError(job.error ?? "Ping unavailable"); setPingState("error"); }
+      if (job.status === "done") {
+        const result = pingResultSchema.parse(job.result);
+        setPingResult(result); setPingState("done");
+        return result;
+      }
+      setPingError(job.error ?? "Ping unavailable"); setPingState("error");
     } catch (err) { setPingError(err instanceof Error ? err.message : "Could not run the ping test. Please try again."); setPingState("error"); }
+    return null;
   }
 
-  async function browsePort(target: string, port: BrowserPort) {
+  async function browsePort(target: string, port: BrowserPort): Promise<CaptureResult | null> {
     setTiles((previous) => ({ ...previous, [port]: { state: "loading" } }));
     try {
       const job = await runJob("site_capture", { ip: target, port }, { timeoutMs: 180_000 });
@@ -48,12 +54,13 @@ function SiteConnectivityCheck() {
         const capture = captureResultSchema.parse(job.result);
         if (capture.port !== port) throw new Error("Unexpected port");
         setTiles((previous) => ({ ...previous, [port]: { state: "done", capture } }));
-      } else {
-        setTiles((previous) => ({ ...previous, [port]: { state: "error", error: job.error ?? "Screenshot unavailable" } }));
+        return capture;
       }
+      setTiles((previous) => ({ ...previous, [port]: { state: "error", error: job.error ?? "Screenshot unavailable" } }));
     } catch (err) {
       setTiles((previous) => ({ ...previous, [port]: { state: "error", error: err instanceof Error ? err.message : "Could not capture this port. Please try again." } }));
     }
+    return null;
   }
 
   async function connect(e: React.FormEvent) {
