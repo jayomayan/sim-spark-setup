@@ -4,18 +4,18 @@ import { useState } from "react";
 import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity } from "lucide-react";
 import { lookupSite } from "@/lib/aeris.functions";
 import { captureRouterPort, pingRouter } from "@/lib/site-connectivity.functions";
-import { BROWSER_PORTS, isRouterIp, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
+import { BROWSER_PORTS, isRouterIp, portLabel, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/site-connectivity-check")({
-  head: () => meta("Site Connectivity Check", "Resolve Site IDs through Console Connect, test ping reachability and latency, and check screenshots of ports 80, 443 and 8443."),
+  head: () => meta("Site Connectivity Check", "Resolve Site IDs through Console Connect, test ping reachability and latency, and check screenshots of ports 80, 443, 8443 and 8080."),
   component: SiteConnectivityCheck,
 });
 
 type Tile = { state: "idle" | "loading" | "done" | "error"; capture?: CaptureResult; error?: string };
-const emptyTiles = (): Record<BrowserPort, Tile> => ({ 80: { state: "idle" }, 443: { state: "idle" }, 8443: { state: "idle" } });
+const emptyTiles = (): Record<BrowserPort, Tile> => ({ 80: { state: "idle" }, 443: { state: "idle" }, 8443: { state: "idle" }, 8080: { state: "idle" } });
 
 function SiteConnectivityCheck() {
   const lookup = useServerFn(lookupSite);
@@ -94,7 +94,7 @@ function SiteConnectivityCheck() {
             {site && <Field label="Site ID" value={site} />}
             <Field label="Router IP" value={ip} />
             <Field label="Network" value={network ?? "—"} />
-            <Field label="Accessible ports" value={`${BROWSER_PORTS.filter((port) => tiles[port].capture?.accessible).length} / 3`} />
+            <Field label="Accessible ports" value={`${BROWSER_PORTS.filter((port) => tiles[port].capture?.accessible).length} / ${BROWSER_PORTS.length}`} />
           </div>
         )}
         <section aria-label="Ping test results" className="space-y-4 border-y py-5">
@@ -119,13 +119,13 @@ function SiteConnectivityCheck() {
             </> : <p className={`text-sm ${pingState === "error" ? "text-destructive" : "text-muted-foreground"}`}>{pingState === "loading" ? "Testing ping…" : pingState === "error" ? pingError : "Not tested"}</p>}
           </div>
         </section>
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {BROWSER_PORTS.map((port) => {
             const tile = tiles[port];
             const url = ip ? routerUrl(ip, port) : null;
             return <article key={port} className="overflow-hidden rounded-lg border bg-card">
               <header className="flex items-center justify-between border-b px-4 py-3">
-                <div><h2 className="font-semibold">Port {port}</h2><p className="font-mono text-xs text-muted-foreground">{port === 80 ? "HTTP" : "HTTPS"}</p></div>
+                <div><h2 className="font-semibold">Port {port}</h2><p className="font-mono text-xs text-muted-foreground">{portLabel(port)}</p></div>
                 <span className={`text-xs ${tile.capture?.accessible ? "text-primary" : "text-muted-foreground"}`}>{tile.state === "loading" ? "Browsing" : tile.capture ? tile.capture.accessible ? "Accessible" : "Not accessible" : tile.state === "error" ? "Unavailable" : "Not browsed"}</span>
               </header>
               <div className="flex aspect-[4/3] items-center justify-center bg-muted/40">
