@@ -1,5 +1,5 @@
 # Tasks
-- [ ] Remove path inputs and replace NTP fields with a single text editor; verify save/reload.
+- [x] Remove path inputs and replace NTP fields with a single text editor for the current JSON router payload; verified save/reload.
 - [x] Replace firewall rows with a full-command text editor; verified save/reload while preserving existing helper delivery.
 - [x] Write private UR35_Credentials.txt when settings arrive; verified app save → running helper file with exact pairs, mode 0600, and removal clearing.
 - [x] Support multiple encrypted router login pairs; verified add/save/reload, blank-password retention, removal and helper authentication fallback.
