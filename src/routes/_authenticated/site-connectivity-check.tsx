@@ -1,10 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity } from "lucide-react";
+import { ExternalLink, Camera, LoaderCircle, RefreshCw, Activity, Server } from "lucide-react";
 import { lookupSite } from "@/lib/aeris.functions";
-import { captureRouterPort, pingRouter } from "@/lib/site-connectivity.functions";
-import { BROWSER_PORTS, isRouterIp, portLabel, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
+import { runJob } from "@/lib/jobs";
+import { BROWSER_PORTS, captureResultSchema, isRouterIp, pingResultSchema, portLabel, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,6 @@ const emptyTiles = (): Record<BrowserPort, Tile> => ({ 80: { state: "idle" }, 44
 
 function SiteConnectivityCheck() {
   const lookup = useServerFn(lookupSite);
-  const capture = useServerFn(captureRouterPort);
-  const ping = useServerFn(pingRouter);
   const [pingState, setPingState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [pingError, setPingError] = useState<string | null>(null);
