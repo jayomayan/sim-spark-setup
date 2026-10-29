@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouteContext } from "@tanstack/react-router";
@@ -10,6 +10,9 @@ import {
   getOktaSetup,
   checkOktaDomain,
   checkOktaSignIn,
+  getOktaSettings,
+  saveOktaSettings,
+  testOktaConnection,
   listConnectionProfiles,
   saveConnectionProfile,
   deleteConnectionProfile,
@@ -38,6 +41,9 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
   const loadSetup = useServerFn(getOktaSetup);
   const testDomain = useServerFn(checkOktaDomain);
   const testSignIn = useServerFn(checkOktaSignIn);
+  const loadOktaSettings = useServerFn(getOktaSettings);
+  const saveOkta = useServerFn(saveOktaSettings);
+  const testOkta = useServerFn(testOktaConnection);
   const listProfiles = useServerFn(listConnectionProfiles);
   const saveProfile = useServerFn(saveConnectionProfile);
   const removeProfile = useServerFn(deleteConnectionProfile);
@@ -50,6 +56,9 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
   const [oktaDomainInput, setOktaDomainInput] = useState("");
   const [domainResult, setDomainResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [testingDomain, setTestingDomain] = useState(false);
+  const [oktaForm, setOktaForm] = useState({ domain: "", clientId: "", clientSecret: "" });
+  const [oktaBusy, setOktaBusy] = useState<"save" | "test" | null>(null);
+  const [oktaResult, setOktaResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
