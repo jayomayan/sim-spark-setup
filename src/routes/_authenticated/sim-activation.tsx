@@ -78,6 +78,7 @@ function SimActivation() {
   }
 
   const complete = states[5] === "done";
+  const doneCount = states.filter((s) => s === "done").length;
   const valid = /^\d{18,22}$/.test(iccid);
 
   return (
@@ -96,17 +97,27 @@ function SimActivation() {
             </button>
             {iccid && !valid && <p className="mt-2 text-xs text-muted-foreground">ICCID must be 18–22 digits.</p>}
           </section>
-          <ol className="space-y-2">
-            {STEPS.map((s, i) => (
-              <li key={s} className="panel flex items-center gap-4 px-4 py-3" data-state={states[i]}>
-                <span className="step-dot">{states[i] === "done" ? "✓" : states[i] === "error" ? "!" : i + 1}</span>
-                <span className="flex-1">{s}</span>
-                {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
-                {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
-                {states[i] === "running" && <span className="spinner" />}
-              </li>
-            ))}
-          </ol>
+          <section className="panel p-5">
+            <div className="mb-3 flex items-center justify-between text-sm">
+              <span className="font-semibold">Activation progress</span>
+              <span className="font-mono text-muted-foreground">{doneCount} / {STEPS.length}</span>
+            </div>
+            <div className="mb-5 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${(doneCount / STEPS.length) * 100}%` }} />
+            </div>
+            <ol className="stepper space-y-1">
+              {STEPS.map((s, i) => (
+                <li key={s} className="flex items-center gap-4 px-3 py-2.5" data-state={states[i]}>
+                  <span className="step-dot">
+                    {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : i + 1}
+                  </span>
+                  <span className="step-label flex-1 text-muted-foreground">{s}</span>
+                  {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
+                  {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
+                </li>
+              ))}
+            </ol>
+          </section>
           {error && <p className="rounded-md border border-destructive p-3 text-sm text-destructive">{error}</p>}
           {complete && (
             <div className="panel p-5 text-center">
