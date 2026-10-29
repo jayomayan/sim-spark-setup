@@ -66,7 +66,9 @@ function PrivateBrowser() {
 
   return (
     <>
-      <PageHeader kicker="Remote access" title="Private Browser" />
+      <PageHeader kicker="Remote access" title="Private Browser">
+        <Button asChild variant="outline" size="sm"><a href="/private-browser-service/service.zip" download><Download className="h-4 w-4" />Screenshot service</a></Button>
+      </PageHeader>
       <div className="space-y-6">
         <form onSubmit={connect} className="flex flex-col gap-3 border-b pb-6 sm:flex-row">
           <Input aria-label="Site ID or private IP" maxLength={32} value={query} disabled={busy} onChange={(e) => setQuery(e.target.value)} placeholder="Site ID (PH010010) or private IP (10.x.x.x)" className="font-mono" />
