@@ -9,7 +9,7 @@ export async function capturePort(browser, ip, port) {
   try {
     await context.route("**/*", (route) => allowedRequest(route.request().url(), ip) ? route.continue() : route.abort());
     await context.routeWebSocket("**/*", (socket) => socket.close());
-    const page = await context.newPage();
+    let page = await context.newPage();
     page.on("popup", (popup) => void popup.close());
     page.on("dialog", (dialog) => void dialog.dismiss());
     page.on("download", (download) => void download.cancel());
@@ -22,7 +22,8 @@ export async function capturePort(browser, ip, port) {
       if (accessible) await page.waitForTimeout(1000);
     } catch { /* A failed navigation receives a real failure screenshot below. */ }
     if (!accessible) {
-      await page.goto("about:blank");
+      await page.close();
+      page = await context.newPage();
       await page.setContent(`<html><head><style>:root{--background:#fff;--foreground:#303030;--primary:#B0262D;--muted:#686868}body{margin:0;background:var(--background);color:var(--foreground);font-family:Arial,sans-serif;display:grid;place-items:center;height:100vh}.message{text-align:center}h1{font-size:32px;color:var(--primary)}p{font-size:20px;color:var(--muted)}</style></head><body><div class="message"><h1>Not able to access Port ${port}</h1><p>${ip}</p></div></body></html>`);
     }
     const image = await page.screenshot({ type: "jpeg", quality: 70, timeout: 5000, animations: "disabled" });
