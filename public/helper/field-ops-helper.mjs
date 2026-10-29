@@ -23,7 +23,7 @@ import path from "node:path";
 import https from "node:https";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -34,10 +34,10 @@ if (!URL_BASE || !TOKEN) {
 
 // Used only when the console can't be reached; Admin Settings is the real source.
 const FALLBACK_RULES = [
-  { name: "Allow HTTPS mgmt", action: "accept", protocol: "tcp", port: 443 },
-  { name: "Allow SSH mgmt", action: "accept", protocol: "tcp", port: 22 },
-  { name: "Drop WAN HTTP", action: "drop", protocol: "tcp", port: 80 },
-  { name: "Drop all other inbound", action: "drop", protocol: "any", port: 0 },
+  { rule: "allow tcp/443", description: "Allow HTTPS management" },
+  { rule: "allow tcp/22", description: "Allow SSH management" },
+  { rule: "drop tcp/80", description: "Drop WAN HTTP" },
+  { rule: "drop any/0", description: "Drop all other inbound" },
 ];
 const FALLBACK_NTP = { enabled: true, servers: ["pool.ntp.org", "time.google.com"], timezone: "Asia/Manila" };
 

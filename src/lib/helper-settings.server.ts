@@ -73,7 +73,23 @@ async function ensureRow(db: Client) {
 /** Everything the helper needs to do router work, decrypted for on-machine use only. */
 export async function helperConfig(db: Client): Promise<HelperConfig> {
   const row = await ensureRow(db);
-  const rules = Array.isArray(row.firewall_rules) ? (row.firewall_rules as FirewallRule[]) : [];
+  // Rules saved before the two-field format are converted on read:
+  // "Allow HTTPS mgmt / accept tcp 443" became "accept tcp/443" with that name as its description.
+  const stored = Array.isArray(row.firewall_rules) ? (row.firewall_rules as Record<string, unknown>[]) : [];
+  const rules: FirewallRule[] = stored
+    .map((r) => {
+      if (typeof r?.["rule"] === "string") {
+        return { rule: r["rule"], description: typeof r["description"] === "string" ? r["description"] : "" };
+      }
+      if (typeof r?.["action"] === "string" && typeof r?.["protocol"] === "string" && typeof r?.["port"] === "number") {
+        return {
+          rule: `${r["action"]} ${r["protocol"]}/${r["port"]}`,
+          description: typeof r["name"] === "string" ? r["name"] : "",
+        };
+      }
+      return null;
+    })
+    .filter((r): r is FirewallRule => r !== null && r.rule.length > 0);
   const ntp = (row.ntp_settings ?? {}) as Partial<NtpSettings>;
   return {
     configVersion: row.config_version,
