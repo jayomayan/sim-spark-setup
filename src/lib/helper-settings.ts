@@ -8,6 +8,13 @@ export const firewallRuleSchema = z.object({
 });
 export type FirewallRule = z.infer<typeof firewallRuleSchema>;
 
+export const routerLoginSchema = z.object({
+  id: z.string().uuid(),
+  username: z.string().trim().min(1, "Router username is required").max(80),
+  password: z.string().max(200).default(""),
+});
+export type RouterLogin = z.infer<typeof routerLoginSchema>;
+
 export type NtpSettings = { enabled: boolean; servers: string[]; timezone: string };
 
 export const DEFAULT_FIREWALL_RULES: FirewallRule[] = [
@@ -30,8 +37,10 @@ const apiPathSchema = z
   .max(120);
 
 export const helperSettingsInput = z.object({
-  ur35Username: z.string().trim().max(80).default(""),
-  ur35Password: z.string().max(200).optional(),
+  routerLogins: z.array(routerLoginSchema).max(50).default([]).refine(
+    (logins) => new Set(logins.map((login) => login.id)).size === logins.length,
+    "Router login IDs must be unique",
+  ),
   ur35FirewallPath: apiPathSchema.default("/api/firewall/rules"),
   ur35NtpPath: apiPathSchema.default("/api/system/ntp"),
   firewallRules: z.array(firewallRuleSchema).max(50, "At most 50 firewall rules"),
