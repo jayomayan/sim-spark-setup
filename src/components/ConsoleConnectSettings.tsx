@@ -22,8 +22,7 @@ function ConnectionForm({ config }: { config: Settings }) {
     ...(lookup ? [{ key: "tokenUrl" as const, label: "Token URL" }] : []),
     { key: "apiUrl" as const, label: "API base URL" },
     ...(lookup ? [{ key: "clientId" as const, label: "Client ID" }] : []),
-    { key: "username" as const, label: "Username" },
-    { key: "password" as const, label: "Password" },
+    ...(lookup ? [{ key: "username" as const, label: "Username" }, { key: "password" as const, label: "Password" }] : []),
   ];
   async function run(mode: "save" | "test") {
     setBusy(mode); setResult(null);
@@ -49,6 +48,7 @@ function ConnectionForm({ config }: { config: Settings }) {
       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-[160px_1fr]">
         <dt className="text-muted-foreground">Configuration source</dt><dd>{config.source}</dd>
         <dt className="text-muted-foreground">Authentication</dt><dd>{lookup ? "Password grant" : "Basic authentication"}</dd>
+        <dt className="text-muted-foreground">Credentials</dt><dd>{config.credentialSource}</dd>
         <dt className="text-muted-foreground">Password status</dt><dd>{config.hasPassword ? "Stored securely" : "Not set"}</dd>
         {config.updatedAt && <><dt className="text-muted-foreground">Last saved</dt><dd>{new Date(config.updatedAt).toLocaleString()}</dd></>}
       </dl>
@@ -75,6 +75,6 @@ export function ConsoleConnectSettings() {
   return <div className="max-w-3xl space-y-8">
     {settings.isPending && <p role="status" className="text-sm text-muted-foreground">Loading current Console Connect configuration…</p>}
     {settings.isError && <div role="alert" className="flex items-center gap-3 text-sm text-destructive">Couldn't load Console Connect settings.<Button variant="outline" onClick={() => settings.refetch()}>Retry</Button></div>}
-    {settings.data?.map((config) => <ConnectionForm key={config.integration} config={config} />)}
+    {settings.data?.map((config) => <ConnectionForm key={`${config.integration}-${config.updatedAt}-${config.username}`} config={config} />)}
   </div>;
 }
