@@ -67,9 +67,9 @@ describe("ntp servers", () => {
     expect(parseNtpServers(many)).toHaveLength(8);
   });
 
-  it("requires a server when NTP is on", () => {
-    const result = helperSettingsInput.safeParse({ ntpEnabled: true, ntpServers: "  " });
-    expect(result.success).toBe(true); // shape is valid; the save step rejects an empty list
-    expect(parseNtpServers("  ")).toEqual([]);
+  it("allows an empty server list through the form, which the save step then rejects", () => {
+    const result = helperSettingsInput.safeParse({ ntpEnabled: true, ntpServers: "  ", firewallRules: [] });
+    expect(result.success).toBe(true);
+    expect(parseNtpServers("  ")).toEqual([]); // saveHelperConfig refuses this combination
   });
 });
