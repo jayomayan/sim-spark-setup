@@ -9,7 +9,8 @@
 - [x] Replace Private Browser ping/helper with Console Connect lookup and three screenshot tiles.
 - [x] Rename Private Browser to Site Connectivity Check across screens, files and the service package.
 - [x] Build and test a dedicated network screenshot service with secure deployment instructions.
-- [ ] Install the updated helper (1.2.0) on the company network with Playwright/Chromium so Site Connectivity Check returns live results.
+- [x] Deploy the helper from Admin Settings: one-paste Linux installer, helper updates itself from the console, router login and firewall/NTP templates pushed from the console; verified code exchange, settings pull, self-update 1.2.0 → 1.3.0 and live status.
+- [ ] Paste the install command from Admin Settings → Network Helper on the company server (needs sudo there); Site Connectivity Check and router jobs then return live results.
 - [ ] Enable live Console Connect Site ID resolution and SIM activation (needs provider account details in Admin Settings and SIM API address).
 - [x] Add admin-only external database creation and required-table setup; preserve existing data and managed sign-in.
 - [x] Verify database setup, repeat setup, permission failures and signed-in controls.
