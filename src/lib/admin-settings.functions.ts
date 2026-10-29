@@ -256,3 +256,120 @@ export const checkOktaSignIn = createServerFn({ method: "POST" })
       return { ready: false, message: "Couldn't reach the sign-in endpoint. Try again in a moment." };
     }
   });
+
+// --- Saved Okta connection parameters (admin-only; secret encrypted at rest) ---
+
+const oktaSettingsInput = z.object({
+  domain: z.string().trim().min(1, "Base URL is required").max(253),
+  clientId: z.string().trim().min(1, "Client ID is required").max(200),
+  clientSecret: z.string().max(500).optional(),
+});
+
+export type OktaSettings = { domain: string; clientId: string; hasSecret: boolean; updatedAt: string | null };
+
+export const getOktaSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<OktaSettings> => {
+    await assertAdmin(context.supabase, context.userId);
+    const { data, error } = await context.supabase
+      .from("okta_settings")
+      .select("domain,client_id,client_secret_cipher,updated_at")
+      .eq("id", true)
+      .maybeSingle();
+    if (error) throw new Error("Couldn't load the saved Okta settings");
+    return {
+      domain: data?.domain ?? "",
+      clientId: data?.client_id ?? "",
+      hasSecret: Boolean(data?.client_secret_cipher),
+      updatedAt: data?.updated_at ?? null,
+    };
+  });
+
+export const saveOktaSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => oktaSettingsInput.parse(data))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const domain = normalizeOktaDomain(data.domain);
+    if (!domain) throw new Error("Enter a valid Okta base URL, e.g. yourcompany.okta.com");
+    const { error } = await context.supabase.from("okta_settings").upsert({
+      id: true,
+      domain,
+      client_id: data.clientId,
+      ...(data.clientSecret && data.clientSecret.length > 0
+        ? { client_secret_cipher: encryptPassword(data.clientSecret) }
+        : {}),
+      updated_at: new Date().toISOString(),
+      updated_by: context.userId,
+    });
+    if (error) throw new Error("Couldn't save the Okta settings");
+    return { ok: true };
+  });
+
+export type OktaConnectionTest = { ok: boolean; message: string };
+
+/**
+ * Tests the saved (or provided) Okta parameters: fetches OIDC discovery, then
+ * validates the client credentials against the token endpoint. A 400 with
+ * unsupported_grant_type/invalid_scope means the credentials were accepted but
+ * the app doesn't allow client_credentials — still a successful credential check.
+ */
+export const testOktaConnection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => oktaSettingsInput.parse(data))
+  .handler(async ({ context, data }): Promise<OktaConnectionTest> => {
+    await assertAdmin(context.supabase, context.userId);
+    const domain = normalizeOktaDomain(data.domain);
+    if (!domain) return { ok: false, message: "Enter a valid Okta base URL, e.g. yourcompany.okta.com" };
+
+    let secret = data.clientSecret ?? "";
+    if (!secret) {
+      const { data: row, error } = await context.supabase
+        .from("okta_settings")
+        .select("client_secret_cipher")
+        .eq("id", true)
+        .maybeSingle();
+      if (error) throw new Error("Couldn't load the saved Okta settings");
+      if (row?.client_secret_cipher) secret = decryptPassword(row.client_secret_cipher);
+    }
+    if (!secret) return { ok: false, message: "Enter the client secret (or save it first) to test the connection." };
+
+    let tokenEndpoint: string;
+    try {
+      const res = await fetch(`https://${domain}/.well-known/openid-configuration`, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!res.ok) return { ok: false, message: `Okta answered with status ${res.status} — check the base URL.` };
+      const doc = (await res.json()) as { issuer?: string; token_endpoint?: string };
+      if (!doc.issuer || !doc.token_endpoint) {
+        return { ok: false, message: "The base URL answered but didn't return OIDC discovery data." };
+      }
+      tokenEndpoint = doc.token_endpoint;
+    } catch {
+      return { ok: false, message: `Couldn't reach https://${domain} from the app server.` };
+    }
+
+    try {
+      const res = await fetch(tokenEndpoint, {
+        method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${btoa(`${data.clientId}:${secret}`)}`,
+        },
+        body: new URLSearchParams({ grant_type: "client_credentials", scope: "openid" }),
+      });
+      if (res.ok) return { ok: true, message: "Connection successful — Okta accepted the client ID and secret." };
+      const body = (await res.json().catch(() => ({}))) as { error?: string; error_description?: string };
+      if (res.status === 401 || body.error === "invalid_client") {
+        return { ok: false, message: "Okta rejected the client ID or secret — check both values." };
+      }
+      if (res.status === 400 && (body.error === "unsupported_grant_type" || body.error === "invalid_scope")) {
+        return { ok: true, message: "Credentials accepted — Okta recognized the client ID and secret." };
+      }
+      return { ok: false, message: `Okta answered with ${res.status}${body.error_description ? `: ${body.error_description}` : ""}` };
+    } catch {
+      return { ok: false, message: "Couldn't reach the Okta token endpoint from the app server." };
+    }
+  });

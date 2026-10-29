@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouteContext } from "@tanstack/react-router";
@@ -10,6 +10,9 @@ import {
   getOktaSetup,
   checkOktaDomain,
   checkOktaSignIn,
+  getOktaSettings,
+  saveOktaSettings,
+  testOktaConnection,
   listConnectionProfiles,
   saveConnectionProfile,
   deleteConnectionProfile,
@@ -38,6 +41,9 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
   const loadSetup = useServerFn(getOktaSetup);
   const testDomain = useServerFn(checkOktaDomain);
   const testSignIn = useServerFn(checkOktaSignIn);
+  const loadOktaSettings = useServerFn(getOktaSettings);
+  const saveOkta = useServerFn(saveOktaSettings);
+  const testOkta = useServerFn(testOktaConnection);
   const listProfiles = useServerFn(listConnectionProfiles);
   const saveProfile = useServerFn(saveConnectionProfile);
   const removeProfile = useServerFn(deleteConnectionProfile);
@@ -50,6 +56,9 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
   const [oktaDomainInput, setOktaDomainInput] = useState("");
   const [domainResult, setDomainResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [testingDomain, setTestingDomain] = useState(false);
+  const [oktaForm, setOktaForm] = useState({ domain: "", clientId: "", clientSecret: "" });
+  const [oktaBusy, setOktaBusy] = useState<"save" | "test" | null>(null);
+  const [oktaResult, setOktaResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,6 +77,17 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
     retry: false,
     enabled: tab === "okta",
   });
+  const oktaSettings = useQuery({
+    queryKey: ["admin", "okta", "settings"],
+    queryFn: () => loadOktaSettings(),
+    retry: false,
+    enabled: tab === "okta",
+  });
+  useEffect(() => {
+    if (oktaSettings.data) {
+      setOktaForm((prev) => ({ ...prev, domain: oktaSettings.data.domain, clientId: oktaSettings.data.clientId }));
+    }
+  }, [oktaSettings.data]);
   const filtered = accounts.data?.filter((account) => `${account.email ?? ""} ${account.display_name ?? ""}`.toLowerCase().includes(search.toLowerCase())) ?? [];
 
   async function change(userId: string, role: string) {
@@ -208,6 +228,36 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
     }
   }
 
+  const oktaFormValid = oktaForm.domain.trim().length > 0 && oktaForm.clientId.trim().length > 0;
+
+  async function saveOktaForm() {
+    setOktaBusy("save");
+    setOktaResult(null);
+    try {
+      await saveOkta({ data: { domain: oktaForm.domain, clientId: oktaForm.clientId, clientSecret: oktaForm.clientSecret || undefined } });
+      setOktaForm((prev) => ({ ...prev, clientSecret: "" }));
+      await qc.invalidateQueries({ queryKey: ["admin", "okta", "settings"] });
+      toast.success("Okta settings saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't save");
+    } finally {
+      setOktaBusy(null);
+    }
+  }
+
+  async function testOktaForm() {
+    setOktaBusy("test");
+    setOktaResult(null);
+    try {
+      const result = await testOkta({ data: { domain: oktaForm.domain, clientId: oktaForm.clientId, clientSecret: oktaForm.clientSecret || undefined } });
+      setOktaResult({ ok: result.ok, text: result.message });
+    } catch (error) {
+      setOktaResult({ ok: false, text: error instanceof Error ? error.message : "Test failed" });
+    } finally {
+      setOktaBusy(null);
+    }
+  }
+
   async function copyCallback() {
     if (!setup.data?.callbackUrl) return;
     try {
@@ -341,6 +391,52 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
         </TabsContent>
         <TabsContent value="okta">
           <section className="max-w-3xl space-y-8">
+            <div>
+              <h2 className="text-xl font-semibold">Okta connection parameters</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Your Okta app's details, stored encrypted. The client secret is never shown after saving — leave it blank to keep the saved one.
+              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Label htmlFor="okta-domain">Base URL</Label>
+                  <Input id="okta-domain" placeholder="yourcompany.okta.com" value={oktaForm.domain}
+                    onChange={(event) => setOktaForm((prev) => ({ ...prev, domain: event.target.value }))} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="okta-client-id">Client ID</Label>
+                  <Input id="okta-client-id" placeholder="0oa…" value={oktaForm.clientId}
+                    onChange={(event) => setOktaForm((prev) => ({ ...prev, clientId: event.target.value }))} className="mt-1 font-mono text-sm" />
+                </div>
+                <div>
+                  <Label htmlFor="okta-client-secret">Client secret</Label>
+                  <Input id="okta-client-secret" type="password" placeholder={oktaSettings.data?.hasSecret ? "••••••••  (saved)" : "Client secret"}
+                    value={oktaForm.clientSecret}
+                    onChange={(event) => setOktaForm((prev) => ({ ...prev, clientSecret: event.target.value }))} className="mt-1 font-mono text-sm" />
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Button variant="outline" onClick={testOktaForm} disabled={oktaBusy !== null || !oktaFormValid}>
+                  {oktaBusy === "test" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {oktaBusy === "test" ? "Testing…" : "Test connection"}
+                </Button>
+                <Button onClick={saveOktaForm} disabled={oktaBusy !== null || !oktaFormValid}>
+                  {oktaBusy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {oktaBusy === "save" ? "Saving…" : "Save settings"}
+                </Button>
+                {oktaSettings.data?.updatedAt && (
+                  <span className="text-xs text-muted-foreground">Saved {new Date(oktaSettings.data.updatedAt).toLocaleString()}</span>
+                )}
+              </div>
+              {oktaResult && (
+                <p role="status" className={`mt-3 flex items-start gap-2 text-sm ${oktaResult.ok ? "text-primary" : "text-destructive"}`}>
+                  {oktaResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+                  {oktaResult.text}
+                </p>
+              )}
+              <p className="mt-3 text-xs text-muted-foreground">
+                These saved values are a reference for your team. For the “Sign in with Okta” button itself, the same values must also be entered once in the backend under <span className="font-medium text-foreground">Users → Auth settings → OIDC</span> (step 2 below) — the app isn't allowed to write that configuration itself.
+              </p>
+            </div>
             <div>
               <h2 className="text-xl font-semibold">Sign-in status</h2>
               <p className="mt-1 text-sm text-muted-foreground">Whether staff can currently sign in with the “Sign in with Okta” button.</p>

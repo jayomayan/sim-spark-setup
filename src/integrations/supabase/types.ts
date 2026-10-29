@@ -221,6 +221,33 @@ export type Database = {
         }
         Relationships: []
       }
+      okta_settings: {
+        Row: {
+          client_id: string
+          client_secret_cipher: string | null
+          domain: string
+          id: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          client_id?: string
+          client_secret_cipher?: string | null
+          domain?: string
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          client_id?: string
+          client_secret_cipher?: string | null
+          domain?: string
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
