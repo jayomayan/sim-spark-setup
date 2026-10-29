@@ -17,7 +17,7 @@ function Dashboard() {
     queryKey: ["dashboard"],
     queryFn: async () => {
       const [devices, sims] = await Promise.all([count("devices"), count("sim_activations")]);
-      const { data: jobs } = await supabase.from("agent_jobs").select("id,type,status,created_at,error").in("type", ["ping", "snmp_walk", "device_ntp", "ur35_firewall", "ur35_ntp"]).order("created_at", { ascending: false }).limit(8);
+      const { data: jobs } = await supabase.from("agent_jobs").select("id,type,status,created_at,error").in("type", ["ping", "snmp_walk", "ur35_firewall", "ur35_ntp"]).order("created_at", { ascending: false }).limit(8);
       return { devices, sims, jobs: jobs ?? [] };
     },
   });
