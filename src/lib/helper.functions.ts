@@ -9,8 +9,12 @@ export const getHelperSettings = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const { helperConfig } = await import("@/lib/helper-settings.server");
     const config = await helperConfig(context.supabase);
-    const { ur35Password, ...safe } = config;
-    return { ...safe, hasRouterPassword: Boolean(ur35Password), hasKey: true };
+    const { ur35Password, ur35Username, routerLogins, ...safe } = config;
+    return {
+      ...safe,
+      routerLogins: routerLogins.map(({ id, username, password }) => ({ id, username, hasPassword: Boolean(password) })),
+      hasKey: true,
+    };
   });
 
 export const saveHelperSettings = createServerFn({ method: "POST" })

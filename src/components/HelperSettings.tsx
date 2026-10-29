@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, KeyRound, Loader2, Plus, RefreshCw, Save, Terminal, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { createHelperInstallCode, getHelperSettings, rotateHelperKey, saveHelperSettings } from "@/lib/helper.functions";
-import { buildInstallCommand, ENROLLMENT_TTL_MINUTES, type FirewallRule } from "@/lib/helper-settings";
+import { buildInstallCommand, ENROLLMENT_TTL_MINUTES, type FirewallRule, type RouterLogin } from "@/lib/helper-settings";
 import { HELPER_VERSION } from "@/lib/helper-release";
 import { useHelperStatus } from "@/components/HelperStatus";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,7 @@ import { Switch } from "@/components/ui/switch";
 
 type Settings = Awaited<ReturnType<typeof getHelperSettings>>;
 type Form = {
-  ur35Username: string;
-  ur35Password: string;
+  routerLogins: RouterLogin[];
   ur35FirewallPath: string;
   ur35NtpPath: string;
   firewallRules: FirewallRule[];
@@ -25,8 +24,7 @@ type Form = {
 };
 
 const toForm = (s: Settings): Form => ({
-  ur35Username: s.ur35Username,
-  ur35Password: "",
+  routerLogins: s.routerLogins.map(({ id, username }) => ({ id, username, password: "" })),
   ur35FirewallPath: s.ur35FirewallPath,
   ur35NtpPath: s.ur35NtpPath,
   firewallRules: s.firewallRules,
@@ -178,7 +176,7 @@ export function HelperSettings() {
     setSaving(true);
     try {
       await save({ data: form });
-      setForm((f) => (f ? { ...f, ur35Password: "" } : f));
+      setForm((f) => (f ? { ...f, routerLogins: f.routerLogins.map((login) => ({ ...login, password: "" })) } : f));
       toast.success("Saved — the helper picks the changes up within a minute.");
       await qc.invalidateQueries({ queryKey: ["admin", "helper"] });
     } catch (error) {
@@ -205,22 +203,36 @@ export function HelperSettings() {
           The console serves release v{HELPER_VERSION}; installed helpers move to it on their own.
         </p>
 
+        <div className="space-y-3 border-t pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="font-medium">Router logins</h4>
+            <Button variant="outline" size="sm" disabled={form.routerLogins.length >= 50}
+              onClick={() => setField("routerLogins", [...form.routerLogins, { id: crypto.randomUUID(), username: "", password: "" }])}>
+              <Plus className="h-4 w-4" />Add login
+            </Button>
+          </div>
+          {form.routerLogins.map((login, index) => (
+            <div key={login.id} className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[200px] flex-1 space-y-1">
+                <Label htmlFor={`router-user-${login.id}`}>Router username</Label>
+                <Input id={`router-user-${login.id}`} autoComplete="off" value={login.username}
+                  onChange={(e) => setField("routerLogins", form.routerLogins.map((item) => item.id === login.id ? { ...item, username: e.target.value } : item))} />
+              </div>
+              <div className="min-w-[200px] flex-1 space-y-1">
+                <Label htmlFor={`router-pass-${login.id}`}>Router password</Label>
+                <Input id={`router-pass-${login.id}`} type="password" autoComplete="new-password" value={login.password}
+                  placeholder={current?.routerLogins.find((item) => item.id === login.id)?.hasPassword ? "Leave blank to keep saved password" : "Set a password"}
+                  onChange={(e) => setField("routerLogins", form.routerLogins.map((item) => item.id === login.id ? { ...item, password: e.target.value } : item))} />
+              </div>
+              <Button variant="ghost" size="icon" aria-label={`Remove login ${index + 1}`}
+                onClick={() => setField("routerLogins", form.routerLogins.filter((item) => item.id !== login.id))}>
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          ))}
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="ur35-user">Router username</Label>
-            <Input id="ur35-user" autoComplete="off" value={form.ur35Username} onChange={(e) => setField("ur35Username", e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="ur35-pass">Router password</Label>
-            <Input
-              id="ur35-pass"
-              type="password"
-              autoComplete="new-password"
-              value={form.ur35Password}
-              placeholder={current?.hasRouterPassword ? "Leave blank to keep saved password" : "Set a password"}
-              onChange={(e) => setField("ur35Password", e.target.value)}
-            />
-          </div>
           <div className="space-y-2">
             <Label htmlFor="ur35-fw">Firewall rules path</Label>
             <Input id="ur35-fw" value={form.ur35FirewallPath} onChange={(e) => setField("ur35FirewallPath", e.target.value)} />
