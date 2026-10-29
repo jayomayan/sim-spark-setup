@@ -3,7 +3,7 @@
 Run this dedicated service on a Linux machine on the router network. It does not use the Field Ops helper or job queue. The hosted app cannot reach private routers directly.
 
 ## Install
-1. Install Node.js 22 or newer. Download `package.json`, `server.mjs`, `policy.mjs`, and `policy.test.mjs` into one folder.
+1. Install Node.js 22 or newer. Download `package.json`, `server.mjs`, `policy.mjs`, `policy.test.mjs`, and optionally `capture.test.mjs` into one folder.
 2. In that folder run `npm install`, then `npx playwright install --with-deps chromium`.
 3. Configure the following environment variables through your service manager or an untracked, owner-readable environment file:
    - `SERVICE_TOKEN`: a strong shared key of at least 32 characters. Use the same value for the app's `PRIVATE_BROWSER_SERVICE_TOKEN` secret. Never put it in a URL or source control.
