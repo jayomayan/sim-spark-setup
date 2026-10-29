@@ -1,4 +1,5 @@
 # Tasks
+- [x] Add port 8080 to Site Connectivity Check as a fourth tile (HTTP then HTTPS), with service policy, capture, concurrency and test updates.
 - [x] Add helper-free ping tests and results to Site Connectivity Check through the dedicated service; verify parser with real Linux ICMP, signed-in unavailable-service/retry states, and mobile layout.
 - [x] Add admin-only Console Connect settings with current configuration and secure editing.
 - [x] Verify shared saved configuration and admin save/reload; preserve existing SIM configuration fallback.
