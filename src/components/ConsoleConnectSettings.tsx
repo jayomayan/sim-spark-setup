@@ -47,7 +47,7 @@ function ConnectionForm({ config }: { config: Settings }) {
       </div>
       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-[160px_1fr]">
         <dt className="text-muted-foreground">Configuration source</dt><dd>{config.source}</dd>
-        <dt className="text-muted-foreground">Authentication</dt><dd>{lookup ? "Password grant" : "Basic authentication"}</dd>
+        <dt className="text-muted-foreground">Authentication</dt><dd>Password grant</dd>
         <dt className="text-muted-foreground">Credentials</dt><dd>{config.credentialSource}</dd>
         <dt className="text-muted-foreground">Password status</dt><dd>{config.hasPassword ? "Stored securely" : "Not set"}</dd>
         {config.updatedAt && <><dt className="text-muted-foreground">Last saved</dt><dd>{new Date(config.updatedAt).toLocaleString()}</dd></>}

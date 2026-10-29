@@ -14,7 +14,7 @@ export const providerUrlSchema = z.string().trim().max(500).refine((value) => {
   } catch { return false; }
 }, "Use an HTTPS Aeris or Console Connect address without credentials, query parameters or a custom port.");
 export const consoleSettingsSchema = z.object({
-  integration: integrationSchema,
+  integration: z.literal("site_lookup"),
   tokenUrl: z.string().default(""),
   apiUrl: providerUrlSchema,
   clientId: z.string().trim().max(100),

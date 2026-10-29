@@ -7,6 +7,10 @@ export async function readConsoleConfig(client: SupabaseClient<Database>, integr
   integration: ConsoleIntegration; tokenUrl: string; apiUrl: string; clientId: string;
   username: string; password: string; source: string; credentialSource: string; updatedAt: string | null;
 }> {
+  if (integration === "sim_activation") {
+    const shared = await readConsoleConfig(client, "site_lookup");
+    return { ...shared, integration, credentialSource: "Shared with Site ID Lookup" };
+  }
   const { data, error } = await client.from("console_connect_settings").select("*").eq("integration", integration).maybeSingle();
   if (error) throw new Error("Couldn't load Console Connect settings.");
   const defaults = CONSOLE_DEFAULTS[integration];
@@ -41,4 +45,12 @@ export async function consoleToken(config: Awaited<ReturnType<typeof readConsole
   const body = await response.json() as { access_token?: string };
   if (!body.access_token) throw new Error("Console Connect did not return a sign-in token.");
   return body.access_token;
+}
+
+export async function consoleApiRequest(config: Awaited<ReturnType<typeof readConsoleConfig>>, path: string, init: RequestInit = {}) {
+  const token = await consoleToken(config);
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Accept", "application/json");
+  return fetch(`${config.apiUrl}${path}`, { ...init, headers, redirect: "error", signal: AbortSignal.timeout(10000) });
 }
