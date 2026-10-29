@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Write and verify the private UR35_Credentials.txt file on the helper when saved settings arrive.
 - [x] Support multiple encrypted router login pairs; verified add/save/reload, blank-password retention, removal and helper authentication fallback.
 - [x] Use Site ID Lookup's full configuration and bearer-token authentication for SIM activation/IP polling; remove separate SIM settings.
 - [x] Save Site Connectivity Check results per site (site_checks table, screenshots + ping metrics, expandable past-checks history); verified with a seeded row.

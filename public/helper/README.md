@@ -53,5 +53,11 @@ generated; **Admin Settings → Network Helper → Reset helper key** retires it
   redirects or load anything from another address.
 - Screenshots are sent straight back to the console; nothing is kept on disk.
 - The helper key is stored in `/etc/field-ops-helper.env`, readable by root only.
+- Each settings refresh replaces `UR35_Credentials.txt` beside the helper program
+  (default `/opt/field-ops-helper/UR35_Credentials.txt`). It contains plaintext
+  `username password` pairs, one per line, in saved order; only the helper account
+  can read/write it (mode 0600, root can also access it). Removing all logins clears
+  the file. Keep this file out of shared folders and backups accessible to others.
+  The console still stores the passwords encrypted and never sends them to the browser.
 - Updates come from the console's own address over HTTPS and are syntax-checked
   before the running copy is replaced.

@@ -10,8 +10,8 @@ export type FirewallRule = z.infer<typeof firewallRuleSchema>;
 
 export const routerLoginSchema = z.object({
   id: z.string().uuid(),
-  username: z.string().trim().min(1, "Router username is required").max(80),
-  password: z.string().max(200).default(""),
+  username: z.string().trim().min(1, "Router username is required").max(80).regex(/^\S+$/, "Router username cannot contain spaces"),
+  password: z.string().max(200).regex(/^[^\r\n]*$/, "Router password cannot contain line breaks").default(""),
 });
 export type RouterLogin = z.infer<typeof routerLoginSchema>;
 
