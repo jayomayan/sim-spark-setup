@@ -99,7 +99,7 @@ if [ -n "$NODE_SCRIPTS" ] && [ -d "$NODE_SCRIPTS" ]; then
   rm -rf "$PREFIX/node-scripts"
   cp -r "$NODE_SCRIPTS" "$PREFIX/node-scripts"
   chown -R "$RUN_USER:$RUN_USER" "$PREFIX/node-scripts"
-  as_user npm install --prefix "$PREFIX/node-scripts --omit=dev --no-audit --no-fund || true
+  as_user npm install --prefix "$PREFIX/node-scripts" --omit=dev --no-audit --no-fund || true
 fi
 
 if [ "$SKIP_DEPS" -eq 0 ]; then
