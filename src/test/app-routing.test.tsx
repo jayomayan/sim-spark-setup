@@ -15,6 +15,10 @@ describe("App routing", () => {
     const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
     expect(router.matchRoutes("/users").at(-1)?.routeId).toBe("/_authenticated/users");
   });
+  it("still matches the old private browser URL", () => {
+    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
+    expect(router.matchRoutes("/private-browser").at(-1)?.routeId).toBe("/_authenticated/private-browser");
+  });
   it("matches a page for / instead of falling back to not found", () => {
     const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
 
