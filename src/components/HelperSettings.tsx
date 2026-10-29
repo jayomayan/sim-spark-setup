@@ -10,28 +10,19 @@ import { useHelperStatus } from "@/components/HelperStatus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 type Settings = Awaited<ReturnType<typeof getHelperSettings>>;
 type Form = {
   routerLogins: RouterLogin[];
-  ur35FirewallPath: string;
-  ur35NtpPath: string;
   firewallCommands: string;
-  ntpEnabled: boolean;
-  ntpServers: string;
-  ntpTimezone: string;
+  ntpCommands: string;
 };
 
 const toForm = (s: Settings): Form => ({
   routerLogins: s.routerLogins.map(({ id, username }) => ({ id, username, password: "" })),
-  ur35FirewallPath: s.ur35FirewallPath,
-  ur35NtpPath: s.ur35NtpPath,
   firewallCommands: s.firewallRules.map((rule) => rule.rule).join("\n"),
-  ntpEnabled: s.ntp.enabled,
-  ntpServers: s.ntp.servers.join(", "),
-  ntpTimezone: s.ntp.timezone,
+  ntpCommands: JSON.stringify(s.ntp, null, 2),
 });
 
 function InstallPanel() {
@@ -147,12 +138,24 @@ export function HelperSettings() {
     setSaving(true);
     try {
       if (!form) return;
-      const { firewallCommands, ...fields } = form;
+      const { firewallCommands, ntpCommands, ...fields } = form;
+      let ntp: unknown;
+      try { ntp = JSON.parse(ntpCommands); } catch { throw new Error("NTP commands must be valid JSON."); }
+      if (!ntp || typeof ntp !== "object" || !("enabled" in ntp) || typeof ntp.enabled !== "boolean" ||
+          !("servers" in ntp) || !Array.isArray(ntp.servers) || !ntp.servers.every((server) => typeof server === "string") ||
+          !("timezone" in ntp) || typeof ntp.timezone !== "string") {
+        throw new Error("NTP commands need enabled, servers and timezone values.");
+      }
       const firewallRules = firewallCommands.split(/\r?\n/).map((rule) => rule.trim()).filter(Boolean).map((rule) => ({
         rule,
         description: current?.firewallRules.find((saved) => saved.rule === rule)?.description ?? "",
       }));
-      await save({ data: { ...fields, firewallRules } });
+      await save({ data: {
+        ...fields, firewallRules,
+        ur35FirewallPath: current?.ur35FirewallPath ?? "/api/firewall/rules",
+        ur35NtpPath: current?.ur35NtpPath ?? "/api/system/ntp",
+        ntpEnabled: ntp.enabled, ntpServers: ntp.servers.join(", "), ntpTimezone: ntp.timezone,
+      } });
       setForm((f) => (f ? { ...f, routerLogins: f.routerLogins.map((login) => ({ ...login, password: "" })) } : f));
       toast.success("Saved — the helper picks the changes up within a minute.");
       await qc.invalidateQueries({ queryKey: ["admin", "helper"] });
@@ -209,17 +212,6 @@ export function HelperSettings() {
           ))}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="ur35-fw">Firewall commands path</Label>
-            <Input id="ur35-fw" value={form.ur35FirewallPath} onChange={(e) => setField("ur35FirewallPath", e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="ur35-ntp">NTP settings path</Label>
-            <Input id="ur35-ntp" value={form.ur35NtpPath} onChange={(e) => setField("ur35NtpPath", e.target.value)} />
-          </div>
-        </div>
-
         <div className="space-y-3 border-t pt-4">
           <Label htmlFor="firewall-commands" className="font-medium">Firewall commands applied during SIM activation</Label>
           <Textarea
@@ -236,20 +228,18 @@ export function HelperSettings() {
         </div>
 
         <div className="space-y-3 border-t pt-4">
-          <div className="flex items-center gap-3">
-            <Switch id="ntp-enabled" checked={form.ntpEnabled} onCheckedChange={(v) => setField("ntpEnabled", Boolean(v))} />
-            <Label htmlFor="ntp-enabled">Apply NTP settings during SIM activation</Label>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="ntp-servers">Time servers</Label>
-              <Input id="ntp-servers" value={form.ntpServers} onChange={(e) => setField("ntpServers", e.target.value)} placeholder="pool.ntp.org, time.google.com" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ntp-tz">Timezone</Label>
-              <Input id="ntp-tz" value={form.ntpTimezone} onChange={(e) => setField("ntpTimezone", e.target.value)} placeholder="Asia/Manila" />
-            </div>
-          </div>
+          <Label htmlFor="ntp-commands" className="font-medium">NTP commands applied during SIM activation</Label>
+          <Textarea
+            id="ntp-commands"
+            aria-label="NTP commands"
+            value={form.ntpCommands}
+            onChange={(e) => setField("ntpCommands", e.target.value)}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            rows={14}
+            className="min-h-72 resize-y whitespace-pre font-mono text-sm leading-6"
+          />
         </div>
 
         <div className="flex flex-wrap gap-2 border-t pt-4">
