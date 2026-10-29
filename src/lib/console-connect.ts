@@ -18,10 +18,11 @@ export const consoleSettingsSchema = z.object({
   tokenUrl: z.string().default(""),
   apiUrl: providerUrlSchema,
   clientId: z.string().trim().max(100),
-  username: z.string().trim().min(1, "Username is required").max(200),
+  username: z.string().trim().max(200).default(""),
   password: z.string().max(500).optional(),
 }).superRefine((data, ctx) => {
   if (data.integration === "site_lookup") {
+    if (!data.username) ctx.addIssue({ code: "custom", path: ["username"], message: "Username is required." });
     if (!providerUrlSchema.safeParse(data.tokenUrl).success) ctx.addIssue({ code: "custom", path: ["tokenUrl"], message: "Enter a valid HTTPS Console Connect token URL." });
     if (!data.clientId) ctx.addIssue({ code: "custom", path: ["clientId"], message: "Client ID is required." });
   }

@@ -23,11 +23,13 @@ export const saveConsoleSettings = createServerFn({ method: "POST" })
     const { readConsoleConfig } = await import("@/lib/console-connect.server");
     const { encryptPassword } = await import("@/lib/db-connection.server");
     const current = await readConsoleConfig(context.supabase, data.integration);
-    const password = data.password || current.password;
+    const lookup = data.integration === "site_lookup";
+    const password = lookup ? data.password || current.password : current.password;
     if (!password) throw new Error("Password is required for the first save.");
     const { error } = await context.supabase.from("console_connect_settings").upsert({
-      integration: data.integration, token_url: data.tokenUrl, api_url: data.apiUrl.replace(/\/+$/, ""),
-      client_id: data.clientId, username: data.username, password_cipher: encryptPassword(password), updated_at: new Date().toISOString(),
+      integration: data.integration, token_url: lookup ? data.tokenUrl : current.tokenUrl, api_url: data.apiUrl.replace(/\/+$/, ""),
+      client_id: lookup ? data.clientId : current.clientId, username: lookup ? data.username : current.username,
+      password_cipher: lookup ? encryptPassword(password) : null, updated_at: new Date().toISOString(),
     });
     if (error) throw new Error("Couldn't save Console Connect settings.");
     return { ok: true };
