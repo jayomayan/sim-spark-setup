@@ -14,16 +14,14 @@ export async function readConsoleConfig(client: SupabaseClient<Database>, integr
   const { data, error } = await client.from("console_connect_settings").select("*").eq("integration", integration).maybeSingle();
   if (error) throw new Error("Couldn't load Console Connect settings.");
   const defaults = CONSOLE_DEFAULTS[integration];
-  const lookup = integration === "site_lookup";
-  const shared = lookup ? null : await readConsoleConfig(client, "site_lookup");
-  const username = shared?.username ?? data?.username ?? process.env["AERIS_USERNAME"] ?? "";
-  const password = shared?.password ?? (data ? (data.password_cipher ? decryptPassword(data.password_cipher) : "") : process.env["AERIS_PASSWORD"] ?? "");
+  const username = data?.username ?? process.env["AERIS_USERNAME"] ?? "";
+  const password = data ? (data.password_cipher ? decryptPassword(data.password_cipher) : "") : process.env["AERIS_PASSWORD"] ?? "";
   return {
-    integration, tokenUrl: shared?.tokenUrl ?? data?.token_url ?? defaults.tokenUrl,
-    apiUrl: (data?.api_url ?? (lookup ? defaults.apiUrl : process.env["IOT_CC_BASE_URL"] ?? "")).replace(/\/+$/, ""),
-    clientId: shared?.clientId ?? data?.client_id ?? defaults.clientId, username, password,
+    integration, tokenUrl: data?.token_url ?? defaults.tokenUrl,
+    apiUrl: (data?.api_url ?? defaults.apiUrl).replace(/\/+$/, ""),
+    clientId: data?.client_id ?? defaults.clientId, username, password,
     source: data ? "Saved in Admin Settings" : "Existing server configuration",
-    credentialSource: lookup ? "Site ID Lookup" : "Shared with Site ID Lookup",
+    credentialSource: "Site ID Lookup",
     updatedAt: data?.updated_at ?? null,
   };
 }
