@@ -2,7 +2,7 @@ import http from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
-import { allowedRequest, allowedTarget, parseCidrs, portSchemes } from "./policy.mjs";
+import { allowedRequest, allowedTarget, parseCidrs, portSchemes, PORTS } from "./policy.mjs";
 import { pingTarget } from "./ping.mjs";
 
 export async function capturePort(browser, ip, port) {
