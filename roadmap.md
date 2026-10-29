@@ -1,4 +1,6 @@
 # Tasks
+- [ ] Add admin-only Console Connect settings with current configuration and secure editing.
+- [ ] Verify saved settings are used by Site ID lookup and retain existing SIM activation configuration.
 - [x] Replace Private Browser ping/helper with Console Connect lookup and three screenshot tiles.
 - [x] Build and test a dedicated network screenshot service with secure deployment instructions.
 - [ ] Connect the screenshot service on the company network (needs deployment address and shared token).
