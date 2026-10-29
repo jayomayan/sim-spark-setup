@@ -228,6 +228,36 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
     }
   }
 
+  const oktaFormValid = oktaForm.domain.trim().length > 0 && oktaForm.clientId.trim().length > 0;
+
+  async function saveOktaForm() {
+    setOktaBusy("save");
+    setOktaResult(null);
+    try {
+      await saveOkta({ data: { domain: oktaForm.domain, clientId: oktaForm.clientId, clientSecret: oktaForm.clientSecret || undefined } });
+      setOktaForm((prev) => ({ ...prev, clientSecret: "" }));
+      await qc.invalidateQueries({ queryKey: ["admin", "okta", "settings"] });
+      toast.success("Okta settings saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't save");
+    } finally {
+      setOktaBusy(null);
+    }
+  }
+
+  async function testOktaForm() {
+    setOktaBusy("test");
+    setOktaResult(null);
+    try {
+      const result = await testOkta({ data: { domain: oktaForm.domain, clientId: oktaForm.clientId, clientSecret: oktaForm.clientSecret || undefined } });
+      setOktaResult({ ok: result.ok, text: result.message });
+    } catch (error) {
+      setOktaResult({ ok: false, text: error instanceof Error ? error.message : "Test failed" });
+    } finally {
+      setOktaBusy(null);
+    }
+  }
+
   async function copyCallback() {
     if (!setup.data?.callbackUrl) return;
     try {
