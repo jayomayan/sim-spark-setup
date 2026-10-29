@@ -111,7 +111,7 @@ export async function saveHelperConfig(
       ur35_username: input.ur35Username,
       ur35_password_cipher: password ? encryptPassword(password) : null,
       ur35_firewall_path: input.ur35FirewallPath,
-      ur35_ntp_path: input.ntpNtpPath ?? input.ur35NtpPath,
+      ur35_ntp_path: input.ur35NtpPath,
       firewall_rules: input.firewallRules as never,
       ntp_settings: ntp as never,
       config_version: row.config_version + 1,
