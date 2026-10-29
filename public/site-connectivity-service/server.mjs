@@ -2,7 +2,7 @@ import http from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
-import { allowedRequest, allowedTarget, parseCidrs } from "./policy.mjs";
+import { allowedRequest, allowedTarget, parseCidrs, portSchemes, PORTS } from "./policy.mjs";
 import { pingTarget } from "./ping.mjs";
 
 export async function capturePort(browser, ip, port) {
@@ -10,25 +10,32 @@ export async function capturePort(browser, ip, port) {
   try {
     await context.route("**/*", (route) => allowedRequest(route.request().url(), ip) ? route.continue() : route.abort());
     await context.routeWebSocket("**/*", (socket) => socket.close());
-    let page = await context.newPage();
-    page.on("popup", (popup) => void popup.close());
-    page.on("dialog", (dialog) => void dialog.dismiss());
-    page.on("download", (download) => void download.cancel());
-    let accessible = false, httpStatus = null;
-    try {
-      const response = await page.goto(`${port === 80 ? "http" : "https"}://${ip}:${port}`, { waitUntil: "domcontentloaded", timeout: 15_000 });
-      httpStatus = response?.status() ?? null;
-      // Login/forbidden pages are browsable; a responding HTTP server is accessible.
-      accessible = response !== null && allowedRequest(page.url(), ip);
-      if (accessible) await page.waitForTimeout(1000);
-    } catch { /* A failed navigation receives a real failure screenshot below. */ }
-    if (!accessible) {
+    let httpStatus = null;
+    // Devices answer on either protocol on port 8080, so each allowed protocol gets one attempt.
+    for (const scheme of portSchemes(port)) {
+      let page = await context.newPage();
+      page.on("popup", (popup) => void popup.close());
+      page.on("dialog", (dialog) => void dialog.dismiss());
+      page.on("download", (download) => void download.cancel());
+      try {
+        const response = await page.goto(`${scheme}://${ip}:${port}`, { waitUntil: "domcontentloaded", timeout: 15_000 });
+        httpStatus = response?.status() ?? null;
+        // Login/forbidden pages are browsable; a responding HTTP server is accessible.
+        if (response !== null && allowedRequest(page.url(), ip)) {
+          await page.waitForTimeout(1000);
+          const image = await page.screenshot({ type: "jpeg", quality: 70, timeout: 5000, animations: "disabled" });
+          return { port, accessible: true, httpStatus, screenshot: `data:image/jpeg;base64,${image.toString("base64")}` };
+        }
+      } catch (error) {
+        // A filtered port answers no protocol, so a timeout needs no further attempt.
+        if (error?.name === "TimeoutError") break;
+      }
       await page.close();
-      page = await context.newPage();
-      await page.setContent(`<html><head><style>:root{--background:#fff;--foreground:#303030;--primary:#B0262D;--muted:#686868}body{margin:0;background:var(--background);color:var(--foreground);font-family:Arial,sans-serif;display:grid;place-items:center;height:100vh}.message{text-align:center}h1{font-size:32px;color:var(--primary)}p{font-size:20px;color:var(--muted)}</style></head><body><div class="message"><h1>Not able to access Port ${port}</h1><p>${ip}</p></div></body></html>`);
     }
+    const page = await context.newPage();
+    await page.setContent(`<html><head><style>:root{--background:#fff;--foreground:#303030;--primary:#B0262D;--muted:#686868}body{margin:0;background:var(--background);color:var(--foreground);font-family:Arial,sans-serif;display:grid;place-items:center;height:100vh}.message{text-align:center}h1{font-size:32px;color:var(--primary)}p{font-size:20px;color:var(--muted)}</style></head><body><div class="message"><h1>Not able to access Port ${port}</h1><p>${ip}</p></div></body></html>`);
     const image = await page.screenshot({ type: "jpeg", quality: 70, timeout: 5000, animations: "disabled" });
-    return { port, accessible, httpStatus, screenshot: `data:image/jpeg;base64,${image.toString("base64")}` };
+    return { port, accessible: false, httpStatus, screenshot: `data:image/jpeg;base64,${image.toString("base64")}` };
   } finally { await context.close(); }
 }
 
@@ -47,7 +54,7 @@ export async function startService({ token, cidrs, host = "127.0.0.1", port = 80
     const isPing = req.url === "/ping";
     if ((!isPing && req.url !== "/capture") || req.method !== "POST") { reply(404, { error: "Not found" }); return; }
     if (Date.now() - windowStart >= 60_000) { calls = 0; windowStart = Date.now(); }
-    if ((isPing ? activePing >= 1 : active >= 3) || calls >= 30) { reply(429, { error: "Busy" }); return; }
+    if ((isPing ? activePing >= 1 : active >= PORTS.length) || calls >= 30) { reply(429, { error: "Busy" }); return; }
     calls++; if (isPing) activePing++; else active++;
     try {
       if (!req.headers["content-type"]?.startsWith("application/json")) { reply(415, { error: "JSON required" }); return; }

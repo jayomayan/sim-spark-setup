@@ -1,4 +1,7 @@
-export const PORTS = [80, 443, 8443];
+export const PORTS = [80, 443, 8443, 8080];
+// Port 8080 serves plain HTTP on some devices and HTTPS on others, so both are tried.
+export const PORT_SCHEMES = { 80: ["http"], 443: ["https"], 8443: ["https"], 8080: ["http", "https"] };
+export function portSchemes(port) { return PORTS.includes(port) ? PORT_SCHEMES[port] : []; }
 export function parseIp(ip) {
   if (typeof ip !== "string" || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) return null;
   const parts = ip.split(".");
@@ -27,12 +30,13 @@ export function parseCidrs(value) {
 }
 export function allowedTarget(ip, port, cidrs) {
   const value = parseIp(ip);
-  return privateIp(ip) && PORTS.includes(port) && value !== null && cidrs.some(({ network, mask }) => ((value & mask) >>> 0) === network);
+  return privateIp(ip) && portSchemes(port).length > 0 && value !== null && cidrs.some(({ network, mask }) => ((value & mask) >>> 0) === network);
 }
 export function allowedRequest(raw, ip) {
   try {
     const url = new URL(raw);
+    const scheme = url.protocol === "https:" ? "https" : url.protocol === "http:" ? "http" : null;
     const port = Number(url.port || (url.protocol === "https:" ? 443 : 80));
-    return url.hostname === ip && !url.username && !url.password && PORTS.includes(port) && url.protocol === (port === 80 ? "http:" : "https:");
+    return scheme !== null && url.hostname === ip && !url.username && !url.password && portSchemes(port).includes(scheme);
   } catch { return false; }
 }

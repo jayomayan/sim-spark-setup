@@ -5,10 +5,14 @@ import { writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { capturePort } from "./server.mjs";
 
+const listen = (server, port) => new Promise((resolve, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", resolve); });
+const close = (server) => new Promise((resolve) => server.close(resolve));
+const pageServer = () => http.createServer((req, res) => { res.writeHead(200, { "Content-Type": "text/html" }); res.end("<h1>Router test page</h1>"); });
+
 test("captures a responding page and a real inaccessible-port screenshot", async () => {
   // Loopback is used only for isolated capture tests; the service rejects it.
-  const router = http.createServer((req, res) => { res.writeHead(200, { "Content-Type": "text/html" }); res.end("<h1>Router test page</h1>"); });
-  await new Promise((resolve, reject) => { router.once("error", reject); router.listen(80, "127.0.0.1", resolve); });
+  const router = pageServer();
+  await listen(router, 80);
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
@@ -28,5 +32,22 @@ test("captures a responding page and a real inaccessible-port screenshot", async
       await writeFile(`${process.env.CAPTURE_TEST_DIR}/failed.jpg`, image);
       await writeFile(`${process.env.CAPTURE_TEST_DIR}/success.jpg`, Buffer.from(success.screenshot.split(",")[1] || "", "base64"));
     }
-  } finally { await browser?.close(); await new Promise((resolve) => router.close(resolve)); }
+  } finally { await browser?.close(); await close(router); }
+});
+
+test("port 8080 is captured over HTTP and reports failure after both protocols", async () => {
+  const router = pageServer();
+  await listen(router, 8080);
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const httpOnly = await capturePort(browser, "127.0.0.1", 8080);
+    assert.equal(httpOnly.accessible, true);
+    assert.equal(httpOnly.httpStatus, 200);
+    await close(router);
+    const closed = await capturePort(browser, "127.0.0.1", 8080);
+    assert.equal(closed.accessible, false);
+    assert.equal(closed.httpStatus, null);
+    assert.match(closed.screenshot, /^data:image\/jpeg;base64,/);
+  } finally { await browser?.close(); await close(router).catch(() => {}); }
 });
