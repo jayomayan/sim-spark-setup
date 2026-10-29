@@ -9,7 +9,7 @@ import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export const Route = createFileRoute("/_authenticated/private-browser")({
+export const Route = createFileRoute("/_authenticated/site-connectivity-check")({
   head: () => meta("Private Browser", "Resolve router Site IDs through Console Connect and view screenshots of ports 80, 443 and 8443."),
   component: PrivateBrowser,
 });

@@ -18,8 +18,8 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedDeviceNtpRouteImport } from './routes/_authenticated/device-ntp'
 import { Route as AuthenticatedDevicesRouteImport } from './routes/_authenticated/devices'
 import { Route as AuthenticatedHelperRouteImport } from './routes/_authenticated/helper'
-import { Route as AuthenticatedPrivateBrowserRouteImport } from './routes/_authenticated/private-browser'
 import { Route as AuthenticatedSimActivationRouteImport } from './routes/_authenticated/sim-activation'
+import { Route as AuthenticatedSiteConnectivityCheckRouteImport } from './routes/_authenticated/site-connectivity-check'
 import { Route as AuthenticatedSnmpWalkRouteImport } from './routes/_authenticated/snmp-walk'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as ApiPublicAgentRouteImport } from './routes/api/public/agent'
@@ -69,16 +69,16 @@ const AuthenticatedHelperRoute = AuthenticatedHelperRouteImport.update({
   path: '/helper',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedPrivateBrowserRoute =
-  AuthenticatedPrivateBrowserRouteImport.update({
-    id: '/private-browser',
-    path: '/private-browser',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedSimActivationRoute =
   AuthenticatedSimActivationRouteImport.update({
     id: '/sim-activation',
     path: '/sim-activation',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSiteConnectivityCheckRoute =
+  AuthenticatedSiteConnectivityCheckRouteImport.update({
+    id: '/site-connectivity-check',
+    path: '/site-connectivity-check',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedSnmpWalkRoute = AuthenticatedSnmpWalkRouteImport.update({
@@ -106,8 +106,8 @@ export interface FileRoutesByFullPath {
   '/device-ntp': typeof AuthenticatedDeviceNtpRoute
   '/devices': typeof AuthenticatedDevicesRoute
   '/helper': typeof AuthenticatedHelperRoute
-  '/private-browser': typeof AuthenticatedPrivateBrowserRoute
   '/sim-activation': typeof AuthenticatedSimActivationRoute
+  '/site-connectivity-check': typeof AuthenticatedSiteConnectivityCheckRoute
   '/snmp-walk': typeof AuthenticatedSnmpWalkRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/agent': typeof ApiPublicAgentRoute
@@ -121,8 +121,8 @@ export interface FileRoutesByTo {
   '/device-ntp': typeof AuthenticatedDeviceNtpRoute
   '/devices': typeof AuthenticatedDevicesRoute
   '/helper': typeof AuthenticatedHelperRoute
-  '/private-browser': typeof AuthenticatedPrivateBrowserRoute
   '/sim-activation': typeof AuthenticatedSimActivationRoute
+  '/site-connectivity-check': typeof AuthenticatedSiteConnectivityCheckRoute
   '/snmp-walk': typeof AuthenticatedSnmpWalkRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/agent': typeof ApiPublicAgentRoute
@@ -138,8 +138,8 @@ export interface FileRoutesById {
   '/_authenticated/device-ntp': typeof AuthenticatedDeviceNtpRoute
   '/_authenticated/devices': typeof AuthenticatedDevicesRoute
   '/_authenticated/helper': typeof AuthenticatedHelperRoute
-  '/_authenticated/private-browser': typeof AuthenticatedPrivateBrowserRoute
   '/_authenticated/sim-activation': typeof AuthenticatedSimActivationRoute
+  '/_authenticated/site-connectivity-check': typeof AuthenticatedSiteConnectivityCheckRoute
   '/_authenticated/snmp-walk': typeof AuthenticatedSnmpWalkRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/api/public/agent': typeof ApiPublicAgentRoute
@@ -155,8 +155,8 @@ export interface FileRouteTypes {
     | '/device-ntp'
     | '/devices'
     | '/helper'
-    | '/private-browser'
     | '/sim-activation'
+    | '/site-connectivity-check'
     | '/snmp-walk'
     | '/users'
     | '/api/public/agent'
@@ -170,8 +170,8 @@ export interface FileRouteTypes {
     | '/device-ntp'
     | '/devices'
     | '/helper'
-    | '/private-browser'
     | '/sim-activation'
+    | '/site-connectivity-check'
     | '/snmp-walk'
     | '/users'
     | '/api/public/agent'
@@ -186,8 +186,8 @@ export interface FileRouteTypes {
     | '/_authenticated/device-ntp'
     | '/_authenticated/devices'
     | '/_authenticated/helper'
-    | '/_authenticated/private-browser'
     | '/_authenticated/sim-activation'
+    | '/_authenticated/site-connectivity-check'
     | '/_authenticated/snmp-walk'
     | '/_authenticated/users'
     | '/api/public/agent'
@@ -266,18 +266,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHelperRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/private-browser': {
-      id: '/_authenticated/private-browser'
-      path: '/private-browser'
-      fullPath: '/private-browser'
-      preLoaderRoute: typeof AuthenticatedPrivateBrowserRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/sim-activation': {
       id: '/_authenticated/sim-activation'
       path: '/sim-activation'
       fullPath: '/sim-activation'
       preLoaderRoute: typeof AuthenticatedSimActivationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/site-connectivity-check': {
+      id: '/_authenticated/site-connectivity-check'
+      path: '/site-connectivity-check'
+      fullPath: '/site-connectivity-check'
+      preLoaderRoute: typeof AuthenticatedSiteConnectivityCheckRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/snmp-walk': {
@@ -310,8 +310,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDeviceNtpRoute: typeof AuthenticatedDeviceNtpRoute
   AuthenticatedDevicesRoute: typeof AuthenticatedDevicesRoute
   AuthenticatedHelperRoute: typeof AuthenticatedHelperRoute
-  AuthenticatedPrivateBrowserRoute: typeof AuthenticatedPrivateBrowserRoute
   AuthenticatedSimActivationRoute: typeof AuthenticatedSimActivationRoute
+  AuthenticatedSiteConnectivityCheckRoute: typeof AuthenticatedSiteConnectivityCheckRoute
   AuthenticatedSnmpWalkRoute: typeof AuthenticatedSnmpWalkRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
 }
@@ -322,8 +322,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDeviceNtpRoute: AuthenticatedDeviceNtpRoute,
   AuthenticatedDevicesRoute: AuthenticatedDevicesRoute,
   AuthenticatedHelperRoute: AuthenticatedHelperRoute,
-  AuthenticatedPrivateBrowserRoute: AuthenticatedPrivateBrowserRoute,
   AuthenticatedSimActivationRoute: AuthenticatedSimActivationRoute,
+  AuthenticatedSiteConnectivityCheckRoute:
+    AuthenticatedSiteConnectivityCheckRoute,
   AuthenticatedSnmpWalkRoute: AuthenticatedSnmpWalkRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
 }
