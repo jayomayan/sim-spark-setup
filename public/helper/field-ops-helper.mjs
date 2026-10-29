@@ -24,7 +24,7 @@ import path from "node:path";
 import https from "node:https";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SCRIPTS = path.resolve(process.env.NODE_SCRIPTS_DIR || "./node-scripts");
@@ -160,11 +160,6 @@ const handlers = {
       }
     }
     return { results, errors };
-  },
-  async device_ntp({ ip, brand }) {
-    const { code, out } = await run("node", [path.join(SCRIPTS, "setclock.cjs"), checkIp(ip), String(brand || "enetek")]);
-    if (code !== 0) throw new Error(out.trim().slice(-500) || `Script exited with code ${code}`);
-    return { ok: true };
   },
   async ur35_firewall({ ip }) {
     const p = config.ur35FirewallPath || process.env.UR35_FIREWALL_PATH || "/api/firewall/rules";
