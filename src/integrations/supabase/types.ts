@@ -255,6 +255,7 @@ export type Database = {
           firewall_rules: Json
           id: number
           ntp_settings: Json
+          router_logins_cipher: string | null
           updated_at: string
           ur35_firewall_path: string
           ur35_ntp_path: string
@@ -267,6 +268,7 @@ export type Database = {
           firewall_rules?: Json
           id?: number
           ntp_settings?: Json
+          router_logins_cipher?: string | null
           updated_at?: string
           ur35_firewall_path?: string
           ur35_ntp_path?: string
@@ -279,6 +281,7 @@ export type Database = {
           firewall_rules?: Json
           id?: number
           ntp_settings?: Json
+          router_logins_cipher?: string | null
           updated_at?: string
           ur35_firewall_path?: string
           ur35_ntp_path?: string

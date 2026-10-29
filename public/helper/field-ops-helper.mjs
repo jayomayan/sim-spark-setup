@@ -23,7 +23,7 @@ import path from "node:path";
 import https from "node:https";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.5.0";
+const VERSION = "1.6.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -47,6 +47,7 @@ let config = {
   configVersion: 0,
   ur35Username: "",
   ur35Password: "",
+  routerLogins: null,
   ur35FirewallPath: "",
   ur35NtpPath: "",
   firewallRules: FALLBACK_RULES,
@@ -64,6 +65,7 @@ async function loadConfig() {
     configVersion: Number(body.configVersion) || 0,
     ur35Username: String(body.ur35Username || ""),
     ur35Password: String(body.ur35Password || ""),
+    routerLogins: Array.isArray(body.routerLogins) ? body.routerLogins : null,
     ur35FirewallPath: String(body.ur35FirewallPath || ""),
     ur35NtpPath: String(body.ur35NtpPath || ""),
     firewallRules: Array.isArray(body.firewallRules) && body.firewallRules.length ? body.firewallRules : FALLBACK_RULES,
@@ -94,18 +96,32 @@ async function api(body) {
   return res.json();
 }
 
-function routerPost(ip, p, body) {
-  const user = config.ur35Username || process.env.UR35_USERNAME || "";
-  const pass = config.ur35Password || process.env.UR35_PASSWORD || "";
-  if (!user || !pass) throw new Error("Router login isn't set — enter it in Admin Settings → Network Helper.");
+async function routerPost(ip, p, body) {
+  const logins = config.routerLogins ?? [{
+    username: config.ur35Username || process.env.UR35_USERNAME || "",
+    password: config.ur35Password || process.env.UR35_PASSWORD || "",
+  }];
+  if (!logins.length || logins.some((login) => !login.username || !login.password)) {
+    throw new Error("Router login isn't set — enter it in Admin Settings → Network Helper.");
+  }
+  for (const login of logins) {
+    const result = await routerPostWithLogin(ip, p, body, login);
+    if (result.status >= 200 && result.status < 300) return result;
+    // Only authentication failures justify retrying a potentially mutating request.
+    if (result.status !== 401 && result.status !== 403) throw new Error(`Router rejected settings (${result.status})`);
+  }
+  throw new Error("Router rejected all saved logins.");
+}
+
+function routerPostWithLogin(ip, p, body, { username, password }) {
   const data = JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const req = https.request({
       host: ip, path: p, method: "POST", rejectUnauthorized: false, timeout: 30_000,
-      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data), Authorization: "Basic " + Buffer.from(`${user}:${pass}`).toString("base64") },
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data), Authorization: "Basic " + Buffer.from(`${username}:${password}`).toString("base64") },
     }, (res) => {
       let txt = ""; res.on("data", (c) => (txt += c));
-      res.on("end", () => (res.statusCode < 300 ? resolve({ status: res.statusCode }) : reject(new Error(`Router rejected settings (${res.statusCode})`))));
+      res.on("end", () => resolve({ status: res.statusCode }));
     });
     req.on("timeout", () => req.destroy(new Error("Router timed out")));
     req.on("error", reject);

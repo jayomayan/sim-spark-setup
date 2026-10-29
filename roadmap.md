@@ -1,4 +1,5 @@
 # Tasks
+- [x] Support multiple encrypted router login pairs; verified add/save/reload, blank-password retention, removal and helper authentication fallback.
 - [x] Use Site ID Lookup's full configuration and bearer-token authentication for SIM activation/IP polling; remove separate SIM settings.
 - [x] Save Site Connectivity Check results per site (site_checks table, screenshots + ping metrics, expandable past-checks history); verified with a seeded row.
 - [x] Merge Site Connectivity Check screenshots and ping into the network helper (site_capture/site_ping jobs, Playwright in helper, helper.zip download); retire the standalone service to reference-only.

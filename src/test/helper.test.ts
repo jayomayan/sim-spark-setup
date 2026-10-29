@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import {
   buildInstallCommand,
@@ -54,6 +55,46 @@ describe("firewall rules", () => {
       rule: "accept tcp/443",
       description: "",
     });
+  });
+});
+
+describe("multiple router logins", () => {
+  it("accepts two independent username/password pairs", () => {
+    const routerLogins = [
+      { id: "00000000-0000-4000-8000-000000000001", username: "router-one", password: "first-pass" },
+      { id: "00000000-0000-4000-8000-000000000002", username: "router-two", password: "second-pass" },
+    ];
+    expect(helperSettingsInput.parse({ routerLogins, firewallRules: [] }).routerLogins).toEqual(routerLogins);
+  });
+
+  it("tries the second pair after an authentication rejection", async () => {
+    const attempts: string[] = [];
+    const start = helperSource.indexOf("async function routerPost(");
+    const end = helperSource.indexOf("function routerPostWithLogin(");
+    const post = runInNewContext(`${helperSource.slice(start, end)}; routerPost`, {
+      config: { routerLogins: [{ username: "one", password: "a" }, { username: "two", password: "b" }] },
+      routerPostWithLogin: async (_ip: string, _path: string, _body: unknown, login: { username: string }) => {
+        attempts.push(login.username);
+        return { status: login.username === "one" ? 401 : 200 };
+      },
+    });
+    expect(await post("10.0.0.1", "/api/firewall/rules", {})).toEqual({ status: 200 });
+    expect(attempts).toEqual(["one", "two"]);
+  });
+
+  it("does not retry a settings error with another login", async () => {
+    const attempts: string[] = [];
+    const start = helperSource.indexOf("async function routerPost(");
+    const end = helperSource.indexOf("function routerPostWithLogin(");
+    const post = runInNewContext(`${helperSource.slice(start, end)}; routerPost`, {
+      config: { routerLogins: [{ username: "one", password: "a" }, { username: "two", password: "b" }] },
+      routerPostWithLogin: async (_ip: string, _path: string, _body: unknown, login: { username: string }) => {
+        attempts.push(login.username);
+        return { status: 500 };
+      },
+    });
+    await expect(post("10.0.0.1", "/api/system/ntp", {})).rejects.toThrow("Router rejected settings (500)");
+    expect(attempts).toEqual(["one"]);
   });
 });
 
