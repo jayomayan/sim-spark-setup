@@ -3,42 +3,75 @@
 // Runs on a machine inside your network that can reach the routers.
 // It asks the console for work, does it, and reports back. No inbound ports needed.
 //
-// Setup:
-//   1. Install Node.js 18+ and the `snmpwalk` and `ping` tools on this machine.
-//   2. Copy the `node-scripts` folder from your old app next to this file
-//      (or set NODE_SCRIPTS_DIR to where it lives) and run `npm install` there.
-//   3. For Site Connectivity Check screenshots, run `npm install` next to this
-//      file, then `npx playwright install --with-deps chromium`.
-//   4. Set the environment variables below, then run:  node field-ops-helper.mjs
+// Setup (recommended): Admin Settings → Network Helper → "Create install command",
+// then paste that one command on this machine. It installs everything, saves the key
+// and starts the helper as a service. Newer releases are downloaded by the helper
+// itself, so there is nothing to reinstall later.
 //
-// Required:  CONSOLE_URL   e.g. https://your-app.lovable.app
-//            AGENT_TOKEN   the helper key you saved in the console
-// Optional:  NODE_SCRIPTS_DIR (default ./node-scripts)
-//            UR35_USERNAME / UR35_PASSWORD  (UR35 router login)
-//            UR35_FIREWALL_PATH (default /api/firewall/rules), UR35_NTP_PATH (default /api/system/ntp)
+// Setup (by hand): install Node.js 18+, `snmpwalk` and `ping`, run `npm install`
+// and `npx playwright install chromium` next to this file, then start it with:
+//   CONSOLE_URL=https://your-console AGENT_TOKEN=<helper key> node field-ops-helper.mjs
+//
+// Optional: NODE_SCRIPTS_DIR (default ./node-scripts) for the device NTP tool.
+// The router login and the firewall/NTP templates normally live in Admin Settings;
+// UR35_USERNAME, UR35_PASSWORD, UR35_FIREWALL_PATH and UR35_NTP_PATH are used only
+// if the console can't be reached.
 
 import { execFile } from "node:child_process";
+import fs from "node:fs/promises";
 import { hostname } from "node:os";
 import path from "node:path";
 import https from "node:https";
+import { fileURLToPath } from "node:url";
 
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SCRIPTS = path.resolve(process.env.NODE_SCRIPTS_DIR || "./node-scripts");
+const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 if (!URL_BASE || !TOKEN) {
   console.error("Set CONSOLE_URL and AGENT_TOKEN first.");
   process.exit(1);
 }
 
-// Fixed UR35 template applied during SIM activation. Edit to match your standard.
-const FIREWALL_RULES = [
+// Used only when the console can't be reached; Admin Settings is the real source.
+const FALLBACK_RULES = [
   { name: "Allow HTTPS mgmt", action: "accept", protocol: "tcp", port: 443 },
   { name: "Allow SSH mgmt", action: "accept", protocol: "tcp", port: 22 },
   { name: "Drop WAN HTTP", action: "drop", protocol: "tcp", port: 80 },
   { name: "Drop all other inbound", action: "drop", protocol: "any", port: 0 },
 ];
-const NTP_SETTINGS = { enabled: true, servers: ["pool.ntp.org", "time.google.com"], timezone: "Asia/Manila" };
+const FALLBACK_NTP = { enabled: true, servers: ["pool.ntp.org", "time.google.com"], timezone: "Asia/Manila" };
+
+// Router login, firewall template and NTP template are stored in Admin Settings and
+// pulled over the same authenticated link the helper already uses.
+let config = {
+  configVersion: 0,
+  ur35Username: "",
+  ur35Password: "",
+  ur35FirewallPath: "",
+  ur35NtpPath: "",
+  firewallRules: FALLBACK_RULES,
+  ntp: FALLBACK_NTP,
+};
+
+async function loadConfig() {
+  const res = await fetch(`${URL_BASE}/api/public/helper/config`, {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`Settings fetch failed (${res.status})`);
+  const body = await res.json();
+  config = {
+    configVersion: Number(body.configVersion) || 0,
+    ur35Username: String(body.ur35Username || ""),
+    ur35Password: String(body.ur35Password || ""),
+    ur35FirewallPath: String(body.ur35FirewallPath || ""),
+    ur35NtpPath: String(body.ur35NtpPath || ""),
+    firewallRules: Array.isArray(body.firewallRules) && body.firewallRules.length ? body.firewallRules : FALLBACK_RULES,
+    ntp: body.ntp && typeof body.ntp === "object" ? body.ntp : FALLBACK_NTP,
+  };
+}
 
 const IP_RE = /^(10|127|192\.168|172\.(1[6-9]|2\d|3[01]))\.[\d.]+$/;
 const checkIp = (ip) => {
@@ -64,8 +97,9 @@ async function api(body) {
 }
 
 function routerPost(ip, p, body) {
-  const user = process.env.UR35_USERNAME, pass = process.env.UR35_PASSWORD;
-  if (!user || !pass) throw new Error("UR35_USERNAME / UR35_PASSWORD not set on the helper");
+  const user = config.ur35Username || process.env.UR35_USERNAME || "";
+  const pass = config.ur35Password || process.env.UR35_PASSWORD || "";
+  if (!user || !pass) throw new Error("Router login isn't set — enter it in Admin Settings → Network Helper.");
   const data = JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -91,7 +125,7 @@ async function getBrowser() {
   try {
     ({ chromium } = await import("playwright"));
   } catch {
-    throw new Error("Screenshots need the helper dependencies: run `npm install` then `npx playwright install --with-deps chromium` next to this file.");
+    throw new Error("Screenshots need the helper dependencies: run `npm install` then `npx playwright install chromium` next to this file.");
   }
   browser = await chromium.launch({ headless: true, args: ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--disable-quic"] });
   return browser;
@@ -133,10 +167,12 @@ const handlers = {
     return { ok: true };
   },
   async ur35_firewall({ ip }) {
-    return routerPost(checkIp(ip), process.env.UR35_FIREWALL_PATH || "/api/firewall/rules", { rules: FIREWALL_RULES });
+    const p = config.ur35FirewallPath || process.env.UR35_FIREWALL_PATH || "/api/firewall/rules";
+    return routerPost(checkIp(ip), p, { rules: config.firewallRules });
   },
   async ur35_ntp({ ip }) {
-    return routerPost(checkIp(ip), process.env.UR35_NTP_PATH || "/api/system/ntp", NTP_SETTINGS);
+    const p = config.ur35NtpPath || process.env.UR35_NTP_PATH || "/api/system/ntp";
+    return routerPost(checkIp(ip), p, config.ntp);
   },
   async site_ping({ ip }) {
     const { out } = await run("ping", ["-n", "-c", "4", "-W", "2", "-w", "10", checkIp(ip)], 15_000);
@@ -190,11 +226,70 @@ const handlers = {
   },
 };
 
+// --- Self-update: the console serves the release, so no machine is ever patched by hand ---
+let updateTried = false;
+async function selfUpdate(target) {
+  console.log(`Updating helper ${VERSION} → ${target}`);
+  const downloaded = new Map();
+  for (const name of ["field-ops-helper.mjs", "package.json"]) {
+    const res = await fetch(`${URL_BASE}/helper/${name}`, { signal: AbortSignal.timeout(60_000) });
+    if (!res.ok) throw new Error(`Couldn't download ${name} (${res.status})`);
+    downloaded.set(name, await res.text());
+  }
+  const next = downloaded.get("field-ops-helper.mjs");
+  if (!next.includes(`const VERSION = "${target}"`)) throw new Error("Downloaded file didn't match the advertised release");
+  const temp = path.join(SELF_DIR, `.update-${target}.mjs`);
+  await fs.writeFile(temp, next, "utf8");
+  const check = await run(process.execPath, ["--check", temp], 20_000);
+  if (check.code !== 0) {
+    await fs.rm(temp, { force: true });
+    throw new Error("Downloaded file failed a syntax check");
+  }
+
+  // Dependencies first: a failed install must leave the running release untouched.
+  const packageJson = downloaded.get("package.json");
+  const currentPackage = await fs.readFile(path.join(SELF_DIR, "package.json"), "utf8").catch(() => "");
+  if (packageJson && packageJson !== currentPackage) {
+    await fs.writeFile(path.join(SELF_DIR, "package.json"), packageJson, "utf8");
+    console.log("Installing new dependencies…");
+    const install = await run("npm", ["install", "--prefix", SELF_DIR, "--no-audit", "--no-fund"], 600_000);
+    if (install.code !== 0) throw new Error(`Dependency install failed: ${install.out.slice(-400)}`);
+    await run("npx", ["--prefix", SELF_DIR, "playwright", "install", "chromium"], 600_000);
+  }
+
+  await fs.rename(temp, path.join(SELF_DIR, "field-ops-helper.mjs"));
+  console.log(`Updated to ${target}; the service will restart it.`);
+  // systemd (Restart=always) or pm2 starts the new file; nothing else to do.
+  process.exit(0);
+}
+
 async function loop() {
   console.log(`Field Ops helper ${VERSION} → ${URL_BASE}`);
+  try {
+    await loadConfig();
+    console.log(`Settings loaded (revision ${config.configVersion}).`);
+  } catch (e) {
+    console.error("Couldn't load settings from the console; using saved defaults:", e?.message || e);
+  }
   for (;;) {
     try {
-      const { job } = await api({ action: "poll", version: VERSION, hostname: hostname() });
+      const { job, latestVersion, configVersion } = await api({ action: "poll", version: VERSION, hostname: hostname() });
+      if (configVersion && configVersion !== config.configVersion) {
+        try {
+          await loadConfig();
+          console.log(`Settings reloaded (revision ${config.configVersion}).`);
+        } catch (e) {
+          console.error("Couldn't reload settings:", e?.message || e);
+        }
+      }
+      if (latestVersion && latestVersion !== VERSION && !updateTried) {
+        updateTried = true;
+        try {
+          await selfUpdate(latestVersion);
+        } catch (e) {
+          console.error("Update failed; staying on", VERSION, "-", e?.message || e);
+        }
+      }
       if (!job) { await new Promise((r) => setTimeout(r, 3000)); continue; }
       console.log(`→ ${job.type}`, job.payload);
       try {

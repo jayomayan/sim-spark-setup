@@ -221,6 +221,72 @@ export type Database = {
         }
         Relationships: []
       }
+      helper_enrollments: {
+        Row: {
+          code_hash: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          used_at: string | null
+        }
+        Insert: {
+          code_hash: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          used_at?: string | null
+        }
+        Update: {
+          code_hash?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
+      helper_settings: {
+        Row: {
+          agent_token_cipher: string | null
+          config_version: number
+          firewall_rules: Json
+          id: number
+          ntp_settings: Json
+          updated_at: string
+          ur35_firewall_path: string
+          ur35_ntp_path: string
+          ur35_password_cipher: string | null
+          ur35_username: string
+        }
+        Insert: {
+          agent_token_cipher?: string | null
+          config_version?: number
+          firewall_rules?: Json
+          id?: number
+          ntp_settings?: Json
+          updated_at?: string
+          ur35_firewall_path?: string
+          ur35_ntp_path?: string
+          ur35_password_cipher?: string | null
+          ur35_username?: string
+        }
+        Update: {
+          agent_token_cipher?: string | null
+          config_version?: number
+          firewall_rules?: Json
+          id?: number
+          ntp_settings?: Json
+          updated_at?: string
+          ur35_firewall_path?: string
+          ur35_ntp_path?: string
+          ur35_password_cipher?: string | null
+          ur35_username?: string
+        }
+        Relationships: []
+      }
       okta_settings: {
         Row: {
           client_id: string

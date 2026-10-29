@@ -24,6 +24,9 @@ import { Route as AuthenticatedSiteConnectivityCheckRouteImport } from './routes
 import { Route as AuthenticatedSnmpWalkRouteImport } from './routes/_authenticated/snmp-walk'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as ApiPublicAgentRouteImport } from './routes/api/public/agent'
+import { Route as ApiPublicHelperConfigRouteImport } from './routes/api/public/helper/config'
+import { Route as ApiPublicHelperEnrollRouteImport } from './routes/api/public/helper/enroll'
+import { Route as ApiPublicHelperVersionRouteImport } from './routes/api/public/helper/version'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -103,6 +106,21 @@ const ApiPublicAgentRoute = ApiPublicAgentRouteImport.update({
   path: '/api/public/agent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHelperConfigRoute = ApiPublicHelperConfigRouteImport.update({
+  id: '/api/public/helper/config',
+  path: '/api/public/helper/config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHelperEnrollRoute = ApiPublicHelperEnrollRouteImport.update({
+  id: '/api/public/helper/enroll',
+  path: '/api/public/helper/enroll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHelperVersionRoute = ApiPublicHelperVersionRouteImport.update({
+  id: '/api/public/helper/version',
+  path: '/api/public/helper/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -119,6 +137,9 @@ export interface FileRoutesByFullPath {
   '/snmp-walk': typeof AuthenticatedSnmpWalkRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/agent': typeof ApiPublicAgentRoute
+  '/api/public/helper/config': typeof ApiPublicHelperConfigRoute
+  '/api/public/helper/enroll': typeof ApiPublicHelperEnrollRoute
+  '/api/public/helper/version': typeof ApiPublicHelperVersionRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -135,6 +156,9 @@ export interface FileRoutesByTo {
   '/snmp-walk': typeof AuthenticatedSnmpWalkRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/agent': typeof ApiPublicAgentRoute
+  '/api/public/helper/config': typeof ApiPublicHelperConfigRoute
+  '/api/public/helper/enroll': typeof ApiPublicHelperEnrollRoute
+  '/api/public/helper/version': typeof ApiPublicHelperVersionRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -153,6 +177,9 @@ export interface FileRoutesById {
   '/_authenticated/snmp-walk': typeof AuthenticatedSnmpWalkRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/api/public/agent': typeof ApiPublicAgentRoute
+  '/api/public/helper/config': typeof ApiPublicHelperConfigRoute
+  '/api/public/helper/enroll': typeof ApiPublicHelperEnrollRoute
+  '/api/public/helper/version': typeof ApiPublicHelperVersionRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -171,6 +198,9 @@ export interface FileRouteTypes {
     | '/snmp-walk'
     | '/users'
     | '/api/public/agent'
+    | '/api/public/helper/config'
+    | '/api/public/helper/enroll'
+    | '/api/public/helper/version'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -187,6 +217,9 @@ export interface FileRouteTypes {
     | '/snmp-walk'
     | '/users'
     | '/api/public/agent'
+    | '/api/public/helper/config'
+    | '/api/public/helper/enroll'
+    | '/api/public/helper/version'
   id:
     | '__root__'
     | '/'
@@ -204,6 +237,9 @@ export interface FileRouteTypes {
     | '/_authenticated/snmp-walk'
     | '/_authenticated/users'
     | '/api/public/agent'
+    | '/api/public/helper/config'
+    | '/api/public/helper/enroll'
+    | '/api/public/helper/version'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -212,6 +248,9 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicAgentRoute: typeof ApiPublicAgentRoute
+  ApiPublicHelperConfigRoute: typeof ApiPublicHelperConfigRoute
+  ApiPublicHelperEnrollRoute: typeof ApiPublicHelperEnrollRoute
+  ApiPublicHelperVersionRoute: typeof ApiPublicHelperVersionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -321,6 +360,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/helper/config': {
+      id: '/api/public/helper/config'
+      path: '/api/public/helper/config'
+      fullPath: '/api/public/helper/config'
+      preLoaderRoute: typeof ApiPublicHelperConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/helper/enroll': {
+      id: '/api/public/helper/enroll'
+      path: '/api/public/helper/enroll'
+      fullPath: '/api/public/helper/enroll'
+      preLoaderRoute: typeof ApiPublicHelperEnrollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/helper/version': {
+      id: '/api/public/helper/version'
+      path: '/api/public/helper/version'
+      fullPath: '/api/public/helper/version'
+      preLoaderRoute: typeof ApiPublicHelperVersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -360,6 +420,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicAgentRoute: ApiPublicAgentRoute,
+  ApiPublicHelperConfigRoute: ApiPublicHelperConfigRoute,
+  ApiPublicHelperEnrollRoute: ApiPublicHelperEnrollRoute,
+  ApiPublicHelperVersionRoute: ApiPublicHelperVersionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
