@@ -1,10 +1,10 @@
 # Tasks
-- [ ] Add admin-only Console Connect settings with current configuration and secure editing.
-- [ ] Verify saved settings are used by Site ID lookup and retain existing SIM activation configuration.
+- [x] Add admin-only Console Connect settings with current configuration and secure editing.
+- [x] Verify shared saved configuration and admin save/reload; preserve existing SIM configuration fallback.
 - [x] Replace Private Browser ping/helper with Console Connect lookup and three screenshot tiles.
 - [x] Build and test a dedicated network screenshot service with secure deployment instructions.
 - [ ] Connect the screenshot service on the company network (needs deployment address and shared token).
-- [ ] Enable Console Connect Site ID resolution (needs AERIS_USERNAME and AERIS_PASSWORD).
+- [ ] Enable live Console Connect Site ID resolution and SIM activation (needs provider account details in Admin Settings and SIM API address).
 - [x] Add admin-only external database creation and required-table setup; preserve existing data and managed sign-in.
 - [x] Verify database setup, repeat setup, permission failures and signed-in controls.
 - [x] Add admin-only database connection status and test control.

@@ -3,6 +3,7 @@ import { CONSOLE_DEFAULTS, consoleSettingsSchema, providerUrlSchema } from "@/li
 import { memberConsoleConfig, readConsoleConfig } from "@/lib/console-connect.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { encryptPassword } from "@/lib/db-connection.server";
 
 afterEach(() => vi.unstubAllEnvs());
 describe("Console Connect configuration", () => {
@@ -27,5 +28,15 @@ describe("Console Connect configuration", () => {
     expect(config.apiUrl).toBe("https://iot-api.aeris.com/iot/api");
     expect(config.username).toBe("test-account");
     expect(config.password).toBe("test-only-password");
+  });
+  it("uses saved credentials instead of the previous server configuration", async () => {
+    vi.stubEnv("DB_SECRET_KEY", "test-only-key");
+    vi.stubEnv("AERIS_USERNAME", "old-account");
+    const row = { token_url: CONSOLE_DEFAULTS.site_lookup.tokenUrl, api_url: "https://iot-api.aeris.com/iot/api/", client_id: "saved-client", username: "saved-account", password_cipher: encryptPassword("saved-test-password"), updated_at: "2026-10-29T00:00:00Z" };
+    const client = { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row, error: null }) }) }) }) } as unknown as SupabaseClient<Database>;
+    const config = await readConsoleConfig(client, "site_lookup");
+    expect(config.username).toBe("saved-account");
+    expect(config.password).toBe("saved-test-password");
+    expect(config.apiUrl).toBe("https://iot-api.aeris.com/iot/api");
   });
 });
