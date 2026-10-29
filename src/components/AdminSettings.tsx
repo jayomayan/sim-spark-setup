@@ -77,6 +77,17 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
     retry: false,
     enabled: tab === "okta",
   });
+  const oktaSettings = useQuery({
+    queryKey: ["admin", "okta", "settings"],
+    queryFn: () => loadOktaSettings(),
+    retry: false,
+    enabled: tab === "okta",
+  });
+  useEffect(() => {
+    if (oktaSettings.data) {
+      setOktaForm((prev) => ({ ...prev, domain: oktaSettings.data.domain, clientId: oktaSettings.data.clientId }));
+    }
+  }, [oktaSettings.data]);
   const filtered = accounts.data?.filter((account) => `${account.email ?? ""} ${account.display_name ?? ""}`.toLowerCase().includes(search.toLowerCase())) ?? [];
 
   async function change(userId: string, role: string) {
