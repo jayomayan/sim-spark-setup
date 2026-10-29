@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 import { allowedRequest, allowedTarget, parseCidrs } from "./policy.mjs";
+import { pingTarget } from "./ping.mjs";
 
 export async function capturePort(browser, ip, port) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, ignoreHTTPSErrors: true, serviceWorkers: "block", acceptDownloads: false });
@@ -35,7 +36,7 @@ export async function startService({ token, cidrs, host = "127.0.0.1", port = 80
   if (!token || token.length < 32) throw new Error("SERVICE_TOKEN must contain at least 32 characters");
   const allowed = parseCidrs(cidrs);
   const browser = await chromium.launch({ headless: true, args: ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--disable-quic"] });
-  let active = 0, calls = 0, windowStart = Date.now();
+  let active = 0, activePing = 0, calls = 0, windowStart = Date.now();
   const server = http.createServer(async (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Cache-Control", "no-store");
@@ -43,10 +44,11 @@ export async function startService({ token, cidrs, host = "127.0.0.1", port = 80
     const received = Buffer.from(req.headers.authorization ?? ""), expected = Buffer.from(`Bearer ${token}`);
     if (received.length !== expected.length || !timingSafeEqual(received, expected)) { reply(401, { error: "Unauthorized" }); return; }
     if (req.url === "/health" && req.method === "GET") { reply(browser.isConnected() ? 200 : 503, { ready: browser.isConnected() }); return; }
-    if (req.url !== "/capture" || req.method !== "POST") { reply(404, { error: "Not found" }); return; }
+    const isPing = req.url === "/ping";
+    if ((!isPing && req.url !== "/capture") || req.method !== "POST") { reply(404, { error: "Not found" }); return; }
     if (Date.now() - windowStart >= 60_000) { calls = 0; windowStart = Date.now(); }
-    if (active >= 3 || calls >= 30) { reply(429, { error: "Busy" }); return; }
-    calls++; active++;
+    if ((isPing ? activePing >= 1 : active >= 3) || calls >= 30) { reply(429, { error: "Busy" }); return; }
+    calls++; if (isPing) activePing++; else active++;
     try {
       if (!req.headers["content-type"]?.startsWith("application/json")) { reply(415, { error: "JSON required" }); return; }
       let body = "";
@@ -56,12 +58,12 @@ export async function startService({ token, cidrs, host = "127.0.0.1", port = 80
       }
       let input;
       try { input = JSON.parse(body); } catch { reply(400, { error: "Invalid JSON" }); return; }
-      if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).sort().join(",") !== "ip,port") { reply(400, { error: "Invalid target" }); return; }
-      if (!allowedTarget(input.ip, input.port, allowed)) { reply(403, { error: "Target not allowed" }); return; }
-      const result = await capturePort(browser, input.ip, input.port);
+      if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).sort().join(",") !== (isPing ? "ip" : "ip,port")) { reply(400, { error: "Invalid target" }); return; }
+      if (!allowedTarget(input.ip, isPing ? 80 : input.port, allowed)) { reply(403, { error: "Target not allowed" }); return; }
+      const result = isPing ? await pingTarget(input.ip) : await capturePort(browser, input.ip, input.port);
       reply(200, result);
-    } catch { if (!res.headersSent) reply(503, { error: "Capture unavailable" }); }
-    finally { active--; }
+    } catch { if (!res.headersSent) reply(503, { error: isPing ? "Ping unavailable" : "Capture unavailable" }); }
+    finally { if (isPing) activePing--; else active--; }
   });
   server.requestTimeout = 10_000;
   server.headersTimeout = 5000;
