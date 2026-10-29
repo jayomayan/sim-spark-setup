@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, KeyRound, Loader2, Plus, RefreshCw, Save, Terminal, Trash2, XCircle } from "lucide-react";
@@ -171,7 +171,11 @@ export function HelperSettings() {
   const [saving, setSaving] = useState(false);
 
   const current = settings.data;
-  if (!form && current) setForm(toForm(current));
+  // Re-fill the form whenever the stored revision changes (a save, or an explicit reload),
+  // so the password box goes back to "leave blank to keep the saved one".
+  useEffect(() => {
+    if (current) setForm(toForm(current));
+  }, [current?.configVersion]);
   if (!form) {
     return (
       <div className="max-w-3xl space-y-6">
@@ -193,6 +197,7 @@ export function HelperSettings() {
     setSaving(true);
     try {
       await save({ data: form });
+      setForm((f) => (f ? { ...f, ur35Password: "" } : f));
       toast.success("Saved — the helper picks the changes up within a minute.");
       await qc.invalidateQueries({ queryKey: ["admin", "helper"] });
     } catch (error) {
