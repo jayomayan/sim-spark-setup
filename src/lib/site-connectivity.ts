@@ -18,6 +18,19 @@ export const captureResultSchema = z.object({
   httpStatus: z.number().int().min(100).max(599).nullable(),
 });
 export type CaptureResult = z.infer<typeof captureResultSchema>;
+export const pingInputSchema = z.object({ ip: routerIpSchema }).strict();
+export const pingResultSchema = z.object({
+  reachable: z.boolean(),
+  transmitted: z.literal(4),
+  received: z.number().int().min(0).max(4),
+  packetLoss: z.number().min(0).max(100),
+  minMs: z.number().finite().nonnegative().nullable(),
+  avgMs: z.number().finite().nonnegative().nullable(),
+  maxMs: z.number().finite().nonnegative().nullable(),
+}).strict().refine((r) => r.reachable === (r.received > 0) && r.packetLoss === (4 - r.received) / 4 * 100 &&
+  (r.received === 0 ? r.minMs === null && r.avgMs === null && r.maxMs === null :
+    r.minMs !== null && r.avgMs !== null && r.maxMs !== null && r.minMs <= r.avgMs && r.avgMs <= r.maxMs), "Invalid ping statistics");
+export type PingResult = z.infer<typeof pingResultSchema>;
 export function routerUrl(ip: string, port: BrowserPort): string {
   routerIpSchema.parse(ip);
   return `${port === 80 ? "http" : "https"}://${ip}:${port}`;
