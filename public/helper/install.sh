@@ -11,12 +11,11 @@
 #   --prefix DIR        install folder (default /opt/field-ops-helper)
 #   --service NAME      systemd service name (default field-ops-helper)
 #   --user NAME         service account (default fieldops)
-#   --node-scripts DIR  copy your old app's node-scripts folder (device NTP tool)
 #   --skip-deps         don't install npm/browser dependencies (offline installs)
 set -euo pipefail
 
 CONSOLE_URL="" CODE="" PREFIX="/opt/field-ops-helper" SERVICE="field-ops-helper"
-RUN_USER="fieldops" ENV_FILE="/etc/field-ops-helper.env" NODE_SCRIPTS="" SKIP_DEPS=0
+RUN_USER="fieldops" ENV_FILE="/etc/field-ops-helper.env" SKIP_DEPS=0
 
 die() { echo "helper install: $*" >&2; exit 1; }
 
@@ -27,7 +26,6 @@ while [ $# -gt 0 ]; do
     --prefix) PREFIX="${2:-}"; shift 2 ;;
     --service) SERVICE="${2:-}"; shift 2 ;;
     --user) RUN_USER="${2:-}"; shift 2 ;;
-    --node-scripts) NODE_SCRIPTS="${2:-}"; shift 2 ;;
     --skip-deps) SKIP_DEPS=1; shift ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) die "unknown option $1" ;;
@@ -94,13 +92,6 @@ PLAYWRIGHT_BROWSERS_PATH=$PREFIX/browsers
 EOF
 chown root:root "$ENV_FILE"; chmod 600 "$ENV_FILE"
 
-if [ -n "$NODE_SCRIPTS" ] && [ -d "$NODE_SCRIPTS" ]; then
-  echo "→ copying node-scripts (device NTP tool)"
-  rm -rf "$PREFIX/node-scripts"
-  cp -r "$NODE_SCRIPTS" "$PREFIX/node-scripts"
-  chown -R "$RUN_USER:$RUN_USER" "$PREFIX/node-scripts"
-  as_user npm install --prefix "$PREFIX/node-scripts" --omit=dev --no-audit --no-fund || true
-fi
 
 if [ "$SKIP_DEPS" -eq 0 ]; then
   echo "→ helper dependencies (this takes a few minutes the first time)"
