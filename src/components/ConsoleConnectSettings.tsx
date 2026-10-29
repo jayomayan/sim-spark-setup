@@ -3,7 +3,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, RefreshCw, Save, XCircle } from "lucide-react";
 import { getConsoleSettings, saveConsoleSettings, testConsoleSettings } from "@/lib/console-connect.functions";
-import { CONSOLE_DEFAULTS, type ConsoleIntegration } from "@/lib/console-connect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
