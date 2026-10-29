@@ -2,6 +2,7 @@
 - [x] Add admin-only Console Connect settings with current configuration and secure editing.
 - [x] Verify shared saved configuration and admin save/reload; preserve existing SIM configuration fallback.
 - [x] Replace Private Browser ping/helper with Console Connect lookup and three screenshot tiles.
+- [x] Rename Private Browser to Site Connectivity Check across screens, files and the service package.
 - [x] Build and test a dedicated network screenshot service with secure deployment instructions.
 - [ ] Connect the screenshot service on the company network (needs deployment address and shared token).
 - [ ] Enable live Console Connect Site ID resolution and SIM activation (needs provider account details in Admin Settings and SIM API address).
