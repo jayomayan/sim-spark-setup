@@ -16,13 +16,14 @@ function HelperPage() {
       <div className="space-y-6">
         <p className="max-w-2xl text-muted-foreground">
           Routers live on your private network, so a small helper program runs on a machine there (your old server works).
-          It checks in with the console, picks up ping, SNMP, firewall and NTP jobs, and sends results back.
+          It checks in with the console, picks up Site Connectivity Check screenshots and ping, SNMP, firewall and NTP jobs, and sends results back.
           You don't need to open any ports.
         </p>
-        <Button asChild><a href="/helper/field-ops-helper.mjs" download>Download helper</a></Button>
+        <Button asChild><a href="/helper/helper.zip" download>Download helper</a></Button>
         <ol className="panel list-decimal space-y-3 p-6 pl-10 text-sm">
           <li>On the machine, install Node.js 18 or newer, plus the <code className="font-mono">ping</code> and <code className="font-mono">snmpwalk</code> tools.</li>
-          <li>Put the helper file next to the <code className="font-mono">node-scripts</code> folder from your old app and run <code className="font-mono">npm install</code> inside that folder.</li>
+          <li>Unzip the download, then run <code className="font-mono">npm install</code> and <code className="font-mono">npx playwright install --with-deps chromium</code> inside it — this adds the browser used for Site Connectivity Check screenshots.</li>
+          <li>Put the <code className="font-mono">node-scripts</code> folder from your old app next to the helper and run <code className="font-mono">npm install</code> inside that folder.</li>
           <li>Start it with your console address and helper key:
             <pre className="mt-2 overflow-x-auto rounded bg-muted p-3 font-mono text-xs">{`CONSOLE_URL=${origin} \\
 AGENT_TOKEN=<your helper key> \\
