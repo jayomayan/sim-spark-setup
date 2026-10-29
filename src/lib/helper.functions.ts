@@ -36,11 +36,10 @@ export const rotateHelperKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { encryptPassword } = await import("@/lib/db-connection.server");
     const { error } = await context.supabase
       .from("helper_settings")
       .update({ agent_token_cipher: null, updated_at: new Date().toISOString() })
       .eq("id", 1);
     if (error) throw new Error("Couldn't reset the helper key.");
-    return { ok: true, cleared: encryptPassword("x").length > 0 };
+    return { ok: true };
   });

@@ -94,7 +94,7 @@ export async function saveHelperConfig(
   db: Client,
   input: {
     ur35Username: string;
-    ur35Password?: string;
+    ur35Password?: string | undefined;
     ur35FirewallPath: string;
     ur35NtpPath: string;
     firewallRules: FirewallRule[];
