@@ -23,7 +23,7 @@ import path from "node:path";
 import https from "node:https";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
