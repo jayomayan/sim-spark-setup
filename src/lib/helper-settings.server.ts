@@ -51,6 +51,12 @@ export async function matchesHelperToken(db: Client, candidate: string): Promise
   }
 }
 
+/** Read without creating, so the cheap poll path stays cheap. */
+export async function helperConfigVersion(db: Client): Promise<number> {
+  const { data } = await db.from("helper_settings").select("config_version").eq("id", 1).maybeSingle();
+  return data?.config_version ?? 0;
+}
+
 async function ensureRow(db: Client) {
   const { data, error } = await db.from("helper_settings").select("*").eq("id", 1).maybeSingle();
   if (error) throw new Error("Couldn't load helper settings.");
