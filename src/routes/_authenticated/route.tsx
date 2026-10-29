@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouteContext } from "@tanstack/react-router";
 import logo from "@/assets/fta-logo.png.asset.json";
 import { useQueryClient } from "@tanstack/react-query";
-import { Cpu, Gauge, Globe, ListTree, LogOut, Radio, Server, Clock, Settings } from "lucide-react";
+import { Cpu, Gauge, Globe, ListTree, LogOut, Radio, Server, Settings } from "lucide-react";
 import { canAccessAdminSettings, canAccessOperationalTools } from "@/lib/admin-access";
 import { supabase } from "@/integrations/supabase/client";
 import { HelperStatus } from "@/components/HelperStatus";
@@ -25,7 +25,6 @@ const NAV = [
   { to: "/site-connectivity-check", label: "Site Connectivity Check", icon: Globe },
   { to: "/devices", label: "Devices", icon: Cpu },
   { to: "/snmp-walk", label: "SNMP Walk", icon: ListTree },
-  { to: "/device-ntp", label: "Device NTP", icon: Clock },
 ] as const;
 
 function Layout() {

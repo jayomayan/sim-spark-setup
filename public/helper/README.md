@@ -9,7 +9,7 @@ It handles every router job in the app:
 
 - **Site Connectivity Check** — screenshots of ports 80, 443, 8443 and 8080
   (8080 is tried over HTTP then HTTPS) plus the four-probe ping test.
-- **Ping, SNMP walk, device NTP, UR35 firewall and NTP** for the other tools.
+- **Ping, SNMP walk, UR35 firewall and NTP** for the other tools.
 
 ## Install (recommended)
 
@@ -26,8 +26,7 @@ The install code works once and expires after 30 minutes. The helper then pulls
 the router login and the firewall/NTP templates from the console, and downloads
 newer releases on its own — there is nothing to reinstall later.
 
-`--node-scripts /path/to/node-scripts` copies the device-NTP scripts from your
-old app. `--skip-deps` skips the dependency step for offline machines.
+`--skip-deps` skips the dependency step for offline machines.
 To remove everything: `curl -fsSL https://your-console/helper/uninstall.sh | sudo bash`.
 
 ## Install by hand
@@ -36,9 +35,7 @@ To remove everything: `curl -fsSL https://your-console/helper/uninstall.sh | sud
    (`sudo apt install snmp iputils-ping` on Debian/Ubuntu).
 2. Copy `field-ops-helper.mjs` and `package.json` to the machine.
 3. `npm install`, then `npx playwright install chromium` for the screenshot browser.
-4. Copy the `node-scripts` folder from your old app next to
-   `field-ops-helper.mjs` (or set `NODE_SCRIPTS_DIR`) and run `npm install` there.
-5. Start it with the console address and the helper key:
+4. Start it with the console address and the helper key:
 
    ```sh
    CONSOLE_URL="https://your-console" AGENT_TOKEN="<helper key>" node field-ops-helper.mjs

@@ -12,7 +12,6 @@
 // and `npx playwright install chromium` next to this file, then start it with:
 //   CONSOLE_URL=https://your-console AGENT_TOKEN=<helper key> node field-ops-helper.mjs
 //
-// Optional: NODE_SCRIPTS_DIR (default ./node-scripts) for the device NTP tool.
 // The router login and the firewall/NTP templates normally live in Admin Settings;
 // UR35_USERNAME, UR35_PASSWORD, UR35_FIREWALL_PATH and UR35_NTP_PATH are used only
 // if the console can't be reached.
@@ -24,10 +23,9 @@ import path from "node:path";
 import https from "node:https";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
-const SCRIPTS = path.resolve(process.env.NODE_SCRIPTS_DIR || "./node-scripts");
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 if (!URL_BASE || !TOKEN) {
   console.error("Set CONSOLE_URL and AGENT_TOKEN first.");
@@ -160,11 +158,6 @@ const handlers = {
       }
     }
     return { results, errors };
-  },
-  async device_ntp({ ip, brand }) {
-    const { code, out } = await run("node", [path.join(SCRIPTS, "setclock.cjs"), checkIp(ip), String(brand || "enetek")]);
-    if (code !== 0) throw new Error(out.trim().slice(-500) || `Script exited with code ${code}`);
-    return { ok: true };
   },
   async ur35_firewall({ ip }) {
     const p = config.ur35FirewallPath || process.env.UR35_FIREWALL_PATH || "/api/firewall/rules";
