@@ -392,6 +392,52 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
         <TabsContent value="okta">
           <section className="max-w-3xl space-y-8">
             <div>
+              <h2 className="text-xl font-semibold">Okta connection parameters</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Your Okta app's details, stored encrypted. The client secret is never shown after saving — leave it blank to keep the saved one.
+              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Label htmlFor="okta-domain">Base URL</Label>
+                  <Input id="okta-domain" placeholder="yourcompany.okta.com" value={oktaForm.domain}
+                    onChange={(event) => setOktaForm((prev) => ({ ...prev, domain: event.target.value }))} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="okta-client-id">Client ID</Label>
+                  <Input id="okta-client-id" placeholder="0oa…" value={oktaForm.clientId}
+                    onChange={(event) => setOktaForm((prev) => ({ ...prev, clientId: event.target.value }))} className="mt-1 font-mono text-sm" />
+                </div>
+                <div>
+                  <Label htmlFor="okta-client-secret">Client secret</Label>
+                  <Input id="okta-client-secret" type="password" placeholder={oktaSettings.data?.hasSecret ? "••••••••  (saved)" : "Client secret"}
+                    value={oktaForm.clientSecret}
+                    onChange={(event) => setOktaForm((prev) => ({ ...prev, clientSecret: event.target.value }))} className="mt-1 font-mono text-sm" />
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Button variant="outline" onClick={testOktaForm} disabled={oktaBusy !== null || !oktaFormValid}>
+                  {oktaBusy === "test" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {oktaBusy === "test" ? "Testing…" : "Test connection"}
+                </Button>
+                <Button onClick={saveOktaForm} disabled={oktaBusy !== null || !oktaFormValid}>
+                  {oktaBusy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {oktaBusy === "save" ? "Saving…" : "Save settings"}
+                </Button>
+                {oktaSettings.data?.updatedAt && (
+                  <span className="text-xs text-muted-foreground">Saved {new Date(oktaSettings.data.updatedAt).toLocaleString()}</span>
+                )}
+              </div>
+              {oktaResult && (
+                <p role="status" className={`mt-3 flex items-start gap-2 text-sm ${oktaResult.ok ? "text-primary" : "text-destructive"}`}>
+                  {oktaResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+                  {oktaResult.text}
+                </p>
+              )}
+              <p className="mt-3 text-xs text-muted-foreground">
+                These saved values are a reference for your team. For the “Sign in with Okta” button itself, the same values must also be entered once in the backend under <span className="font-medium text-foreground">Users → Auth settings → OIDC</span> (step 2 below) — the app isn't allowed to write that configuration itself.
+              </p>
+            </div>
+            <div>
               <h2 className="text-xl font-semibold">Sign-in status</h2>
               <p className="mt-1 text-sm text-muted-foreground">Whether staff can currently sign in with the “Sign in with Okta” button.</p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
