@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, KeyRound, Loader2, Plus, RefreshCw, Save, Terminal, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { createHelperInstallCode, getHelperSettings, rotateHelperKey, saveHelperSettings } from "@/lib/helper.functions";
-import { buildInstallCommand, ENROLLMENT_TTL_MINUTES, FIREWALL_ACTIONS, FIREWALL_PROTOCOLS, type FirewallRule } from "@/lib/helper-settings";
+import { buildInstallCommand, ENROLLMENT_TTL_MINUTES, type FirewallRule } from "@/lib/helper-settings";
 import { HELPER_VERSION } from "@/lib/helper-release";
 import { useHelperStatus } from "@/components/HelperStatus";
 import { Button } from "@/components/ui/button";
@@ -117,44 +117,25 @@ function InstallPanel() {
 function RuleRow({ rule, index, onChange, onRemove }: { rule: FirewallRule; index: number; onChange: (r: FirewallRule) => void; onRemove: () => void }) {
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <div className="min-w-[180px] flex-1 space-y-1">
-        <Label htmlFor={`rule-name-${index}`}>Name</Label>
-        <Input id={`rule-name-${index}`} value={rule.name} onChange={(e) => onChange({ ...rule, name: e.target.value })} />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor={`rule-action-${index}`}>Action</Label>
-        <select
-          id={`rule-action-${index}`}
-          className="h-9 rounded-md border bg-background px-2 text-sm"
-          value={rule.action}
-          onChange={(e) => onChange({ ...rule, action: e.target.value as FirewallRule["action"] })}
-        >
-          {FIREWALL_ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor={`rule-protocol-${index}`}>Protocol</Label>
-        <select
-          id={`rule-protocol-${index}`}
-          className="h-9 rounded-md border bg-background px-2 text-sm"
-          value={rule.protocol}
-          onChange={(e) => onChange({ ...rule, protocol: e.target.value as FirewallRule["protocol"] })}
-        >
-          {FIREWALL_PROTOCOLS.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-      </div>
-      <div className="w-24 space-y-1">
-        <Label htmlFor={`rule-port-${index}`}>Port</Label>
+      <div className="min-w-[200px] flex-1 space-y-1">
+        <Label htmlFor={`rule-text-${index}`}>Firewall rule</Label>
         <Input
-          id={`rule-port-${index}`}
-          type="number"
-          min={0}
-          max={65535}
-          value={rule.port}
-          onChange={(e) => onChange({ ...rule, port: Number(e.target.value) || 0 })}
+          id={`rule-text-${index}`}
+          value={rule.rule}
+          placeholder="e.g. accept tcp/443"
+          onChange={(e) => onChange({ ...rule, rule: e.target.value })}
         />
       </div>
-      <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remove rule ${rule.name || index + 1}`}>
+      <div className="min-w-[200px] flex-1 space-y-1">
+        <Label htmlFor={`rule-desc-${index}`}>Description</Label>
+        <Input
+          id={`rule-desc-${index}`}
+          value={rule.description}
+          placeholder="What this rule is for"
+          onChange={(e) => onChange({ ...rule, description: e.target.value })}
+        />
+      </div>
+      <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remove rule ${rule.description || index + 1}`}>
         <Trash2 className="h-4 w-4 text-destructive" />
       </Button>
     </div>
@@ -258,7 +239,7 @@ export function HelperSettings() {
               variant="outline"
               size="sm"
               disabled={form.firewallRules.length >= 50}
-              onClick={() => setField("firewallRules", [...form.firewallRules, { name: "", action: "accept", protocol: "tcp", port: 443 }])}
+              onClick={() => setField("firewallRules", [...form.firewallRules, { rule: "", description: "" }])}
             >
               <Plus className="h-4 w-4" />Add rule
             </Button>
