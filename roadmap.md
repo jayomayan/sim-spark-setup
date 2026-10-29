@@ -1,4 +1,7 @@
 # Tasks
+- [ ] Replace Private Browser ping/helper with Console Connect lookup and three screenshot tiles.
+- [ ] Build and test a dedicated network screenshot service with secure deployment instructions.
+- [ ] Connect the screenshot service on the company network (needs deployment address and shared token).
 - [x] Add admin-only external database creation and required-table setup; preserve existing data and managed sign-in.
 - [x] Verify database setup, repeat setup, permission failures and signed-in controls.
 - [x] Add admin-only database connection status and test control.
