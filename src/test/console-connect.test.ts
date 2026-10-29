@@ -1,11 +1,11 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { CONSOLE_DEFAULTS, consoleSettingsSchema, providerUrlSchema } from "@/lib/console-connect";
-import { memberConsoleConfig, readConsoleConfig } from "@/lib/console-connect.server";
+import { consoleApiRequest, memberConsoleConfig, readConsoleConfig } from "@/lib/console-connect.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { encryptPassword } from "@/lib/db-connection.server";
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("Console Connect configuration", () => {
   it("retains the current Console Connect Site ID endpoint configuration", () => {
     expect(CONSOLE_DEFAULTS.site_lookup).toEqual({ tokenUrl: "https://pccwg.iot.aeris.com/iot/api/auth/token", apiUrl: "https://iot-api.aeris.com/iot/api", clientId: "cm-public-api-client" });
@@ -53,7 +53,7 @@ describe("Console Connect configuration", () => {
     expect(config.password).toBe("current-lookup-password");
     expect(config.clientId).toBe("lookup-client");
     expect(config.tokenUrl).toBe(CONSOLE_DEFAULTS.site_lookup.tokenUrl);
-    expect(config.apiUrl).toBe("https://iot-api.aeris.com/sim-api");
+    expect(config.apiUrl).toBe(CONSOLE_DEFAULTS.site_lookup.apiUrl);
     rows.site_lookup.password_cipher = encryptPassword("updated-lookup-password");
     expect((await readConsoleConfig(client, "sim_activation")).password).toBe("updated-lookup-password");
   });
@@ -65,6 +65,27 @@ describe("Console Connect configuration", () => {
     const config = await readConsoleConfig(client, "sim_activation");
     expect(config.username).toBe("lookup-env-account");
     expect(config.password).toBe("lookup-env-password");
-    expect(config.apiUrl).toBe("https://iot-api.aeris.com/sim-api");
+    expect(config.apiUrl).toBe(CONSOLE_DEFAULTS.site_lookup.apiUrl);
+  });
+  it("rejects separate SIM Activation settings", () => {
+    expect(consoleSettingsSchema.safeParse({ integration: "sim_activation", apiUrl: CONSOLE_DEFAULTS.site_lookup.apiUrl, tokenUrl: CONSOLE_DEFAULTS.site_lookup.tokenUrl, clientId: "client", username: "account" }).success).toBe(false);
+  });
+  it.each(["PUT", "GET"])("SIM %s requests use Site ID Lookup password grant and bearer authentication", async (method) => {
+    vi.stubEnv("AERIS_USERNAME", "lookup-account"); vi.stubEnv("AERIS_PASSWORD", "lookup-password");
+    const client = { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }) } as unknown as SupabaseClient<Database>;
+    const config = await readConsoleConfig(client, "sim_activation");
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "test-token" }))).mockResolvedValueOnce(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+    await consoleApiRequest(config, "/devices/123456789012345678", { method });
+    const tokenCall = fetchMock.mock.calls[0];
+    const apiCall = fetchMock.mock.calls[1];
+    if (!tokenCall || !apiCall) throw new Error("Expected token and SIM API requests");
+    expect(tokenCall[0]).toBe(CONSOLE_DEFAULTS.site_lookup.tokenUrl);
+    const grant = tokenCall[1].body as URLSearchParams;
+    expect(grant.get("grant_type")).toBe("password");
+    expect(grant.get("username")).toBe("lookup-account");
+    expect(grant.get("password")).toBe("lookup-password");
+    expect(apiCall[0]).toBe(`${CONSOLE_DEFAULTS.site_lookup.apiUrl}/devices/123456789012345678`);
+    expect(apiCall[1].headers.get("Authorization")).toBe("Bearer test-token");
   });
 });

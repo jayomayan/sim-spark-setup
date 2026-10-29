@@ -8,7 +8,7 @@ export const getConsoleSettings = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { readConsoleConfig } = await import("@/lib/console-connect.server");
-    return Promise.all((["site_lookup", "sim_activation"] as const).map(async (integration) => {
+    return Promise.all((["site_lookup"] as const).map(async (integration) => {
       const config = await readConsoleConfig(context.supabase, integration);
       const { password, ...publicConfig } = config;
       return { ...publicConfig, hasPassword: Boolean(password), ready: Boolean(config.apiUrl && config.username && password) };
@@ -44,11 +44,7 @@ export const testConsoleSettings = createServerFn({ method: "POST" })
     const config = await readConsoleConfig(context.supabase, data);
     if (!config.apiUrl || !config.username || !config.password) return { ok: false, message: "Console Connect credentials are not configured yet." };
     try {
-      if (data === "site_lookup") await consoleToken(config);
-      else {
-        const response = await fetch(config.apiUrl, { redirect: "error", signal: AbortSignal.timeout(10000), headers: { Authorization: `Basic ${btoa(`${config.username}:${config.password}`)}`, Accept: "application/json" } });
-        if (!response.ok) return { ok: false, message: `Console Connect answered with status ${response.status}. Check the API address and account access.` };
-      }
-      return { ok: true, message: data === "site_lookup" ? "Console Connect sign-in succeeded." : "SIM API connection succeeded." };
+      await consoleToken(config);
+      return { ok: true, message: "Console Connect sign-in succeeded." };
     } catch { return { ok: false, message: "Couldn't connect or sign in to Console Connect. Check the saved address and account details." }; }
   });
