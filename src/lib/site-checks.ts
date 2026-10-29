@@ -35,13 +35,18 @@ export async function listSiteChecks(filter: { siteId?: string | null; ip?: stri
   else return [];
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    site_id: row.site_id,
-    ip: row.ip,
-    network: row.network,
-    ping: row.ping ? pingResultSchema.catch(() => null).parse(row.ping) : null,
-    ports: Array.isArray(row.ports) ? row.ports.map((p) => captureResultSchema.catch(() => null).parse(p)).filter((p): p is CaptureResult => p !== null) : [],
-    created_at: row.created_at,
-  }));
+  return (data ?? []).map((row) => {
+    const ping = row.ping ? pingResultSchema.safeParse(row.ping) : null;
+    return {
+      id: row.id,
+      site_id: row.site_id,
+      ip: row.ip,
+      network: row.network,
+      ping: ping?.success ? ping.data : null,
+      ports: Array.isArray(row.ports)
+        ? row.ports.map((p) => captureResultSchema.safeParse(p)).filter((p) => p.success).map((p) => p.data)
+        : [],
+      created_at: row.created_at,
+    };
+  });
 }
