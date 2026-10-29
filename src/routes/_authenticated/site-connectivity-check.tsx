@@ -1,16 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download } from "lucide-react";
+import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity } from "lucide-react";
 import { lookupSite } from "@/lib/aeris.functions";
-import { captureRouterPort } from "@/lib/site-connectivity.functions";
-import { BROWSER_PORTS, isRouterIp, routerUrl, type BrowserPort, type CaptureResult } from "@/lib/site-connectivity";
+import { captureRouterPort, pingRouter } from "@/lib/site-connectivity.functions";
+import { BROWSER_PORTS, isRouterIp, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/site-connectivity-check")({
-  head: () => meta("Site Connectivity Check", "Resolve router Site IDs through Console Connect and check screenshots of ports 80, 443 and 8443."),
+  head: () => meta("Site Connectivity Check", "Resolve Site IDs through Console Connect, test ping reachability and latency, and check screenshots of ports 80, 443 and 8443."),
   component: SiteConnectivityCheck,
 });
 
@@ -20,6 +20,10 @@ const emptyTiles = (): Record<BrowserPort, Tile> => ({ 80: { state: "idle" }, 44
 function SiteConnectivityCheck() {
   const lookup = useServerFn(lookupSite);
   const capture = useServerFn(captureRouterPort);
+  const ping = useServerFn(pingRouter);
+  const [pingState, setPingState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [pingResult, setPingResult] = useState<PingResult | null>(null);
+  const [pingError, setPingError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +32,15 @@ function SiteConnectivityCheck() {
   const [tiles, setTiles] = useState(emptyTiles);
   const [site, setSite] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
+
+  async function testPing(target: string) {
+    setPingState("loading"); setPingResult(null); setPingError(null);
+    try {
+      const result = await ping({ data: { ip: target } });
+      if (result.ping) { setPingResult(result.ping); setPingState("done"); }
+      else { setPingError(result.error ?? "Ping unavailable"); setPingState("error"); }
+    } catch { setPingError("Could not run the ping test. Please try again."); setPingState("error"); }
+  }
 
   async function browsePort(target: string, port: BrowserPort) {
     setTiles((previous) => ({ ...previous, [port]: { state: "loading" } }));
@@ -42,6 +55,7 @@ function SiteConnectivityCheck() {
   async function connect(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError(null); setIp(null); setNetwork(null); setSite(null); setTiles(emptyTiles());
+    setPingState("idle"); setPingResult(null); setPingError(null);
     try {
       let target = query.trim();
       if (/^PH/i.test(target)) {
@@ -55,7 +69,7 @@ function SiteConnectivityCheck() {
       }
       if (!isRouterIp(target)) throw new Error("Please enter a Site ID or a private IP address.");
       setIp(target);
-      await Promise.all(BROWSER_PORTS.map((port) => browsePort(target, port)));
+      await Promise.all([testPing(target), ...BROWSER_PORTS.map((port) => browsePort(target, port))]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -72,7 +86,7 @@ function SiteConnectivityCheck() {
       <div className="space-y-6">
         <form onSubmit={connect} className="flex flex-col gap-3 border-b pb-6 sm:flex-row">
           <Input aria-label="Site ID or private IP" maxLength={32} value={query} disabled={busy} onChange={(e) => setQuery(e.target.value)} placeholder="Site ID (PH010010) or private IP (10.x.x.x)" className="font-mono" />
-          <Button type="submit" disabled={busy || !query.trim()}>{busy ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Camera className="h-4 w-4" />}{resolving ? "Finding IP…" : busy ? "Browsing…" : "Browse"}</Button>
+          <Button type="submit" disabled={busy || pingState === "loading" || !query.trim()}>{busy ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Activity className="h-4 w-4" />}{resolving ? "Finding IP…" : busy ? "Checking…" : "Check site"}</Button>
         </form>
         {error && <p className="rounded-md border border-destructive p-3 text-sm text-destructive">{error}</p>}
         {ip && (
@@ -83,6 +97,28 @@ function SiteConnectivityCheck() {
             <Field label="Accessible ports" value={`${BROWSER_PORTS.filter((port) => tiles[port].capture?.accessible).length} / 3`} />
           </div>
         )}
+        <section aria-label="Ping test results" className="space-y-4 border-y py-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 font-semibold"><Activity className="h-4 w-4 text-primary" />Ping test</h2>
+            <Button variant="outline" size="sm" disabled={!ip || busy || pingState === "loading"} onClick={() => { if (ip) void testPing(ip); }}>
+              {pingState === "loading" ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <RefreshCw className="h-4 w-4" />}Run ping
+            </Button>
+          </div>
+          <div aria-live="polite">
+            {pingResult ? <>
+              <p className={`mb-4 text-sm font-semibold ${pingResult.reachable ? "text-primary" : "text-muted-foreground"}`}>{pingResult.reachable ? "Replies received" : "No ping replies"}</p>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+                <Field label="Sent" value={String(pingResult.transmitted)} />
+                <Field label="Received" value={String(pingResult.received)} />
+                <Field label="Packet loss" value={`${pingResult.packetLoss}%`} />
+                <Field label="Minimum" value={pingResult.minMs === null ? "—" : `${pingResult.minMs.toFixed(2)} ms`} />
+                <Field label="Average" value={pingResult.avgMs === null ? "—" : `${pingResult.avgMs.toFixed(2)} ms`} />
+                <Field label="Maximum" value={pingResult.maxMs === null ? "—" : `${pingResult.maxMs.toFixed(2)} ms`} />
+              </div>
+              {!pingResult.reachable && <p className="mt-4 text-sm text-muted-foreground">ICMP may be blocked; web ports may still be accessible.</p>}
+            </> : <p className={`text-sm ${pingState === "error" ? "text-destructive" : "text-muted-foreground"}`}>{pingState === "loading" ? "Testing ping…" : pingState === "error" ? pingError : "Not tested"}</p>}
+          </div>
+        </section>
         <div className="grid gap-4 lg:grid-cols-3">
           {BROWSER_PORTS.map((port) => {
             const tile = tiles[port];
