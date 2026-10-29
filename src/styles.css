@@ -153,9 +153,14 @@
   .brand-bar { height: 4px; background: linear-gradient(90deg, var(--chart-1), var(--chart-2), var(--chart-3)); }
   .btn-primary { background: var(--primary); color: var(--primary-foreground); border-radius: var(--radius); padding: 0.85rem 1rem; font-weight: 700; transition: opacity .2s; }
   .btn-primary:disabled { opacity: .4; }
-  .step-dot { display:grid; place-items:center; width:1.75rem; height:1.75rem; border-radius:999px; border:1px solid var(--border); font-family: var(--font-mono); font-size:.8rem; color: var(--muted-foreground); }
+  .step-dot { display:grid; place-items:center; width:1.75rem; height:1.75rem; border-radius:999px; border:1px solid var(--border); font-family: var(--font-mono); font-size:.8rem; color: var(--muted-foreground); flex-shrink:0; }
   [data-state="done"] .step-dot { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
   [data-state="error"] .step-dot { background: var(--destructive); color: var(--primary-foreground); border-color: var(--destructive); }
+  [data-state="running"] .step-dot { border-color: var(--primary); }
+  .stepper li { border-radius: .5rem; transition: background .3s; }
+  .stepper li[data-state="running"] { background: color-mix(in oklch, var(--primary) 7%, transparent); }
+  .stepper li[data-state="running"] .step-label { color: var(--foreground); font-weight: 600; }
+  .stepper li[data-state="done"] .step-label { color: var(--foreground); }
   [data-state="running"] { border-color: var(--primary); }
   [data-state="idle"] { opacity: .6; }
   .badge-active { font-family: var(--font-mono); font-size:.7rem; letter-spacing:.15em; padding:.2rem .5rem; border-radius:999px; background: color-mix(in oklch, var(--primary) 20%, transparent); color: var(--primary); }
