@@ -40,8 +40,8 @@ export async function listSiteChecks(filter: { siteId?: string | null; ip?: stri
     site_id: row.site_id,
     ip: row.ip,
     network: row.network,
-    ping: row.ping ? pingResultSchema.catch(null).parse(row.ping) : null,
-    ports: Array.isArray(row.ports) ? row.ports.map((p) => captureResultSchema.catch(null).parse(p)).filter((p): p is CaptureResult => p !== null) : [],
+    ping: row.ping ? pingResultSchema.catch(() => null).parse(row.ping) : null,
+    ports: Array.isArray(row.ports) ? row.ports.map((p) => captureResultSchema.catch(() => null).parse(p)).filter((p): p is CaptureResult => p !== null) : [],
     created_at: row.created_at,
   }));
 }
