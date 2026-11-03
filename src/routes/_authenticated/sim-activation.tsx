@@ -141,9 +141,9 @@ function SimActivation() {
               {STEPS.map((s, i) => (
                 <li key={s} className="flex items-center gap-4 px-3 py-2.5" data-state={states[i]}>
                   <span className="step-dot">
-                    {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : i + 1}
+                    {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : states[i] === "skipped" ? "–" : i + 1}
                   </span>
-                  <span className="step-label flex-1 text-muted-foreground">{s}</span>
+                  <span className="step-label flex-1 text-muted-foreground">{s}{states[i] === "skipped" && <span className="ml-2 text-xs">(no UR35 — skipped)</span>}</span>
                   {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
                   {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
                 </li>
