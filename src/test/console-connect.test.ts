@@ -5,8 +5,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { encryptPassword } from "@/lib/db-connection.server";
 
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe("Console Connect configuration", () => {
+  it.each([
+    [new DOMException("Timed out", "TimeoutError"), "timeout"],
+    [new TypeError("Redirect encountered"), "redirect"],
+    [new TypeError("TLS certificate failed"), "tls"],
+    [new TypeError("DNS resolution failed"), "dns"],
+    [new TypeError("private-password private-provider-response"), "connection"],
+  ])("classifies transport errors without exposing request secrets: %s", async (failure, category) => {
+    const logger = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(failure));
+    const config = { integration: "site_lookup" as const, ...CONSOLE_DEFAULTS.site_lookup, username: "test-user", password: "private-password", source: "test", credentialSource: "test", updatedAt: null };
+    const error = await consoleToken(config).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("Diagnostic reference:");
+    expect(logger).toHaveBeenCalledWith("Console Connect transport failure", expect.objectContaining({ category }));
+    for (const secret of [config.password, "private-provider-response", config.username]) {
+      expect((error as Error).message).not.toContain(secret);
+      expect(JSON.stringify(logger.mock.calls)).not.toContain(secret);
+    }
+  });
   it.each([401, 403, 429, 500])("reports the provider HTTP %s without exposing its response or credentials", async (status) => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("private-provider-response", { status })));
     const config = { integration: "site_lookup" as const, ...CONSOLE_DEFAULTS.site_lookup, username: "test-user", password: "private-password", source: "test", credentialSource: "test", updatedAt: null };

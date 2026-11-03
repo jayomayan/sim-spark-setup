@@ -35,14 +35,36 @@ export async function memberConsoleConfig(client: SupabaseClient<Database>, user
 
 export async function consoleToken(config: Awaited<ReturnType<typeof readConsoleConfig>>) {
   let response: Response;
+  const startedAt = Date.now();
   try {
     response = await fetch(config.tokenUrl, {
     method: "POST", redirect: "error", signal: AbortSignal.timeout(10000),
     headers: { Accept: "application/vnd.dcp-v1+json", "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "password", client_id: config.clientId, username: config.username, password: config.password }),
     });
-  } catch {
-    throw new Error("The website couldn't reach the Console Connect sign-in address. Check the address and whether Console Connect allows connections from the hosted website.");
+  } catch (error) {
+    // Never log the exception or request: either can contain credentials.
+    const reference = crypto.randomUUID();
+    const detail = error instanceof Error || error instanceof DOMException ? `${error.name} ${error.message}` : "";
+    const cause = error instanceof Error ? error.cause : undefined;
+    const causeCode = cause && typeof cause === "object" && "code" in cause ? String(cause.code) : "";
+    let category = "connection";
+    let message = "The live server could not establish a connection to Console Connect. Your saved credentials have not been rejected.";
+    if (/timeout|timed out|abort/i.test(detail) || causeCode === "ETIMEDOUT") {
+      category = "timeout";
+      message = "Console Connect did not respond within 10 seconds. Try again; if this continues, ask Console Connect to check connections from the live website.";
+    } else if (/redirect/i.test(detail)) {
+      category = "redirect";
+      message = "Console Connect redirected the sign-in request. Use its direct HTTPS token address; credentials were not forwarded to the redirected address.";
+    } else if (/certificate|tls|ssl/i.test(detail + causeCode)) {
+      category = "tls";
+      message = "The live server could not verify Console Connect's secure connection. Console Connect needs to check the certificate chain for its token address.";
+    } else if (/dns|resolve|enotfound|eai_again/i.test(detail + causeCode)) {
+      category = "dns";
+      message = "The live server could not resolve Console Connect's sign-in address. Check the token address and its public DNS configuration.";
+    }
+    console.error("Console Connect transport failure", { reference, category, elapsedMs: Date.now() - startedAt });
+    throw new Error(`${message} Diagnostic reference: ${reference}.`);
   }
   if (!response.ok) {
     if (response.status === 401) throw new Error("Console Connect rejected sign-in (HTTP 401). Check the saved username, password and client ID.");
