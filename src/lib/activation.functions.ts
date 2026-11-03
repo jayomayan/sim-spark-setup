@@ -60,9 +60,11 @@ type ConsoleRequest = (config: never, path: string, init?: RequestInit) => Promi
 
 /** Aeris Subscription Search: resolve an ICCID to its IMSI and current state. */
 async function findSubscription(request: unknown, config: unknown, iccid: string) {
-  // Same search format as the working Site ID lookup (GET with q= filter).
-  const res = await (request as ConsoleRequest)(config as never, `/subscriptions/details?q=iccid==${encodeURIComponent(iccid)}`, {
-    headers: { Accept: "application/json" },
+  // Aeris Subscription Search: identifierType must be "ICC" (ICCID), per the published spec.
+  const res = await (request as ConsoleRequest)(config as never, "/subscriptions/details", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ identifierType: "ICC", identifierValues: [iccid] }),
   });
   if (!res.ok) throw new Error(`SIM lookup failed (${res.status})`);
   const j = (await res.json()) as { subscriptions?: { imsi?: string; state?: string }[] };
