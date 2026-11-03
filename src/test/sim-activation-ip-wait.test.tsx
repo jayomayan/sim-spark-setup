@@ -104,4 +104,20 @@ describe("SIM activation IP wait", () => {
     expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_ntp"]);
     expect(mocks.finished).toContain("complete");
   });
+
+  it.each([
+    ["IP address checks", () => expect(mocks.getSimIp).not.toHaveBeenCalled()],
+    ["firewall deployment", () => expect(mocks.runJob.mock.calls.map((c) => c[0])).not.toContain("ur35_firewall")],
+    ["NTP deployment", () => expect(mocks.runJob.mock.calls.map((c) => c[0])).not.toContain("ur35_ntp")],
+  ] as const)("completes Other activation without %s", async (_rule, assertSkipped) => {
+    renderPage();
+    fireEvent.click(screen.getByRole("radio", { name: "Other" }));
+    startActivation();
+    await tick(0);
+
+    expect(mocks.activateSim).toHaveBeenCalledWith({ data: { iccid: "89630000000000000001", label: "PH010065" } });
+    expect(mocks.finished).toEqual(["complete"]);
+    expect(screen.getByText("Process complete")).toBeInTheDocument();
+    assertSkipped();
+  });
 });
