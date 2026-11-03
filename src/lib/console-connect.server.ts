@@ -45,7 +45,7 @@ export async function consoleToken(config: Awaited<ReturnType<typeof readConsole
   } catch (error) {
     // Never log the exception or request: either can contain credentials.
     const reference = crypto.randomUUID();
-    const detail = error instanceof Error ? `${error.name} ${error.message}` : "";
+    const detail = error instanceof Error || error instanceof DOMException ? `${error.name} ${error.message}` : "";
     const cause = error instanceof Error ? error.cause : undefined;
     const causeCode = cause && typeof cause === "object" && "code" in cause ? String(cause.code) : "";
     let category = "connection";
