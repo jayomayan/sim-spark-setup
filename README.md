@@ -1,14 +1,46 @@
-# Welcome to your Lovable project
+# Sim Spark Setup
+
+Build a website for sim activation 
+
+1. Enter ICCID
+
+2. Activate the Sim 
+
+Activate sim via API to Iot Consoles Connect
+
+3. Wait for the assigned ip address
+
+Loop to get the assigned IP, once acquired, go to next step
+
+4. Show status to user ac Active
+
+5. Show IP address
+
+6. Apply custom firewall rules
+
+Apply custom firewall rules to UR35 
+
+7. Apply ntp settings 
+
+Apply NTP settings to UR35
+
+8. Process complete 
+
+
+
+Authentication is password for external , internal is okta
 
 This project was built with [Lovable](https://lovable.dev).
 
+**Live app**: https://sim-spark-setup.lovable.app
+
 ## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/661d8c35-7ab8-4b06-92d9-e5309e215c10).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -20,10 +52,3 @@ cd <repository-name>
 npm i
 npm run dev
 ```
-
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
