@@ -17,7 +17,7 @@ const STEPS = ["Activate SIM", "Wait for IP address", "SIM active", "Apply firew
 type State = "idle" | "running" | "done" | "error" | "skipped";
 
 const EQUIPMENT = [
-  { key: "ur35", label: "UR35" },
+  { key: "ur35", label: "Router" },
   { key: "gps_battery", label: "GPS-Battery" },
   { key: "gps_genset", label: "GPS-Genset" },
 ] as const;
@@ -142,7 +142,7 @@ function SimActivation() {
                   <span className="step-dot">
                     {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : states[i] === "skipped" ? "–" : i + 1}
                   </span>
-                  <span className="step-label flex-1 text-muted-foreground">{s}{states[i] === "skipped" && <span className="ml-2 text-xs">(no UR35 — skipped)</span>}</span>
+                  <span className="step-label flex-1 text-muted-foreground">{s}{states[i] === "skipped" && <span className="ml-2 text-xs">(no Router — skipped)</span>}</span>
                   {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
                   {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
                 </li>
