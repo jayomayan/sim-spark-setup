@@ -1,12 +1,21 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { CONSOLE_DEFAULTS, consoleSettingsSchema, providerUrlSchema } from "@/lib/console-connect";
-import { consoleApiRequest, memberConsoleConfig, readConsoleConfig } from "@/lib/console-connect.server";
+import { consoleApiRequest, consoleToken, memberConsoleConfig, readConsoleConfig } from "@/lib/console-connect.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { encryptPassword } from "@/lib/db-connection.server";
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("Console Connect configuration", () => {
+  it.each([401, 403, 429, 500])("reports the provider HTTP %s without exposing its response or credentials", async (status) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("private-provider-response", { status })));
+    const config = { integration: "site_lookup" as const, ...CONSOLE_DEFAULTS.site_lookup, username: "test-user", password: "private-password", source: "test", credentialSource: "test", updatedAt: null };
+    const error = await consoleToken(config).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain(`HTTP ${status}`);
+    expect((error as Error).message).not.toContain("private-provider-response");
+    expect((error as Error).message).not.toContain(config.password);
+  });
   it("retains the current Console Connect Site ID endpoint configuration", () => {
     expect(CONSOLE_DEFAULTS.site_lookup).toEqual({ tokenUrl: "https://pccwg.iot.aeris.com/iot/api/auth/token", apiUrl: "https://iot-api.aeris.com/iot/api", clientId: "cm-public-api-client" });
   });
