@@ -243,8 +243,7 @@ export function SimActivation() {
                   The SIM is active in Console Connect, but the device hasn't come online yet, so no IP address was assigned.
                   Check again to wait another 2 minutes.
                 </p>
-                <button onClick={checkAgain} disabled={busy} className="btn-primary mt-3 w-full">Check for IP address again</button>
-                <button onClick={startOver} className="mt-2 w-full text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">
+                <button onClick={startOver} className="mt-3 w-full text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">
                   Start over with a different SIM
                 </button>
               </div>
