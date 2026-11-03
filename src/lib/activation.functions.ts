@@ -20,7 +20,6 @@ export const activateSim = createServerFn({ method: "POST" })
     }
     const res = await consoleApiRequest(config, `/devices/${data.iccid}`, {
       method: "PUT",
-      redirect: "error", signal: AbortSignal.timeout(10000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "ACTIVATED" }),
     });
@@ -42,7 +41,6 @@ export const getSimIp = createServerFn({ method: "POST" })
       return { ip: `10.${(n >> 8) % 255}.${n % 255}.${((data.attempt * 7) % 250) + 2}`, status: "ACTIVE", simulated: true };
     }
     const res = await consoleApiRequest(config, `/devices/${data.iccid}`, {
-      redirect: "error", signal: AbortSignal.timeout(10000),
       headers: { Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`Status lookup failed (${res.status})`);
