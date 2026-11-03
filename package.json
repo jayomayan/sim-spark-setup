@@ -9,6 +9,7 @@
     "build:standalone": "node deploy/build.mjs",
     "start:standalone": "node deploy/start.mjs",
     "db:migrate:standalone": "node deploy/migrate.mjs",
+    "check:standalone": "node deploy/check.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
