@@ -29,17 +29,26 @@ export const activateSim = createServerFn({ method: "POST" })
       });
       if (!res.ok) throw new Error(`Activation failed (${res.status})`);
     }
-    // Best effort: set Label (Site ID) and Notes (equipment). Never blocks activation.
+    // Best effort: write the existing "Label" (Site ID) and "Notes" (equipment) custom fields
+    // via Aeris Subscription Custom Fields API. Never blocks activation.
     let labelWarning: string | null = null;
     if (data.label || data.notes) {
       try {
-        const body: Record<string, string> = {};
-        if (data.label) body["label"] = data.label;
-        if (data.notes) body["notes"] = data.notes;
-        const r = await consoleApiRequest(config, `/subscriptions/ICC/${encodeURIComponent(data.iccid)}`, {
-          method: "PUT",
+        // Resolve the exact existing field names (case-insensitive).
+        let names = { label: "Label", notes: "Notes" };
+        const list = await consoleApiRequest(config, "/subscriptions/custom-fields", { headers: { Accept: "application/json" } });
+        if (list.ok) {
+          const items = ((await list.json()) as { items?: { fieldName?: string }[] }).items ?? [];
+          const find = (re: RegExp) => items.find((f) => f.fieldName && re.test(f.fieldName.trim()))?.fieldName;
+          names = { label: find(/^labels?$/i) ?? names.label, notes: find(/^notes?$/i) ?? names.notes };
+        }
+        const customFields: { fieldName: string; fieldValue: string }[] = [];
+        if (data.label) customFields.push({ fieldName: names.label, fieldValue: data.label });
+        if (data.notes) customFields.push({ fieldName: names.notes, fieldValue: data.notes });
+        const r = await consoleApiRequest(config, "/subscriptions/custom-fields/requests", {
+          method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ identifierType: "IMSI", identifiers: [sub.imsi], customFields }),
         });
         if (!r.ok) labelWarning = `Label/Notes not updated in Console Connect (${r.status})`;
       } catch {
