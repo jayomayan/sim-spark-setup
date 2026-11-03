@@ -26,7 +26,7 @@ function SimActivation() {
   const qc = useQueryClient();
   const [iccid, setIccid] = useState("");
   const [siteId, setSiteId] = useState("");
-  const [ticked, setTicked] = useState<Record<string, boolean>>({ ur35: true, gps_battery: false, gps_genset: false });
+  const [equipment, setEquipment] = useState<string>("ur35");
   const [states, setStates] = useState<State[]>(STEPS.map(() => "idle"));
   const [ip, setIp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,10 +44,9 @@ function SimActivation() {
 
   async function run() {
     setBusy(true); setError(null); setIp(null); setStates(STEPS.map(() => "idle"));
-    const equipment = EQUIPMENT.filter((e) => ticked[e.key]).map((e) => e.key);
     const { data: u } = await supabase.auth.getUser();
     const { data: rec } = await supabase.from("sim_activations")
-      .insert({ iccid, site_id: siteId.trim(), equipment, created_by: u.user?.id ?? null }).select("id").single();
+      .insert({ iccid, site_id: siteId.trim(), equipment: [equipment], created_by: u.user?.id ?? null }).select("id").single();
     const finish = (patch: { status: string; ip?: string | null; error?: string | null; simulated?: boolean }) =>
       rec && supabase.from("sim_activations").update({ ...patch, finished_at: new Date().toISOString() }).eq("id", rec.id);
     let i = 0; let got: string | null = null; let sim = false;
@@ -65,7 +64,7 @@ function SimActivation() {
       if (!got) throw new Error("Timed out waiting for an IP address");
       setIp(got); set(1, "done"); set(2, "done");
 
-      if (!ticked["ur35"]) {
+      if (equipment !== "ur35") {
         set(3, "skipped"); set(4, "skipped");
       } else {
         for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
@@ -115,8 +114,8 @@ function SimActivation() {
               <div className="mt-2 flex flex-wrap gap-3">
                 {EQUIPMENT.map((e) => (
                   <label key={e.key} className="flex cursor-pointer items-center gap-2 rounded-md border border-input bg-input/30 px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:text-primary">
-                    <input type="checkbox" checked={ticked[e.key]} disabled={busy}
-                      onChange={(ev) => setTicked((t) => ({ ...t, [e.key]: ev.target.checked }))}
+                    <input type="radio" name="equipment" checked={equipment === e.key} disabled={busy}
+                      onChange={() => setEquipment(e.key)}
                       className="accent-primary" />
                     {e.label}
                   </label>
