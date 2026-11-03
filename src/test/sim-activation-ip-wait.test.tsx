@@ -99,7 +99,7 @@ describe("SIM activation IP wait", () => {
     fireEvent.click(screen.getByRole("button", { name: /check for ip address again/i }));
     await tick(0);
 
-    expect(screen.getAllByRole("button", { name: /check for ip address again/i })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: /check for ip address again/i })).toHaveLength(0);
     expect(screen.getByText("10.20.30.40")).toBeInTheDocument();
     expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_ntp"]);
     expect(mocks.finished).toContain("complete");
