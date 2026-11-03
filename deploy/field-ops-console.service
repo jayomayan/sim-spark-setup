@@ -1,0 +1,22 @@
+[Unit]
+Description=Frontier Field Ops Console
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fieldops-web
+Group=fieldops-web
+WorkingDirectory=/opt/field-ops-console
+EnvironmentFile=/etc/field-ops-console.env
+ExecStart=/usr/bin/node /opt/field-ops-console/deploy/start.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

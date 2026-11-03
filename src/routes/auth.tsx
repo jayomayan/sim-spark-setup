@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import logo from "@/assets/fta-logo.png.asset.json";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,10 +30,19 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // OAuth/email confirmation return to this public page; wait for session hydration.
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active && data.session) void navigate({ to: "/dashboard", replace: true });
+    });
+    return () => { active = false; };
+  }, [navigate]);
+
   async function okta() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "custom:app-oidc" as never,
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+      options: { redirectTo: `${window.location.origin}/auth` },
     });
     if (error) toast.error("Okta sign-in isn't set up yet. Use email for now.");
   }
@@ -47,7 +56,7 @@ function AuthPage() {
         if (error) throw error;
         navigate({ to: "/dashboard" });
       } else if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/dashboard` } });
+        const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/auth` } });
         if (error) throw error;
         toast.success("Check your email to confirm your account.");
         setMode("signin");
