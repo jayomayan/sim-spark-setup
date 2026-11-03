@@ -1,7 +1,7 @@
 # Tasks
 - [x] Prepare standalone Ubuntu deployment files: Node target, isolated environment validation, transactional migrations, readiness checks, systemd/Nginx and local logo; unit tests and preview checks passed.
 - [ ] Verify full standalone production build, independent authentication/database and real Console Connect/router/SIM flows on Ubuntu; blocked on target VM access/configuration. Local SQL rehearsal unavailable because sandbox PostgreSQL lacks its snowball extension.
-- [ ] Diagnose live-only Console Connect sign-in failure; preview sign-in succeeds with saved settings. Specific provider errors added; live check needs publishing.
+- [ ] Diagnose live-only Console Connect sign-in failure; reproduced with the same saved credentials on November 3. Add safe transport diagnostics; identifying the hosted failure requires publishing and repeating Test saved connection.
 - [x] Remove path inputs and replace NTP fields with a single text editor for the current JSON router payload; verified save/reload.
 - [x] Replace firewall rows with a full-command text editor; verified save/reload while preserving existing helper delivery.
 - [x] Write private UR35_Credentials.txt when settings arrive; verified app save → running helper file with exact pairs, mode 0600, and removal clearing.
