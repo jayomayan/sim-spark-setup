@@ -106,10 +106,28 @@ function SimActivation() {
             <input id="iccid" inputMode="numeric" value={iccid} disabled={busy}
               onChange={(e) => setIccid(e.target.value.replace(/\D/g, ""))} placeholder="8963…"
               className="mt-2 w-full rounded-md border border-input bg-input/30 px-4 py-3 font-mono text-lg tracking-wider outline-none focus:border-primary" />
+            <label htmlFor="site-id" className="mt-4 block text-sm text-muted-foreground">Site ID</label>
+            <input id="site-id" value={siteId} disabled={busy}
+              onChange={(e) => setSiteId(e.target.value)} placeholder="e.g. PH-MKT-0012"
+              className="mt-2 w-full rounded-md border border-input bg-input/30 px-4 py-3 font-mono text-lg tracking-wider outline-none focus:border-primary" />
+            <fieldset className="mt-4">
+              <legend className="text-sm text-muted-foreground">Equipment on site</legend>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {EQUIPMENT.map((e) => (
+                  <label key={e.key} className="flex cursor-pointer items-center gap-2 rounded-md border border-input bg-input/30 px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:text-primary">
+                    <input type="checkbox" checked={ticked[e.key]} disabled={busy}
+                      onChange={(ev) => setTicked((t) => ({ ...t, [e.key]: ev.target.checked }))}
+                      className="accent-primary" />
+                    {e.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <button onClick={run} disabled={!valid || busy} className="btn-primary mt-4 w-full">
               {busy ? "Working…" : complete ? "Activate another" : "Activate SIM"}
             </button>
-            {iccid && !valid && <p className="mt-2 text-xs text-muted-foreground">ICCID must be 18–22 digits.</p>}
+            {iccid && !/^\d{18,22}$/.test(iccid) && <p className="mt-2 text-xs text-muted-foreground">ICCID must be 18–22 digits.</p>}
+            {!siteId.trim() && <p className="mt-1 text-xs text-muted-foreground">Site ID is required.</p>}
           </section>
           <section className="panel p-5">
             <div className="mb-3 flex items-center justify-between text-sm">
