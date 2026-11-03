@@ -7,10 +7,9 @@ const validIccid = (s: string) => /^\d{18,22}$/.test(s);
 
 export const activateSim = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { iccid: string; label?: string | undefined; notes?: string | undefined }) => {
+  .inputValidator((d: { iccid: string; label?: string | undefined }) => {
     if (!validIccid(d.iccid)) throw new Error("ICCID must be 18–22 digits");
     if (d.label && (d.label.length > 64 || /[\r\n]/.test(d.label))) throw new Error("Site ID is too long");
-    if (d.notes && d.notes.length > 200) throw new Error("Notes are too long");
     return d;
   })
   .handler(async ({ data, context }) => {
@@ -30,16 +29,17 @@ export const activateSim = createServerFn({ method: "POST" })
       });
       if (!res.ok) throw new Error(`Activation failed (${res.status})`);
     }
-    // Best effort: write the existing "Label" (Site ID) and "Notes" (equipment) custom fields
-    // via Aeris Subscription Custom Fields API. Never blocks activation.
+    // Best effort: write the existing "Label" custom field (e.g. the account uses "Label#")
+    // with the Site ID via Aeris Subscription Custom Fields API. Never blocks activation.
+    // Equipment (GPS-Battery / GPS-Genset) is not sent to Console Connect.
     let labelWarning: string | null = null;
-    if (data.label || data.notes) {
+    if (data.label) {
       try {
-        // Resolve the exact existing custom fields (e.g. the account uses "Label#").
+        // Resolve the exact existing custom field (e.g. the account uses "Label#").
         const list = await consoleApiRequest(config, "/subscriptions/custom-fields", { headers: { Accept: "application/json" } });
         if (!list.ok) throw new Error(`fields ${list.status}`);
         const items = ((await list.json()) as { items?: { id?: string | number; fieldName?: string }[] }).items ?? [];
-        const { customFields, missing } = matchCustomFields(items, { label: data.label, notes: data.notes });
+        const { customFields, missing } = matchCustomFields(items, { label: data.label });
         const problems: string[] = [];
         if (missing.length) problems.push(`no "${missing.join('" or "')}" field exists in Console Connect`);
         if (customFields.length) {
@@ -56,9 +56,9 @@ export const activateSim = createServerFn({ method: "POST" })
             problems.unshift(`${r.status}${detail ? `: ${detail}` : ""}`);
           }
         }
-        if (problems.length) labelWarning = `Label/Notes not updated in Console Connect (${problems.join("; ")})`;
+        if (problems.length) labelWarning = `Site ID label not updated in Console Connect (${problems.join("; ")})`;
       } catch {
-        labelWarning = "Label/Notes not updated in Console Connect (connection error)";
+        labelWarning = "Site ID label not updated in Console Connect (connection error)";
       }
     }
     return { ok: true, simulated: false, labelWarning };
