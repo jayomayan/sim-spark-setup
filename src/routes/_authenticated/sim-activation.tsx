@@ -92,8 +92,8 @@ function SimActivation() {
   }
 
   const complete = states[5] === "done";
-  const doneCount = states.filter((s) => s === "done").length;
-  const valid = /^\d{18,22}$/.test(iccid);
+  const doneCount = states.filter((s) => s === "done" || s === "skipped").length;
+  const valid = /^\d{18,22}$/.test(iccid) && siteId.trim().length > 0;
 
   return (
     <>
