@@ -34,23 +34,28 @@ export const activateSim = createServerFn({ method: "POST" })
     let labelWarning: string | null = null;
     if (data.label || data.notes) {
       try {
-        // Resolve the exact existing field names (case-insensitive).
-        let names = { label: "Label", notes: "Notes" };
+        // Resolve the exact existing custom fields (e.g. the account uses "Label#").
         const list = await consoleApiRequest(config, "/subscriptions/custom-fields", { headers: { Accept: "application/json" } });
-        if (list.ok) {
-          const items = ((await list.json()) as { items?: { fieldName?: string }[] }).items ?? [];
-          const find = (re: RegExp) => items.find((f) => f.fieldName && re.test(f.fieldName.trim()))?.fieldName;
-          names = { label: find(/^labels?$/i) ?? names.label, notes: find(/^notes?$/i) ?? names.notes };
+        if (!list.ok) throw new Error(`fields ${list.status}`);
+        const items = ((await list.json()) as { items?: { id?: string | number; fieldName?: string }[] }).items ?? [];
+        const { customFields, missing } = matchCustomFields(items, { label: data.label, notes: data.notes });
+        const problems: string[] = [];
+        if (missing.length) problems.push(`no "${missing.join('" or "')}" field exists in Console Connect`);
+        if (customFields.length) {
+          const r = await consoleApiRequest(config, "/subscriptions/custom-fields/requests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ identifierType: "IMSI", identifiers: [sub.imsi], customFields }),
+          });
+          if (!r.ok) {
+            const detail = await r.json().then((b: unknown) => {
+              const p = (Array.isArray(b) ? b[0] : b) as { detail?: unknown } | undefined;
+              return typeof p?.detail === "string" ? p.detail.replace(/[^\w\s:#().,'"-]/g, "").slice(0, 120) : "";
+            }).catch(() => "");
+            problems.unshift(`${r.status}${detail ? `: ${detail}` : ""}`);
+          }
         }
-        const customFields: { fieldName: string; fieldValue: string }[] = [];
-        if (data.label) customFields.push({ fieldName: names.label, fieldValue: data.label });
-        if (data.notes) customFields.push({ fieldName: names.notes, fieldValue: data.notes });
-        const r = await consoleApiRequest(config, "/subscriptions/custom-fields/requests", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ identifierType: "IMSI", identifiers: [sub.imsi], customFields }),
-        });
-        if (!r.ok) labelWarning = `Label/Notes not updated in Console Connect (${r.status})`;
+        if (problems.length) labelWarning = `Label/Notes not updated in Console Connect (${problems.join("; ")})`;
       } catch {
         labelWarning = "Label/Notes not updated in Console Connect (connection error)";
       }
