@@ -46,5 +46,5 @@ export const testConsoleSettings = createServerFn({ method: "POST" })
     try {
       await consoleToken(config);
       return { ok: true, message: "Console Connect sign-in succeeded." };
-    } catch { return { ok: false, message: "Couldn't connect or sign in to Console Connect. Check the saved address and account details." }; }
+    } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "Couldn't connect or sign in to Console Connect. Check the saved address and account details." }; }
   });

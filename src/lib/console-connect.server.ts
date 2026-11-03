@@ -34,12 +34,22 @@ export async function memberConsoleConfig(client: SupabaseClient<Database>, user
 }
 
 export async function consoleToken(config: Awaited<ReturnType<typeof readConsoleConfig>>) {
-  const response = await fetch(config.tokenUrl, {
+  let response: Response;
+  try {
+    response = await fetch(config.tokenUrl, {
     method: "POST", redirect: "error", signal: AbortSignal.timeout(10000),
     headers: { Accept: "application/vnd.dcp-v1+json", "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "password", client_id: config.clientId, username: config.username, password: config.password }),
-  });
-  if (!response.ok) throw new Error("Console Connect rejected the sign-in. Check the account details.");
+    });
+  } catch {
+    throw new Error("The website couldn't reach the Console Connect sign-in address. Check the address and whether Console Connect allows connections from the hosted website.");
+  }
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Console Connect rejected sign-in (HTTP 401). Check the saved username, password and client ID.");
+    if (response.status === 403) throw new Error("Console Connect denied access (HTTP 403). The account or hosted website may need permission from Console Connect.");
+    if (response.status === 429) throw new Error("Console Connect is limiting sign-in requests (HTTP 429). Wait a few minutes and try again.");
+    throw new Error(`Console Connect sign-in failed (HTTP ${response.status}). Check the sign-in address or contact your Console Connect administrator.`);
+  }
   const body = await response.json() as { access_token?: string };
   if (!body.access_token) throw new Error("Console Connect did not return a sign-in token.");
   return body.access_token;
