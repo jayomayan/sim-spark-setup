@@ -1,12 +1,11 @@
-/** Match the account's existing custom fields: "Label", "Labels", "Label#" / "Note", "Notes". */
+/** Match the account's existing "Label" custom field: "Label", "Labels", "Label#". */
 export function matchCustomFields(
   items: { id?: string | number; fieldName?: string }[],
-  values: { label?: string | undefined; notes?: string | undefined },
+  values: { label?: string | undefined },
 ) {
   const find = (re: RegExp) => items.find((f) => f.fieldName && re.test(f.fieldName.trim()));
   const wanted: [string, RegExp, string | undefined][] = [
     ["Label", /^labels?\s*#?$/i, values.label],
-    ["Notes", /^notes?\s*#?$/i, values.notes],
   ];
   const customFields: { fieldName: string; fieldValue: string; fieldId?: number }[] = [];
   const missing: string[] = [];
