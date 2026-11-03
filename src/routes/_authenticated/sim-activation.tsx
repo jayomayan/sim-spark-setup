@@ -65,7 +65,7 @@ function SimActivation() {
       if (!got) throw new Error("Timed out waiting for an IP address");
       setIp(got); set(1, "done"); set(2, "done");
 
-      if (!ticked.ur35) {
+      if (!ticked["ur35"]) {
         set(3, "skipped"); set(4, "skipped");
       } else {
         for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
