@@ -6,7 +6,7 @@ const validIccid = (s: string) => /^\d{18,22}$/.test(s);
 
 export const activateSim = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { iccid: string; label?: string; notes?: string }) => {
+  .inputValidator((d: { iccid: string; label?: string | undefined; notes?: string | undefined }) => {
     if (!validIccid(d.iccid)) throw new Error("ICCID must be 18–22 digits");
     if (d.label && (d.label.length > 64 || /[\r\n]/.test(d.label))) throw new Error("Site ID is too long");
     if (d.notes && d.notes.length > 200) throw new Error("Notes are too long");
