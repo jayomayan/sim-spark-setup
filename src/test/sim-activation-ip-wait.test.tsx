@@ -8,8 +8,16 @@ const mocks = vi.hoisted(() => {
   const runJob = vi.fn(async () => ({ status: "done", result: null, error: null }));
   const finished: string[] = [];
   const from = vi.fn(() => ({
-    select: vi.fn(() => ({ order: vi.fn(() => ({ limit: vi.fn(async () => ({ data: [] })) })) })),
-    insert: vi.fn(() => ({ select: vi.fn(() => ({ single: async () => ({ data: { id: "rec-1" } })) })) })),
+    select: vi.fn(() => ({
+      order: vi.fn(() => ({
+        limit: vi.fn(async () => ({ data: [] })),
+      })),
+    })),
+    insert: vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: async () => ({ data: { id: "rec-1" } }),
+      })),
+    })),
     update: vi.fn((patch: { status?: string }) => {
       if (patch?.status) finished.push(patch.status);
       return { eq: vi.fn(async () => ({ data: null })) };
