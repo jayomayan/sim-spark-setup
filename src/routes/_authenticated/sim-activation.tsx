@@ -27,7 +27,7 @@ const EQUIPMENT = [
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-function SimActivation() {
+export function SimActivation() {
   const qc = useQueryClient();
   const [iccid, setIccid] = useState("");
   const [siteId, setSiteId] = useState("");
