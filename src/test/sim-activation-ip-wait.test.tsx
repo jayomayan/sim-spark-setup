@@ -48,11 +48,11 @@ const tick = async (ms: number) => {
   });
 };
 
-function renderPage() {
+function renderPage(isAdmin = true) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <SimActivation />
+      <SimActivation isAdmin={isAdmin} />
     </QueryClientProvider>,
   );
 }
@@ -119,5 +119,17 @@ describe("SIM activation IP wait", () => {
     expect(mocks.finished).toEqual(["complete"]);
     expect(screen.getByText("Process complete")).toBeInTheDocument();
     assertSkipped();
+  });
+
+  it("offers Other only to admins", () => {
+    renderPage(true);
+    expect(screen.getByRole("radio", { name: "Other" })).toBeInTheDocument();
+    cleanup();
+
+    renderPage(false);
+    expect(screen.queryByRole("radio", { name: "Other" })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Router" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "GPS-Battery" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "GPS-Genset" })).toBeInTheDocument();
   });
 });

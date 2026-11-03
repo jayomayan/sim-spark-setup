@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouteContext } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -12,8 +12,13 @@ import { IP_WAIT_POLL_MS, ipWaitOpen, ipWaitSecondsLeft } from "@/lib/ip-wait";
 
 export const Route = createFileRoute("/_authenticated/sim-activation")({
   head: () => meta("SIM Activation", "Activate an IoT SIM, wait for its assigned IP address, then apply firewall and NTP settings to the router."),
-  component: SimActivation,
+  component: SimActivationPage,
 });
+
+function SimActivationPage() {
+  const { isAdmin } = useRouteContext({ from: "/_authenticated" });
+  return <SimActivation isAdmin={isAdmin} />;
+}
 
 const STEPS = ["Activate SIM", "Wait for IP address", "SIM active", "Apply firewall rules", "Apply NTP settings", "Complete"];
 type State = "idle" | "running" | "done" | "error" | "skipped" | "waiting";
@@ -25,10 +30,13 @@ const EQUIPMENT = [
   { key: "other", label: "Other" },
 ] as const;
 
+// "Other" is an admin-only choice: it skips the IP wait, firewall rules and NTP settings.
+const ADMIN_ONLY_EQUIPMENT = new Set<string>(["other"]);
+
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-export function SimActivation() {
+export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const qc = useQueryClient();
   const [iccid, setIccid] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -188,6 +196,7 @@ export function SimActivation() {
     equipment === "ur35" || (i !== 3 && i !== 4 && (equipment !== "other" || i !== 1)),
   );
   const doneCount = visibleSteps.filter(({ i }) => states[i] === "done" || states[i] === "skipped").length;
+  const options = EQUIPMENT.filter((e) => isAdmin || !ADMIN_ONLY_EQUIPMENT.has(e.key));
   const valid = /^\d{18,22}$/.test(iccid) && siteId.trim().length > 0;
 
   return (
@@ -208,7 +217,7 @@ export function SimActivation() {
             <fieldset className="mt-4">
               <legend className="text-sm text-muted-foreground">Equipment on site</legend>
               <div className="mt-2 flex flex-wrap gap-3">
-                {EQUIPMENT.map((e) => (
+                {options.map((e) => (
                   <label key={e.key} className="flex cursor-pointer items-center gap-2 rounded-md border border-input bg-input/30 px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:text-primary">
                     <input type="radio" name="equipment" checked={equipment === e.key} disabled={locked}
                       onChange={() => setEquipment(e.key)}
