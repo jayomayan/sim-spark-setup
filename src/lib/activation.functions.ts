@@ -6,8 +6,10 @@ const validIccid = (s: string) => /^\d{18,22}$/.test(s);
 
 export const activateSim = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { iccid: string }) => {
+  .inputValidator((d: { iccid: string; label?: string | undefined; notes?: string | undefined }) => {
     if (!validIccid(d.iccid)) throw new Error("ICCID must be 18–22 digits");
+    if (d.label && (d.label.length > 64 || /[\r\n]/.test(d.label))) throw new Error("Site ID is too long");
+    if (d.notes && d.notes.length > 200) throw new Error("Notes are too long");
     return d;
   })
   .handler(async ({ data, context }) => {
@@ -16,7 +18,7 @@ export const activateSim = createServerFn({ method: "POST" })
     const cfg = config.apiUrl && config.username && config.password;
     if (!cfg) {
       await wait(1200);
-      return { ok: true, simulated: true };
+      return { ok: true, simulated: true, labelWarning: null as string | null };
     }
     const sub = await findSubscription(consoleApiRequest, config, data.iccid);
     if (sub.state !== "ACTIVE") {
@@ -27,7 +29,24 @@ export const activateSim = createServerFn({ method: "POST" })
       });
       if (!res.ok) throw new Error(`Activation failed (${res.status})`);
     }
-    return { ok: true, simulated: false };
+    // Best effort: set Label (Site ID) and Notes (equipment). Never blocks activation.
+    let labelWarning: string | null = null;
+    if (data.label || data.notes) {
+      try {
+        const body: Record<string, string> = {};
+        if (data.label) body["label"] = data.label;
+        if (data.notes) body["notes"] = data.notes;
+        const r = await consoleApiRequest(config, `/subscriptions/ICC/${encodeURIComponent(data.iccid)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) labelWarning = `Label/Notes not updated in Console Connect (${r.status})`;
+      } catch {
+        labelWarning = "Label/Notes not updated in Console Connect (connection error)";
+      }
+    }
+    return { ok: true, simulated: false, labelWarning };
   });
 
 export const getSimIp = createServerFn({ method: "POST" })
