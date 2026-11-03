@@ -1,12 +1,29 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { CONSOLE_DEFAULTS, consoleSettingsSchema, providerUrlSchema } from "@/lib/console-connect";
-import { consoleApiRequest, consoleToken, memberConsoleConfig, readConsoleConfig } from "@/lib/console-connect.server";
+import { consoleApiRequest, consoleFetch, consoleToken, memberConsoleConfig, readConsoleConfig } from "@/lib/console-connect.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { encryptPassword } from "@/lib/db-connection.server";
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe("Console Connect configuration", () => {
+  it("signs in using the published runtime's supported manual redirect mode", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      if (init.redirect !== "manual") throw new TypeError("Unsupported redirect mode");
+      return new Response(JSON.stringify({ access_token: "test-token" }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const config = { integration: "site_lookup" as const, ...CONSOLE_DEFAULTS.site_lookup, username: "test-user", password: "private-password", source: "test", credentialSource: "test", updatedAt: null };
+    await expect(consoleToken(config)).resolves.toBe("test-token");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([301, 302, 303, 307, 308])("rejects actual HTTP %s redirects without forwarding credentials", async (status) => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status, headers: { Location: "https://attacker.example/?private-provider-response" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(consoleFetch(CONSOLE_DEFAULTS.site_lookup.tokenUrl, { method: "POST", body: "private-password", redirect: "follow" })).rejects.toThrow("credentials were not forwarded");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1].redirect).toBe("manual");
+  });
   it.each([
     [new DOMException("Timed out", "TimeoutError"), "timeout"],
     [new TypeError("Redirect encountered"), "redirect"],
@@ -109,6 +126,8 @@ describe("Console Connect configuration", () => {
     const apiCall = fetchMock.mock.calls[1];
     if (!tokenCall || !apiCall) throw new Error("Expected token and SIM API requests");
     expect(tokenCall[0]).toBe(CONSOLE_DEFAULTS.site_lookup.tokenUrl);
+    expect(tokenCall[1].redirect).toBe("manual");
+    expect(apiCall[1].redirect).toBe("manual");
     const grant = tokenCall[1].body as URLSearchParams;
     expect(grant.get("grant_type")).toBe("password");
     expect(grant.get("username")).toBe("lookup-account");

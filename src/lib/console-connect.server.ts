@@ -33,12 +33,21 @@ export async function memberConsoleConfig(client: SupabaseClient<Database>, user
   return readConsoleConfig(supabaseAdmin, integration);
 }
 
+/** Workers support manual, not error. Never follow redirects with credentials. */
+export async function consoleFetch(url: string, init: RequestInit = {}) {
+  const response = await fetch(url, { ...init, redirect: "manual", signal: AbortSignal.timeout(10000) });
+  if (response.status >= 300 && response.status < 400) {
+    throw new Error("Console Connect redirected the request. Use its direct HTTPS address; credentials were not forwarded to the redirected address.");
+  }
+  return response;
+}
+
 export async function consoleToken(config: Awaited<ReturnType<typeof readConsoleConfig>>) {
   let response: Response;
   const startedAt = Date.now();
   try {
-    response = await fetch(config.tokenUrl, {
-    method: "POST", redirect: "error", signal: AbortSignal.timeout(10000),
+    response = await consoleFetch(config.tokenUrl, {
+    method: "POST",
     headers: { Accept: "application/vnd.dcp-v1+json", "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "password", client_id: config.clientId, username: config.username, password: config.password }),
     });
@@ -82,5 +91,5 @@ export async function consoleApiRequest(config: Awaited<ReturnType<typeof readCo
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${token}`);
   headers.set("Accept", "application/json");
-  return fetch(`${config.apiUrl}${path}`, { ...init, headers, redirect: "error", signal: AbortSignal.timeout(10000) });
+  return consoleFetch(`${config.apiUrl}${path}`, { ...init, headers });
 }
