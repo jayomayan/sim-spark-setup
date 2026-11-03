@@ -107,7 +107,7 @@ function SimActivation() {
               className="mt-2 w-full rounded-md border border-input bg-input/30 px-4 py-3 font-mono text-lg tracking-wider outline-none focus:border-primary" />
             <label htmlFor="site-id" className="mt-4 block text-sm text-muted-foreground">Site ID</label>
             <input id="site-id" value={siteId} disabled={busy}
-              onChange={(e) => setSiteId(e.target.value)} placeholder="e.g. PH-MKT-0012"
+              onChange={(e) => setSiteId(e.target.value)} placeholder="e.g. PH010065"
               className="mt-2 w-full rounded-md border border-input bg-input/30 px-4 py-3 font-mono text-lg tracking-wider outline-none focus:border-primary" />
             <fieldset className="mt-4">
               <legend className="text-sm text-muted-foreground">Equipment on site</legend>
