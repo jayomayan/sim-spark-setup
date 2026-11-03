@@ -165,6 +165,9 @@ function SimActivation() {
             {history.data?.length ? history.data.map((h) => (
               <div key={h.id} className="px-4 py-3">
                 <p className="font-mono text-xs">{h.iccid}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {h.site_id ?? "—"}{h.equipment?.length ? ` · ${h.equipment.map((k) => EQUIPMENT.find((e) => e.key === k)?.label ?? k).join(", ")}` : ""}
+                </p>
                 <p className="mt-1 flex justify-between text-xs text-muted-foreground">
                   <span>{h.ip ?? "—"}{h.simulated ? " · test" : ""}</span>
                   <span className={h.status === "complete" ? "text-primary" : h.status === "failed" ? "text-destructive" : ""}>{h.status}</span>
