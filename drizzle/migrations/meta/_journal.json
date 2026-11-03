@@ -57,6 +57,13 @@
       "when": 1793259475603,
       "tag": "0007_multiple_router_logins",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793686037998,
+      "tag": "0008_sim_activation_site_fields",
+      "breakpoints": true
     }
   ]
 }

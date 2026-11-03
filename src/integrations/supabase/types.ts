@@ -342,34 +342,40 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          equipment: string[]
           error: string | null
           finished_at: string | null
           iccid: string
           id: string
           ip: string | null
           simulated: boolean
+          site_id: string | null
           status: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+          equipment?: string[]
           error?: string | null
           finished_at?: string | null
           iccid: string
           id?: string
           ip?: string | null
           simulated?: boolean
+          site_id?: string | null
           status?: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
+          equipment?: string[]
           error?: string | null
           finished_at?: string | null
           iccid?: string
           id?: string
           ip?: string | null
           simulated?: boolean
+          site_id?: string | null
           status?: string
         }
         Relationships: []

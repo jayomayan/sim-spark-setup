@@ -20,6 +20,7 @@ const TABLE_DEFINITIONS = [
     created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`,
   `CREATE TABLE IF NOT EXISTS field_ops.sim_activations (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(), iccid text NOT NULL, ip text,
+    site_id text, equipment text[] NOT NULL DEFAULT '{}',
     status text NOT NULL DEFAULT 'running', error text, simulated boolean NOT NULL DEFAULT false,
     created_by uuid, created_at timestamptz NOT NULL DEFAULT now(), finished_at timestamptz)`,
   `CREATE TABLE IF NOT EXISTS field_ops.agent_jobs (

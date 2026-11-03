@@ -14,11 +14,19 @@ export const Route = createFileRoute("/_authenticated/sim-activation")({
 });
 
 const STEPS = ["Activate SIM", "Wait for IP address", "SIM active", "Apply firewall rules", "Apply NTP settings", "Complete"];
-type State = "idle" | "running" | "done" | "error";
+type State = "idle" | "running" | "done" | "error" | "skipped";
+
+const EQUIPMENT = [
+  { key: "ur35", label: "UR35" },
+  { key: "gps_battery", label: "GPS-Battery" },
+  { key: "gps_genset", label: "GPS-Genset" },
+] as const;
 
 function SimActivation() {
   const qc = useQueryClient();
   const [iccid, setIccid] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [ticked, setTicked] = useState<Record<string, boolean>>({ ur35: true, gps_battery: false, gps_genset: false });
   const [states, setStates] = useState<State[]>(STEPS.map(() => "idle"));
   const [ip, setIp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +44,10 @@ function SimActivation() {
 
   async function run() {
     setBusy(true); setError(null); setIp(null); setStates(STEPS.map(() => "idle"));
+    const equipment = EQUIPMENT.filter((e) => ticked[e.key]).map((e) => e.key);
     const { data: u } = await supabase.auth.getUser();
-    const { data: rec } = await supabase.from("sim_activations").insert({ iccid, created_by: u.user?.id ?? null }).select("id").single();
+    const { data: rec } = await supabase.from("sim_activations")
+      .insert({ iccid, site_id: siteId.trim(), equipment, created_by: u.user?.id ?? null }).select("id").single();
     const finish = (patch: { status: string; ip?: string | null; error?: string | null; simulated?: boolean }) =>
       rec && supabase.from("sim_activations").update({ ...patch, finished_at: new Date().toISOString() }).eq("id", rec.id);
     let i = 0; let got: string | null = null; let sim = false;
@@ -55,14 +65,18 @@ function SimActivation() {
       if (!got) throw new Error("Timed out waiting for an IP address");
       setIp(got); set(1, "done"); set(2, "done");
 
-      for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
-        i = step; set(step, "running");
-        if (sim) await new Promise((r) => setTimeout(r, 1200));
-        else {
-          const j = await runJob(type, { ip: got });
-          if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
+      if (!ticked["ur35"]) {
+        set(3, "skipped"); set(4, "skipped");
+      } else {
+        for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
+          i = step; set(step, "running");
+          if (sim) await new Promise((r) => setTimeout(r, 1200));
+          else {
+            const j = await runJob(type, { ip: got });
+            if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
+          }
+          set(step, "done");
         }
-        set(step, "done");
       }
       set(5, "done");
       await finish({ status: "complete", ip: got, simulated: sim });
@@ -78,8 +92,8 @@ function SimActivation() {
   }
 
   const complete = states[5] === "done";
-  const doneCount = states.filter((s) => s === "done").length;
-  const valid = /^\d{18,22}$/.test(iccid);
+  const doneCount = states.filter((s) => s === "done" || s === "skipped").length;
+  const valid = /^\d{18,22}$/.test(iccid) && siteId.trim().length > 0;
 
   return (
     <>
@@ -92,10 +106,28 @@ function SimActivation() {
             <input id="iccid" inputMode="numeric" value={iccid} disabled={busy}
               onChange={(e) => setIccid(e.target.value.replace(/\D/g, ""))} placeholder="8963…"
               className="mt-2 w-full rounded-md border border-input bg-input/30 px-4 py-3 font-mono text-lg tracking-wider outline-none focus:border-primary" />
+            <label htmlFor="site-id" className="mt-4 block text-sm text-muted-foreground">Site ID</label>
+            <input id="site-id" value={siteId} disabled={busy}
+              onChange={(e) => setSiteId(e.target.value)} placeholder="e.g. PH-MKT-0012"
+              className="mt-2 w-full rounded-md border border-input bg-input/30 px-4 py-3 font-mono text-lg tracking-wider outline-none focus:border-primary" />
+            <fieldset className="mt-4">
+              <legend className="text-sm text-muted-foreground">Equipment on site</legend>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {EQUIPMENT.map((e) => (
+                  <label key={e.key} className="flex cursor-pointer items-center gap-2 rounded-md border border-input bg-input/30 px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:text-primary">
+                    <input type="checkbox" checked={ticked[e.key]} disabled={busy}
+                      onChange={(ev) => setTicked((t) => ({ ...t, [e.key]: ev.target.checked }))}
+                      className="accent-primary" />
+                    {e.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <button onClick={run} disabled={!valid || busy} className="btn-primary mt-4 w-full">
               {busy ? "Working…" : complete ? "Activate another" : "Activate SIM"}
             </button>
-            {iccid && !valid && <p className="mt-2 text-xs text-muted-foreground">ICCID must be 18–22 digits.</p>}
+            {iccid && !/^\d{18,22}$/.test(iccid) && <p className="mt-2 text-xs text-muted-foreground">ICCID must be 18–22 digits.</p>}
+            {!siteId.trim() && <p className="mt-1 text-xs text-muted-foreground">Site ID is required.</p>}
           </section>
           <section className="panel p-5">
             <div className="mb-3 flex items-center justify-between text-sm">
@@ -109,9 +141,9 @@ function SimActivation() {
               {STEPS.map((s, i) => (
                 <li key={s} className="flex items-center gap-4 px-3 py-2.5" data-state={states[i]}>
                   <span className="step-dot">
-                    {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : i + 1}
+                    {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : states[i] === "skipped" ? "–" : i + 1}
                   </span>
-                  <span className="step-label flex-1 text-muted-foreground">{s}</span>
+                  <span className="step-label flex-1 text-muted-foreground">{s}{states[i] === "skipped" && <span className="ml-2 text-xs">(no UR35 — skipped)</span>}</span>
                   {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
                   {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
                 </li>
@@ -122,7 +154,7 @@ function SimActivation() {
           {complete && (
             <div className="panel p-5 text-center">
               <p className="text-2xl font-bold text-primary">Process complete</p>
-              <p className="mt-1 font-mono text-sm text-muted-foreground">{iccid} → {ip}</p>
+              <p className="mt-1 font-mono text-sm text-muted-foreground">{iccid} → {ip} · {siteId.trim()}</p>
             </div>
           )}
           {simulated && <p className="text-center text-xs text-muted-foreground">Test mode: IoT Console Connect isn't connected yet, so these results are simulated.</p>}
@@ -133,6 +165,9 @@ function SimActivation() {
             {history.data?.length ? history.data.map((h) => (
               <div key={h.id} className="px-4 py-3">
                 <p className="font-mono text-xs">{h.iccid}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {h.site_id ?? "—"}{h.equipment?.length ? ` · ${h.equipment.map((k) => EQUIPMENT.find((e) => e.key === k)?.label ?? k).join(", ")}` : ""}
+                </p>
                 <p className="mt-1 flex justify-between text-xs text-muted-foreground">
                   <span>{h.ip ?? "—"}{h.simulated ? " · test" : ""}</span>
                   <span className={h.status === "complete" ? "text-primary" : h.status === "failed" ? "text-destructive" : ""}>{h.status}</span>
