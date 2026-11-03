@@ -99,7 +99,7 @@ function SimActivation() {
       <PageHeader kicker="UR35 · Provisioning" title="SIM Activation" />
       <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
-          <HelperOfflineNote />
+          {equipment === "ur35" && <HelperOfflineNote />}
           <section className="panel p-5">
             <label htmlFor="iccid" className="text-sm text-muted-foreground">ICCID</label>
             <input id="iccid" inputMode="numeric" value={iccid} disabled={busy}
