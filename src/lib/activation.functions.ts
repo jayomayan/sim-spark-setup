@@ -55,10 +55,6 @@ export const getSimIp = createServerFn({ method: "POST" })
     const d = (await det.json()) as { terminal_ip?: string };
     return { ip: d.terminal_ip || null, status: "ACTIVE", simulated: false };
   });
-    if (!res.ok) throw new Error(`Status lookup failed (${res.status})`);
-    const j = (await res.json()) as { status?: string; fixedIPAddress?: string; ipAddress?: string };
-    return { ip: j.fixedIPAddress || j.ipAddress || null, status: j.status ?? "UNKNOWN", simulated: false };
-  });
 
 type ConsoleRequest = (config: never, path: string, init?: RequestInit) => Promise<Response>;
 
