@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { matchCustomFields } from "@/lib/sim-custom-fields";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const validIccid = (s: string) => /^\d{18,22}$/.test(s);

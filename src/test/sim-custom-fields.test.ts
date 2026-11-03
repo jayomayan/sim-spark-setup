@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchCustomFields } from "@/lib/activation.functions";
+import { matchCustomFields } from "@/lib/sim-custom-fields";
 
 const accountFields = [
   { id: "7106", fieldName: "72000407" },
