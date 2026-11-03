@@ -154,7 +154,7 @@ function SimActivation() {
           {complete && (
             <div className="panel p-5 text-center">
               <p className="text-2xl font-bold text-primary">Process complete</p>
-              <p className="mt-1 font-mono text-sm text-muted-foreground">{iccid} → {ip}</p>
+              <p className="mt-1 font-mono text-sm text-muted-foreground">{iccid} → {ip} · {siteId.trim()}</p>
             </div>
           )}
           {simulated && <p className="text-center text-xs text-muted-foreground">Test mode: IoT Console Connect isn't connected yet, so these results are simulated.</p>}
