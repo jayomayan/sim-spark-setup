@@ -65,14 +65,18 @@ function SimActivation() {
       if (!got) throw new Error("Timed out waiting for an IP address");
       setIp(got); set(1, "done"); set(2, "done");
 
-      for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
-        i = step; set(step, "running");
-        if (sim) await new Promise((r) => setTimeout(r, 1200));
-        else {
-          const j = await runJob(type, { ip: got });
-          if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
+      if (!ticked.ur35) {
+        set(3, "skipped"); set(4, "skipped");
+      } else {
+        for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
+          i = step; set(step, "running");
+          if (sim) await new Promise((r) => setTimeout(r, 1200));
+          else {
+            const j = await runJob(type, { ip: got });
+            if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
+          }
+          set(step, "done");
         }
-        set(step, "done");
       }
       set(5, "done");
       await finish({ status: "complete", ip: got, simulated: sim });
