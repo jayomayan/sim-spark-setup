@@ -1,0 +1,30 @@
+# Replace BOTH illustrative names; create DNS and obtain trusted certificates.
+# The local backend gateway must bind 127.0.0.1:8000, not a public interface.
+server {
+    listen 80;
+    server_name ops.example.com;
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}
+server {
+    listen 80;
+    server_name backend.example.com;
+    # No Studio/admin console access through the public gateway.
+    location ~ ^/(auth/v1|rest/v1|storage/v1|realtime/v1)(/|$) {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 120s;
+    }
+    location / { return 404; }
+}

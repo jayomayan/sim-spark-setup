@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "build:standalone": "node deploy/build.mjs",
+    "start:standalone": "node deploy/start.mjs",
+    "db:migrate:standalone": "node deploy/migrate.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
