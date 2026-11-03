@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const activateSim = vi.fn(async () => ({ ok: true, simulated: false, labelWarning: null as string | null }));
   const getSimIp = vi.fn(async () => ({ ip: null as string | null, status: "PENDING", simulated: false }));
-  const runJob = vi.fn(async () => ({ status: "done", result: null, error: null }));
+  const runJob = vi.fn(async (type: string, _payload?: Record<string, unknown>) => ({ status: "done", result: null, error: null }));
   const finished: string[] = [];
   const from = vi.fn(() => ({
     select: vi.fn(() => ({

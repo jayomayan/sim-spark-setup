@@ -1,4 +1,5 @@
 # Tasks
+- [x] Cap the SIM activation IP wait at two minutes, then offer "Check for IP address again" (keeps the activation as waiting instead of failed, restarts another two-minute window and continues with firewall/NTP); verified by component tests and a preview screenshot of the waiting state.
 - [x] Prepare standalone Ubuntu deployment files: Node target, isolated environment validation, transactional migrations, readiness checks, systemd/Nginx and local logo; unit tests and preview checks passed.
 - [ ] Verify full standalone production build, independent authentication/database and real Console Connect/router/SIM flows on Ubuntu; blocked on target VM access/configuration. Local SQL rehearsal unavailable because sandbox PostgreSQL lacks its snowball extension.
 - [x] Diagnose live-only Console Connect sign-in failure: published logs show immediate rejection of unsupported redirect error; use manual mode with explicit 3xx rejection across token, Site ID and SIM requests.
