@@ -215,7 +215,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
               onChange={(e) => setSiteId(e.target.value)} placeholder="e.g. PH010065"
               className="mt-2 w-full rounded-md border border-input bg-input/30 px-4 py-3 font-mono text-lg tracking-wider outline-none focus:border-primary" />
             <fieldset className="mt-4">
-              <legend className="text-sm text-muted-foreground">Equipment on site</legend>
+              <legend className="text-sm text-muted-foreground">EdgeSim to be used for</legend>
               <div className="mt-2 flex flex-wrap gap-3">
                 {options.map((e) => (
                   <label key={e.key} className="flex cursor-pointer items-center gap-2 rounded-md border border-input bg-input/30 px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:text-primary">
