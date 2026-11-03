@@ -32,12 +32,12 @@ export function SimActivation() {
   const [iccid, setIccid] = useState("");
   const [siteId, setSiteId] = useState("");
   const [equipment, setEquipment] = useState<string>("ur35");
-  const [states, setStates] = useState<State[]>(["done", "waiting", "idle", "idle", "idle", "idle"]);
+  const [states, setStates] = useState<State[]>(STEPS.map(() => "idle"));
   const [ip, setIp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [simulated, setSimulated] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [waitingForIp, setWaitingForIp] = useState(true);
+  const [waitingForIp, setWaitingForIp] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [recordId, setRecordId] = useState<string | null>(null);
   const stepRef = useRef(0);
