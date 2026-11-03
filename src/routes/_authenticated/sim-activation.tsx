@@ -52,8 +52,10 @@ function SimActivation() {
     let i = 0; let got: string | null = null; let sim = false;
     try {
       set(0, "running");
-      const a = await activate({ data: { iccid } });
+      const notes = equipment === "ur35" ? undefined : EQUIPMENT.find((e) => e.key === equipment)?.label;
+      const a = await activate({ data: { iccid, label: siteId.trim(), notes } });
       sim = a.simulated; setSimulated(sim); set(0, "done");
+      if (a.labelWarning) toast.warning(a.labelWarning);
 
       i = 1; set(1, "running");
       for (let attempt = 0; attempt < 60 && !got; attempt++) {
