@@ -230,6 +230,9 @@ export function SimActivation() {
                   {i === 1 && states[1] === "running" && <span className="font-mono text-xs text-muted-foreground">{fmtClock(secondsLeft)} left</span>}
                   {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
                   {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
+                  {i === 1 && waitingForIp && (
+                    <button onClick={checkAgain} disabled={busy} className="btn-primary shrink-0 px-3 py-1.5 text-xs">Check for IP address again</button>
+                  )}
                 </li>
               ))}
             </ol>
