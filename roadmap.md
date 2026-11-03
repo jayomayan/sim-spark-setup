@@ -1,5 +1,5 @@
 # Tasks
-- [ ] Add Other beside GPS-Genset: activate without IP polling, firewall or NTP, and verify completion.
+- [x] Add Other beside GPS-Genset: activation completes without IP polling, firewall or NTP; component tests and signed-in selection verified (no real SIM activated).
 - [x] Cap the SIM activation IP wait at two minutes, then offer "Check for IP address again" (keeps the activation as waiting instead of failed, restarts another two-minute window and continues with firewall/NTP); verified by component tests and a preview screenshot of the waiting state.
 - [x] Prepare standalone Ubuntu deployment files: Node target, isolated environment validation, transactional migrations, readiness checks, systemd/Nginx and local logo; unit tests and preview checks passed.
 - [ ] Verify full standalone production build, independent authentication/database and real Console Connect/router/SIM flows on Ubuntu; blocked on target VM access/configuration. Local SQL rehearsal unavailable because sandbox PostgreSQL lacks its snowball extension.
