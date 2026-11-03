@@ -14,11 +14,19 @@ export const Route = createFileRoute("/_authenticated/sim-activation")({
 });
 
 const STEPS = ["Activate SIM", "Wait for IP address", "SIM active", "Apply firewall rules", "Apply NTP settings", "Complete"];
-type State = "idle" | "running" | "done" | "error";
+type State = "idle" | "running" | "done" | "error" | "skipped";
+
+const EQUIPMENT = [
+  { key: "ur35", label: "UR35" },
+  { key: "gps_battery", label: "GPS-Battery" },
+  { key: "gps_genset", label: "GPS-Genset" },
+] as const;
 
 function SimActivation() {
   const qc = useQueryClient();
   const [iccid, setIccid] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [ticked, setTicked] = useState<Record<string, boolean>>({ ur35: true, gps_battery: false, gps_genset: false });
   const [states, setStates] = useState<State[]>(STEPS.map(() => "idle"));
   const [ip, setIp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
