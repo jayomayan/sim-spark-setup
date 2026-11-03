@@ -22,6 +22,7 @@ const EQUIPMENT = [
   { key: "ur35", label: "Router" },
   { key: "gps_battery", label: "GPS-Battery" },
   { key: "gps_genset", label: "GPS-Genset" },
+  { key: "other", label: "Other" },
 ] as const;
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -139,7 +140,16 @@ export function SimActivation() {
       setSimulated(sim);
       set(0, "done");
       if (a.labelWarning) toast.warning(a.labelWarning);
-      await waitForIp(sim, id);
+      if (equipment === "other") {
+        set(1, "skipped");
+        set(2, "done");
+        set(3, "skipped");
+        set(4, "skipped");
+        await finishRecord(id, { status: "complete", ip: null, simulated: sim });
+        set(5, "done");
+      } else {
+        await waitForIp(sim, id);
+      }
     } catch (e) {
       await failRun(e, id, sim);
     } finally {
@@ -174,7 +184,9 @@ export function SimActivation() {
 
   const complete = states[5] === "done";
   const locked = busy || waitingForIp;
-  const visibleSteps = STEPS.map((label, i) => ({ label, i })).filter(({ i }) => equipment === "ur35" || (i !== 3 && i !== 4));
+  const visibleSteps = STEPS.map((label, i) => ({ label, i })).filter(({ i }) =>
+    equipment === "ur35" || (i !== 3 && i !== 4 && (equipment !== "other" || i !== 1)),
+  );
   const doneCount = visibleSteps.filter(({ i }) => states[i] === "done" || states[i] === "skipped").length;
   const valid = /^\d{18,22}$/.test(iccid) && siteId.trim().length > 0;
 
@@ -253,7 +265,7 @@ export function SimActivation() {
           {complete && (
             <div className="panel p-5 text-center">
               <p className="text-2xl font-bold text-primary">Process complete</p>
-              <p className="mt-1 font-mono text-sm text-muted-foreground">{iccid} → {ip} · {siteId.trim()}</p>
+              <p className="mt-1 font-mono text-sm text-muted-foreground">{iccid}{ip ? ` → ${ip}` : ""} · {siteId.trim()}</p>
             </div>
           )}
           {simulated && <p className="text-center text-xs text-muted-foreground">Test mode: IoT Console Connect isn't connected yet, so these results are simulated.</p>}
