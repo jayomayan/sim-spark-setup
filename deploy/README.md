@@ -79,7 +79,7 @@ Run `bun run check:standalone` with the private environment loaded as above. Com
 
 ### Verification status
 
-Deployment validation/unit tests and helper installer syntax are checked in the project. A local PostgreSQL migration exercise may validate SQL replay, but is not a full production authentication stack. The full Node production build, independent-backend sign-in, Okta, Console Connect and router/SIM flows must still be verified on your VM. No server access, data cutover or production readiness certification is implied.
+Deployment validation/unit tests, migration-runner behavior and helper installer syntax are checked in the project. Preview sign-in form, local logo and installer download were checked. A local PostgreSQL rehearsal could not start because the sandbox PostgreSQL installation lacks its snowball extension; no claim of SQL/database execution validation is made. The full Node production build, independent-backend sign-in, Okta, Console Connect and router/SIM flows must still be verified on your VM. No server access, data cutover or production readiness certification is implied.
 
 ### Sources
 

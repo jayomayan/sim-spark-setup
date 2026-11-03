@@ -1,5 +1,6 @@
 # Tasks
-- [ ] Prepare standalone Ubuntu deployment with local database/auth, production server configuration, migration tooling and readiness checks; VM verification needs the target server.
+- [x] Prepare standalone Ubuntu deployment files: Node target, isolated environment validation, transactional migrations, readiness checks, systemd/Nginx and local logo; unit tests and preview checks passed.
+- [ ] Verify full standalone production build, independent authentication/database and real Console Connect/router/SIM flows on Ubuntu; blocked on target VM access/configuration. Local SQL rehearsal unavailable because sandbox PostgreSQL lacks its snowball extension.
 - [ ] Diagnose live-only Console Connect sign-in failure; preview sign-in succeeds with saved settings. Specific provider errors added; live check needs publishing.
 - [x] Remove path inputs and replace NTP fields with a single text editor for the current JSON router payload; verified save/reload.
 - [x] Replace firewall rows with a full-command text editor; verified save/reload while preserving existing helper delivery.
