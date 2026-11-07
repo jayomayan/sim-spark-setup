@@ -27,13 +27,14 @@ async function run() {
   await import("../../deploy/migrate.mjs");
 }
 describe("standalone migration runner", () => {
-  it("applies all nine checked-in migrations in order and grants device sequence access", async () => {
+  it("applies all ten checked-in migrations in order and grants device sequence access", async () => {
     await run();
     const sources = mock.statements.slice(1, -1);
-    expect(sources).toHaveLength(9);
+    expect(sources).toHaveLength(10);
     expect(sources[0]).toContain("create type public.app_role");
     expect(sources[7]).toContain("ADD COLUMN router_logins_cipher");
     expect(sources[8]).toContain("ADD COLUMN IF NOT EXISTS site_id");
+    expect(sources[9]).toContain("create table public.account_security");
     expect(mock.statements.at(-1)).toContain("GRANT USAGE, SELECT ON SEQUENCE public.devices_id_seq TO authenticated");
   });
   it("skips already applied migrations without replaying table creation", async () => {
