@@ -86,7 +86,7 @@ Deployment validation/unit tests, migration-runner behavior and helper installer
 ### Sources
 
 - https://supabase.com/docs/guides/self-hosting/docker
-- https://supabase.com/docs/guides/auth/oauth-server
+- https://supabase.com/docs/guides/auth
 - https://nodejs.org/en/download
 - https://bun.com/docs/installation
 
