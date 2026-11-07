@@ -26,7 +26,16 @@ function ChangePassword() {
     event.preventDefault(); setError("");
     if (password !== confirm) { setError("Passwords do not match"); return; }
     setBusy(true);
-    try { await complete({ data: { currentPassword, password } }); qc.clear(); await router.invalidate(); await navigate({ to: "/dashboard", replace: true }); }
+    try {
+      const identity = await supabase.auth.getUser();
+      if (!identity.data.user?.email) throw new Error("Sign in again before changing your password");
+      const email = identity.data.user.email;
+      await complete({ data: { currentPassword, password } });
+      // Password rotation invalidates old sessions; replace this browser's session before entering the console.
+      const signedIn = await supabase.auth.signInWithPassword({ email, password });
+      if (signedIn.error) throw new Error("Password changed. Sign in again with your new password.");
+      qc.clear(); await router.invalidate(); await navigate({ to: "/dashboard", replace: true });
+    }
     catch (err) { setError(err instanceof Error ? err.message : "Couldn't change password"); }
     finally { setBusy(false); }
   }
