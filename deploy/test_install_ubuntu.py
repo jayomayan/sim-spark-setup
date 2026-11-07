@@ -75,6 +75,15 @@ class InstallerChecks(unittest.TestCase):
                 installer.run(['tool'])
         self.assertNotIn('secret', str(error.exception))
 
+    def test_public_gateway_blocks_auth_administration_but_local_gateway_retains_it(self):
+        with patch.object(installer, 'write') as write, patch.object(installer.Path, 'symlink_to'):
+            installer.configure_nginx({'website': 'ops.example.com', 'api': 'api.example.com'}, 'public-test-key', 'private-test-key')
+        config = write.call_args_list[-1].args[1]
+        local, public = config.split('server_name api.example.com;', 1)
+        self.assertNotIn('location ^~ /auth/v1/admin', local)
+        self.assertIn('location ^~ /auth/v1/admin { return 404; }', public)
+        self.assertIn('proxy_hide_header Access-Control-Allow-Origin;', public)
+
 
 if __name__ == '__main__':
     unittest.main()
