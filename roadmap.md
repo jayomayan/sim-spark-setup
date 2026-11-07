@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Revise Ubuntu/GCP installation instructions for native services without containers; disclose the independent backend setup prerequisite.
 - [x] Complete editable independence cleanup: standard standalone tooling and origin-local auth persistence, neutral local logo, reference inventory and audit report. All 108 tests and hosted build pass; authenticated controls/logo verified. Protected hosted/generated integrations remain documented; full standalone build and live VM checks remain pending below.
 - [x] Remove editable platform branding from application pages, metadata and deployment guides; signed-in settings and 8 deployment tests pass. Required build package, generated integrations, hosted-destination safeguards and protected project guidance remain.
 - [x] Add fresh-install GCP Ubuntu instructions to the repository and link them from both READMEs; VM execution remains blocked on target access/configuration.
