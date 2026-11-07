@@ -2,7 +2,7 @@
 
 **GCP Ubuntu VM, starting fresh:** follow [GCP-UBUNTU.md](GCP-UBUNTU.md) for networking, GitHub source download, independent backend, HTTPS, first admin and verification.
 
-This deployment path runs the app and its PostgreSQL-backed authentication/data services directly on Ubuntu 24.04, using native packages/binaries and systemd. A plain PostgreSQL installation is not sufficient: compatible authentication, the data API and row-level security are required. This repository supplies the website deployment tooling, not a complete native backend installer.
+This deployment path runs the app and its PostgreSQL-backed authentication/data services directly on Ubuntu 24.04, using native packages/binaries and systemd. A plain PostgreSQL installation is not sufficient: compatible authentication, the data API and row-level security are required. The repository supplies both manual deployment tooling and an interactive fresh-VM installer.
 
 **Interactive installer:** [INTERACTIVE-INSTALL.md](INTERACTIVE-INSTALL.md) covers `sudo python3 deploy/install-ubuntu.py`, which automates the native backend and app setup on a fresh Ubuntu 24.04 x86_64 VM. It remains unverified end-to-end on a target VM; use the manual requirements below as a compatibility reference.
 

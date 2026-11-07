@@ -40,14 +40,15 @@ class InstallerChecks(unittest.TestCase):
             expected = base64.urlsafe_b64encode(hmac.new(secret.encode(), (header + '.' + body).encode(), hashlib.sha256).digest()).rstrip(b'=').decode()
             self.assertEqual(signature, expected)
 
-    def test_environment_roundtrip_and_private_permissions(self):
+    def test_systemd_environment_preserves_literal_password_and_private_permissions(self):
         value = 'spaces apostrophe\' double" $dollar `tick` \\slash'
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'settings.env'
             installer.environment(path, {'SAMPLE': value})
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            result = subprocess.run(['bash', '-c', 'source "$1"; printf %s "$SAMPLE"', 'bash', str(path)], capture_output=True, text=True, check=True)
-            self.assertEqual(result.stdout, value)
+            self.assertEqual(installer.env_value('$dollar`tick`'), '"$dollar`tick`"')
+            self.assertEqual(installer.env_value('quote"slash\\'), '"quote\\"slash\\\\"')
+            self.assertEqual(path.read_text(), 'SAMPLE=' + installer.env_value(value) + '\n')
             with self.assertRaises(FileExistsError):
                 installer.environment(path, {'SAMPLE': 'replacement'})
         with self.assertRaises(ValueError):

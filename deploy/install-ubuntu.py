@@ -59,8 +59,8 @@ def strong_password(value):
 def env_value(value):
     if any(c in value for c in '\r\n\x00'):
         raise ValueError('Multiline settings are not supported.')
-    # Compatible with both systemd EnvironmentFile and a shell's source command.
-    return '"' + ''.join('\\' + c if c in '\\"$`' else c for c in value) + '"'
+    # systemd has no shell expansion: escape only backslash and double quote.
+    return '"' + ''.join('\\' + c if c in '\\"' else c for c in value) + '"'
 
 
 def jwt(secret, role, now=None):
@@ -152,7 +152,7 @@ def download(url):
 def release_asset(repo, tag, name):
     release = json.loads(download(f'https://api.github.com/repos/{repo}/releases/tags/{tag}'))
     asset = next((a for a in release['assets'] if a['name'] == name), None)
-    if not asset or not asset.get('digest', '').startswith('sha256:'):
+    if not asset or not (asset.get('digest') or '').startswith('sha256:'):
         raise RuntimeError(f'No upstream SHA-256 digest for {repo} {tag} {name}; refusing an unverified binary.')
     content = download(asset['browser_download_url'])
     if hashlib.sha256(content).hexdigest() != asset['digest'].split(':', 1)[1]:
@@ -390,6 +390,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
     run(['/usr/local/bin/bun', 'run', 'check:standalone'], cwd=APP, user='fieldops-web', env={**os.environ, **app_env, 'HOME': str(APP)})
     for url in (f'https://{values["website"]}/', f'https://{values["api"]}/auth/v1/health'):
         wait_url(url)
+    verify_public_api(values, anon, account)
     state = json.loads(STATE.read_text())
     state['status'] = 'installed'
     STATE.write_text(json.dumps(state))
@@ -417,7 +418,12 @@ map $http_origin $field_ops_origin {{
     "https://{website}" "https://{website}";
 }}
 ''')
-    common = '''proxy_set_header Authorization $field_ops_authorization;
+    common = '''proxy_hide_header Access-Control-Allow-Origin;
+        proxy_hide_header Access-Control-Allow-Credentials;
+        proxy_hide_header Access-Control-Allow-Methods;
+        proxy_hide_header Access-Control-Allow-Headers;
+        proxy_hide_header Access-Control-Expose-Headers;
+        proxy_set_header Authorization $field_ops_authorization;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -455,6 +461,7 @@ map $http_origin $field_ops_origin {{
 server {{
     listen 80;
     server_name {api};
+    location ^~ /auth/v1/admin {{ return 404; }}
     {gateway}
 }}
 server {{
@@ -471,6 +478,45 @@ server {{
 }}
 ''', 0o600)
     Path('/etc/nginx/sites-enabled/field-ops-native').symlink_to('/etc/nginx/sites-available/field-ops-native')
+
+
+def verify_public_api(values, anon, account):
+    origin = f'https://{values["website"]}'
+    base = f'https://{values["api"]}'
+    headers = {'apikey': anon, 'Origin': origin, 'Content-Type': 'application/json'}
+    request = urllib.request.Request(base + '/auth/v1/settings', headers=headers)
+    with urllib.request.urlopen(request, timeout=30) as response:
+        if response.headers.get_all('Access-Control-Allow-Origin') != [origin]:
+            raise RuntimeError('Public API browser-origin headers were not verified.')
+        auth_settings = json.load(response)
+    if auth_settings.get('disable_signup') is not True:
+        raise RuntimeError('Public signup is not closed.')
+    if bool(account.get('email_confirmed_at')) != values['verified']:
+        raise RuntimeError('Administrator email confirmation does not match your choice.')
+    preflight_request = urllib.request.Request(base + '/auth/v1/token', method='OPTIONS', headers={'Origin': origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization,apikey,content-type'})
+    with urllib.request.urlopen(preflight_request, timeout=30) as response:
+        if response.status != 204 or response.headers.get_all('Access-Control-Allow-Origin') != [origin]:
+            raise RuntimeError('Browser sign-in preflight failed.')
+    if not values['verified']:
+        print('Email confirmation required: complete password sign-in and saved-data checks after clicking the email link.')
+        return
+    request = urllib.request.Request(base + '/auth/v1/token?grant_type=password', data=json.dumps({'email': values['admin'], 'password': values['password']}).encode(), headers=headers, method='POST')
+    with urllib.request.urlopen(request, timeout=30) as response:
+        if response.headers.get_all('Access-Control-Allow-Origin') != [origin]:
+            raise RuntimeError('Password sign-in browser-origin headers failed.')
+        session = json.load(response)
+    token = session.get('access_token')
+    if not token or session.get('user', {}).get('id') != account['id']:
+        raise RuntimeError('Administrator password sign-in failed.')
+    user_headers = {**headers, 'Authorization': 'Bearer ' + token}
+    request = urllib.request.Request(base + '/rest/v1/profiles?select=id', headers=user_headers)
+    with urllib.request.urlopen(request, timeout=30) as response:
+        rows = json.load(response)
+    if not any(row.get('id') == account['id'] for row in rows):
+        raise RuntimeError('Authenticated administrator data access failed.')
+    request = urllib.request.Request(base + '/auth/v1/logout', data=b'{}', headers=user_headers, method='POST')
+    with urllib.request.urlopen(request, timeout=30):
+        pass
 
 
 if __name__ == '__main__':

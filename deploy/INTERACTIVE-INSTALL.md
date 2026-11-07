@@ -38,6 +38,8 @@ The installer keeps public signup disabled: admins invite subsequent users. Emai
 - Nginx website/API configuration, restricted API key routing, browser-origin allowance and trusted HTTPS certificates with renewal timer.
 - Private settings in `/etc/field-ops/` and `/etc/field-ops-console.env`. Keys are generated locally; the website receives only the anonymous public key. Signed API keys expire after ten years and must be rotated before expiry (rotation requires rebuilding the website).
 
+The Auth and REST environment files use systemd quoting, not shell expansion; do not source them in a shell. A temporary migration administrator is disabled after schema setup and removed on success; no superuser password is persisted in the website environment. On failure, preserve the private state and review any remaining disabled migration role locally.
+
 Upstream GitHub binary downloads require a published SHA-256 digest; the installer stops if one is unavailable or mismatched. Node's checksum list is fetched from its HTTPS release origin; Go uses a pinned checksum. The Auth source commit is pinned and Go dependencies are verified. Review pinned versions before production use; changing versions requires another compatibility review.
 
 ## After installation
