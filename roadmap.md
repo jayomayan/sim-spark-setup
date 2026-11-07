@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Record admin invitation attempts and outcomes in admin-only history, excluding passwords; verify creation, read-back and permissions.
 - [x] Add admin-created username accounts with profile name/phone/optional contact email, strong temporary passwords and required first-login password change; verified invitation → sign-in → forced change → dashboard with a temporary account, then cleaned up.
 - [ ] Send invitation emails without exposing passwords; blocked on the user's verified sending domain (none configured). Email contact details are saved, but invitations are explicitly reported as not sent.
 - [x] Restrict the "Other" equipment choice to admin accounts: non-admins see only Router, GPS-Battery and GPS-Genset; verified by component test and a signed-in admin preview check.
