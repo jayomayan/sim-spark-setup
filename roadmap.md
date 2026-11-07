@@ -1,5 +1,6 @@
 # Tasks
-- [ ] Add admin invitations for external users, optional email, admin-set temporary passwords, mandatory first-login password change and strong-password enforcement; waiting on profile and no-email sign-in details.
+- [x] Add admin-created username accounts with profile name/phone/optional contact email, strong temporary passwords and required first-login password change; verified invitation → sign-in → forced change → dashboard with a temporary account, then cleaned up.
+- [ ] Send invitation emails without exposing passwords; blocked on the user's verified sending domain (none configured). Email contact details are saved, but invitations are explicitly reported as not sent.
 - [x] Restrict the "Other" equipment choice to admin accounts: non-admins see only Router, GPS-Battery and GPS-Genset; verified by component test and a signed-in admin preview check.
 - [x] Add Other beside GPS-Genset: activation completes without IP polling, firewall or NTP; component tests and signed-in selection verified (no real SIM activated).
 - [x] Cap the SIM activation IP wait at two minutes, then offer "Check for IP address again" (keeps the activation as waiting instead of failed, restarts another two-minute window and continues with firewall/NTP); verified by component tests and a preview screenshot of the waiting state.

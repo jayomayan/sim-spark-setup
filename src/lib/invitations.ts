@@ -11,6 +11,8 @@ export const inviteSchema = z.object({
   email: z.union([z.string().trim().email().max(254), z.literal("")]),
   password: strongPassword,
 });
+export const firstLoginPasswordSchema = z.object({ currentPassword: z.string().min(1).max(128), password: strongPassword })
+  .refine((data) => data.currentPassword !== data.password, "Choose a different password");
 export function externalLoginEmail(username: string) {
   return `${usernameSchema.parse(username)}@external.field-ops.invalid`;
 }

@@ -12,9 +12,9 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — Field Ops Console" },
-      { name: "description", content: "Sign in with Okta or your email to manage routers and activate SIMs." },
+      { name: "description", content: "Sign in with Okta, username or email to manage routers and activate SIMs." },
       { property: "og:title", content: "Sign in — Field Ops Console" },
-      { property: "og:description", content: "Staff sign in with Okta; partners use email and password." },
+      { property: "og:description", content: "Staff sign in with Okta; invited partners use their username and password." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

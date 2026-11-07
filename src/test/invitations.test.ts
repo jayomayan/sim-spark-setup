@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { externalLoginEmail, inviteSchema, loginEmail, strongPassword } from "@/lib/invitations";
+import { externalLoginEmail, firstLoginPasswordSchema, inviteSchema, loginEmail, strongPassword } from "@/lib/invitations";
 
 describe("External invitation rules", () => {
   const invitation = { username: "partner.one", displayName: "Partner One", phone: "+639171234567", email: "", password: "Temporary!4839" };
@@ -24,5 +24,9 @@ describe("External invitation rules", () => {
   });
   it("rejects usernames that can change the auth domain", () => {
     expect(inviteSchema.safeParse({ ...invitation, username: "admin@example.com" }).success).toBe(false);
+  });
+  it("requires replacing the temporary password rather than reusing it", () => {
+    expect(firstLoginPasswordSchema.safeParse({ currentPassword: invitation.password, password: invitation.password }).success).toBe(false);
+    expect(firstLoginPasswordSchema.safeParse({ currentPassword: invitation.password, password: "Replacement!7893" }).success).toBe(true);
   });
 });

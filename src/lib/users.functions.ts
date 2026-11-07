@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin } from "@/lib/admin-access";
 import { z } from "zod";
-import { inviteSchema, externalLoginEmail, strongPassword } from "./invitations";
+import { inviteSchema, externalLoginEmail, firstLoginPasswordSchema } from "./invitations";
 
 export const inviteExternalUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -42,7 +42,7 @@ export const getPasswordRequirement = createServerFn({ method: "POST" })
 
 export const completeFirstLogin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { currentPassword: string; password: string }) => z.object({ currentPassword: z.string().min(1).max(128), password: strongPassword }).refine((d) => d.currentPassword !== d.password, "Choose a different password").parse(input))
+  .inputValidator((input: { currentPassword: string; password: string }) => firstLoginPasswordSchema.parse(input))
   .handler(async ({ data, context }) => {
     const requirement = await context.supabase.from("account_security").select("must_change_password").eq("user_id", context.userId).maybeSingle();
     if (requirement.error || !requirement.data?.must_change_password) throw new Error("No first-login password change is pending");
