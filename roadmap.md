@@ -1,4 +1,5 @@
 # Tasks
+- [x] Add fresh-install GCP Ubuntu instructions to the repository and link them from both READMEs; VM execution remains blocked on target access/configuration.
 - [x] Add strong temporary-password generation and copy-both login controls to invitations; credentials remain transient after creation. Verified strength rules, signed-in clipboard contents and desktop/mobile layout; 15 tests pass.
 - [x] Record admin invitation attempts and outcomes in admin-only history, excluding passwords; verified successful/failed creation, reload persistence and non-admin read denial, then removed verification fixtures.
 - [x] Add admin-created username accounts with profile name/phone/optional contact email, strong temporary passwords and required first-login password change; verified invitation → sign-in → forced change → dashboard with a temporary account, then cleaned up.
