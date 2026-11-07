@@ -1,5 +1,7 @@
 # Standalone deployment
 
+**GCP Ubuntu VM, starting fresh:** follow [GCP-UBUNTU.md](GCP-UBUNTU.md) for networking, GitHub source download, independent backend, HTTPS, first admin and verification.
+
 This deployment path runs the app on Node.js and its own PostgreSQL-backed authentication/data stack on an Ubuntu 24.04 VM. A plain PostgreSQL installation is not sufficient: authentication, the data API and row-level security are required. Use the official compatible backend Docker stack referenced below. This repository does not vendor that stack or its secrets.
 
 The hosted application is not switched to the VM by these files. Existing users, records and encrypted credentials are not automatically copied.
@@ -9,7 +11,7 @@ The hosted application is not switched to the VM by these files. Existing users,
 - `vite.standalone.config.ts`: explicit Node server target; hosted target unchanged.
 - `build:standalone`: isolates build variables from the exported hosted `.env`, validates destination/public key and records public build configuration.
 - `start:standalone`: validates runtime secrets and refuses stale browser configuration.
-- `db:migrate:standalone`: applies migrations 0000–0007 in journal order in one transaction; private checksum journal, repeat-safe and refuses untracked restored schemas. Adds the device identity-sequence privileges needed on fresh databases.
+- `db:migrate:standalone`: applies all checked-in migrations in journal order in one transaction; private checksum journal, repeat-safe and refuses untracked restored schemas. Adds the device identity-sequence privileges needed on fresh databases.
 - `check:standalone`: checks auth reachability, table access, anonymous denial and administrator existence. No secret values are printed.
 - systemd and Nginx examples; existing logo served locally at its original asset path.
 
