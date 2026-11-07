@@ -6,14 +6,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { loginEmail, strongPassword } from "@/lib/invitations";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — Field Ops Console" },
-      { name: "description", content: "Sign in with Okta or your email to manage routers and activate SIMs." },
+      { name: "description", content: "Sign in with Okta, username or email to manage routers and activate SIMs." },
       { property: "og:title", content: "Sign in — Field Ops Console" },
-      { property: "og:description", content: "Staff sign in with Okta; partners use email and password." },
+      { property: "og:description", content: "Staff sign in with Okta; invited partners use their username and password." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -52,10 +53,11 @@ function AuthPage() {
     setBusy(true);
     try {
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email: loginEmail(email), password });
         if (error) throw error;
         navigate({ to: "/dashboard" });
       } else if (mode === "signup") {
+        strongPassword.parse(password);
         const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/auth` } });
         if (error) throw error;
         toast.success("Check your email to confirm your account.");
@@ -93,8 +95,8 @@ function AuthPage() {
 
         <form onSubmit={submit} className={mode === "signin" ? "space-y-4" : "mt-8 space-y-4"}>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Label htmlFor="email">{mode === "signin" ? "Username or email" : "Email"}</Label>
+            <Input id="email" type={mode === "signin" ? "text" : "email"} autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           {mode !== "forgot" && (
             <div className="space-y-2">
@@ -103,7 +105,7 @@ function AuthPage() {
             </div>
           )}
           <Button type="submit" variant="secondary" className="w-full" disabled={busy}>
-            {busy ? "Please wait…" : mode === "signin" ? "Sign in with email" : mode === "signup" ? "Create account" : "Send reset link"}
+            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
           </Button>
         </form>
 

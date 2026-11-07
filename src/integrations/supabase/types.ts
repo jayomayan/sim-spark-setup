@@ -14,6 +14,35 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_security: {
+        Row: {
+          invited_by: string
+          must_change_password: boolean
+          password_changed_at: string | null
+          user_id: string
+        }
+        Insert: {
+          invited_by: string
+          must_change_password?: boolean
+          password_changed_at?: string | null
+          user_id: string
+        }
+        Update: {
+          invited_by?: string
+          must_change_password?: boolean
+          password_changed_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_security_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_jobs: {
         Row: {
           created_at: string
@@ -323,18 +352,24 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          phone: string | null
+          username: string | null
         }
         Insert: {
           created_at?: string
           display_name?: string | null
           email?: string | null
           id: string
+          phone?: string | null
+          username?: string | null
         }
         Update: {
           created_at?: string
           display_name?: string | null
           email?: string | null
           id?: string
+          phone?: string | null
+          username?: string | null
         }
         Relationships: []
       }
