@@ -64,6 +64,13 @@
       "when": 1793686037998,
       "tag": "0008_sim_activation_site_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794014109690,
+      "tag": "0009_external_invitations",
+      "breakpoints": true
     }
   ]
 }
