@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Make the native installer coexist with existing websites using isolated runtimes/database and selectable free internal ports; preserve existing Nginx sites and keep upgrades compatible.
 - [x] Add interactive native app upgrades with private database/settings backups, isolated staged builds, immutable reviewed migration inputs, peer-authenticated SQL and recovery instructions. Sixteen installer/upgrade tests and nine standalone checks pass; target-VM execution remains unverified.
 - [x] Create an interactive native Ubuntu installer for PostgreSQL, sign-in/data services, website and HTTPS, with hidden password prompts, safe fresh-install guards and pinned downloads. Prompt/security unit checks and nine existing standalone checks pass; full VM installation remains blocked on target VM access/configuration as tracked below.
 - [x] Revise Ubuntu/GCP installation instructions for native packages/binaries and systemd; remove container commands and service dependency, disclose the unsupplied native backend setup prerequisite. Nine standalone safeguard tests pass; VM setup remains unverified.
