@@ -8,12 +8,13 @@ The hosted application is not switched to the VM by these files. Existing users,
 
 ## What is included
 
-- `vite.standalone.config.ts`: explicit Node server target; hosted target unchanged.
+- `vite.standalone.config.ts`: standard Vite, TanStack Start, React, Tailwind and Nitro plugins with an explicit Node server target; hosted target unchanged.
+- `dev:standalone`: independent local development with the same standard configuration and origin-local session persistence.
 - `build:standalone`: isolates build variables from the exported hosted `.env`, validates destination/public key and records public build configuration.
 - `start:standalone`: validates runtime secrets and refuses stale browser configuration.
 - `db:migrate:standalone`: applies all checked-in migrations in journal order in one transaction; private checksum journal, repeat-safe and refuses untracked restored schemas. Adds the device identity-sequence privileges needed on fresh databases.
 - `check:standalone`: checks auth reachability, table access, anonymous denial and administrator existence. No secret values are printed.
-- systemd and Nginx examples; existing logo served locally at its original asset path.
+- systemd and Nginx examples; existing company logo served locally at `/media/fta-logo.png` without an asset-service request.
 
 ## 1. Provision Ubuntu and the independent backend
 
@@ -80,6 +81,8 @@ Run `bun run check:standalone` with the private environment loaded as above. Com
 - [ ] Reboot recovery, certificate renewal, encrypted backups and a restore/rollback drill pass.
 
 ### Verification status
+
+The standalone configuration loads without importing the hosted configuration wrapper. All 108 application tests pass, including standalone origin-local session storage and deployment safeguards. The full Node output has not been built in this environment; running the VM build and acceptance checks below remains required. See [INDEPENDENCE-AUDIT.md](INDEPENDENCE-AUDIT.md) for the footprint inventory.
 
 Deployment validation/unit tests, migration-runner behavior and helper installer syntax are checked in the project. Preview sign-in form, local logo and installer download were checked. A local PostgreSQL rehearsal could not start because the sandbox PostgreSQL installation lacks its snowball extension; no claim of SQL/database execution validation is made. The full Node production build, independent-backend sign-in, Okta, Console Connect and router/SIM flows must still be verified on your VM. No server access, data cutover or production readiness certification is implied.
 

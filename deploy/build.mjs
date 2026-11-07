@@ -6,7 +6,6 @@ const errors = validateEnvironment(process.env);
 if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
 // Never load the exported project's hosted .env into a standalone browser bundle.
 const env = { ...process.env, FIELD_OPS_STANDALONE: "1" };
-delete env.LOVABLE_NITRO_PRESET;
 const result = spawnSync("bun", ["x", "vite", "build", "--config", "vite.standalone.config.ts"], { env, stdio: "inherit" });
 if (result.status !== 0) process.exit(result.status ?? 1);
 if (!existsSync(".output/server/index.mjs")) {

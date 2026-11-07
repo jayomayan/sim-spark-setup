@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:standalone": "vite --config vite.standalone.config.ts",
     "build": "vite build",
     "build:standalone": "node deploy/build.mjs",
     "start:standalone": "node deploy/start.mjs",
@@ -93,6 +94,7 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "jsdom": "^20.0.3",
+    "lightningcss": "^1.30.0",
     "nitro": "3.0.260603-beta",
     "postgres": "^3.4.9",
     "prettier": "^3.7.3",
