@@ -1,14 +1,16 @@
-# GCP Ubuntu VM: fresh installation
+# GCP Ubuntu VM: native installation
 
 Deploy the GitHub source to your existing Ubuntu VM with a **new, independent database and sign-in service**. This guide starts fresh: it does not copy hosted users, passwords, records, or saved integration credentials, and does not modify the hosted app.
 
 The application needs PostgreSQL **plus compatible authentication and data APIs**. Installing PostgreSQL alone or adding a connection in Admin Settings does not provide those APIs or switch the main database.
 
+All services run directly on Ubuntu using native packages/binaries and systemd. **Backend setup is a prerequisite, not an automated feature of this repository:** complete [the native backend requirements](README.md#1-provision-ubuntu-and-the-independent-backend) before applying app migrations or starting the website.
+
 ## 1. Prepare GCP networking
 
 - Use Ubuntu 24.04 LTS. Start with 4 vCPUs, 8 GB RAM and at least 40 GB disk; allocate more for database growth, backups and screenshot workloads. This is a starting size, not a tested capacity guarantee.
 - Reserve a static external IP. Point two DNS names to it: one for the website and one for the backend API.
-- Allow inbound TCP 80/443. Restrict SSH to your IP, or use GCP IAP with its documented firewall rules. Keep PostgreSQL, connection poolers, backend admin screens and Docker daemon ports private.
+- Allow inbound TCP 80/443. Restrict SSH to your IP, or use GCP IAP with its documented firewall rules. Keep PostgreSQL, connection poolers and backend admin screens private.
 - For private router access, establish company-network VPN/routes. A GCP VM cannot reach company private addresses just because both use private IPs. Check overlapping address ranges and return routes.
 - Permit outbound HTTPS for Console Connect, package downloads and certificates. Use a stable outbound IP if Console Connect requires allowlisting.
 
@@ -20,15 +22,16 @@ On the VM:
 
 ```bash
 sudo apt update
-sudo apt install -y git curl ca-certificates unzip nginx certbot python3-certbot-nginx
+sudo apt install -y git curl ca-certificates unzip nginx certbot python3-certbot-nginx postgresql postgresql-contrib
+sudo systemctl enable --now postgresql
 ```
 
-Install Docker Engine and its Compose plugin using the [official Ubuntu instructions](https://docs.docker.com/engine/install/ubuntu/). Install Node **22.12 or newer in the Node 22 series** using a trusted installation method. Install Bun in a shared executable location accessible to `fieldops-web`; a personal home-directory installation will not work with the included hardened service configuration. If Node is not `/usr/bin/node`, change `ExecStart` in the service example.
+Install Node **22.12 or newer in the Node 22 series** using a trusted installation method. Install Bun in a shared executable location accessible to `fieldops-web`; a personal home-directory installation will not work with the included hardened service configuration. If Node is not `/usr/bin/node`, change `ExecStart` in the service example.
 
 ```bash
 node --version
 bun --version
-docker compose version
+sudo systemctl is-active postgresql
 sudo useradd --system --user-group --home-dir /opt/field-ops-console --shell /usr/sbin/nologin fieldops-web
 ```
 
@@ -45,19 +48,19 @@ sudo chown -R fieldops-web:fieldops-web /opt/field-ops-console
 
 The clone is a source staging folder only. Do not copy hosted environment files. Keep the repository lockfile and migration journal. Run the remaining app commands from `/opt/field-ops-console`.
 
-## 3. Install the independent backend
+## 3. Configure native authentication and data services
 
-Follow the [official production Docker backend guide](https://supabase.com/docs/guides/self-hosting/docker). Install it in a separate folder, select a reviewed release and follow its official key-generation, configuration and backup instructions. The app repository does not bundle that backend.
+PostgreSQL is now installed, but the app still needs compatible Auth and REST services. Follow [the native backend requirements](README.md#1-provision-ubuntu-and-the-independent-backend): install reviewed GoTrue/Auth and PostgREST binaries (or compile reviewed releases) and run them as separate, unprivileged systemd services. Configure an API gateway on `127.0.0.1:8000` for the expected Auth and REST paths. The repository does not provide those binaries, backend bootstrap SQL, service units or a complete native backend installer; their release-specific setup must be supplied and verified by your server administrator.
 
 Before starting it:
 
 1. Replace all default keys and passwords; keep them in root-only files outside the app repository.
-2. Bind its HTTP gateway to `127.0.0.1:8000`. Remove public bindings for database, pooler and administrative ports. Docker port publishing may bypass UFW; review Compose bindings and GCP firewall rules.
+2. Bind its HTTP gateway to `127.0.0.1:8000`. Bind PostgreSQL, Auth and REST listeners to loopback or a restricted private interface. Review GCP firewall rules as well as host firewall rules.
 3. Set its public API origin to your backend HTTPS domain, its website URL to your app HTTPS domain and its Auth external URL to `https://YOUR-BACKEND/auth/v1`.
 4. Allow the app's `/auth` and `/reset-password` callback URLs. Configure SMTP and email confirmations for account verification and password recovery. Do not enable anonymous signups.
 5. Keep website signup restricted to the installer until the intended first administrator has been created and verified. The first signup receives Admin access.
 
-Start and check the backend using its release-specific Docker instructions. Do not use a local development CLI stack as a production backend.
+Enable the native services at boot and verify their health, JWT/key compatibility and routing before continuing. Follow the selected releases' own native configuration instructions; do not use a local development CLI stack as a production backend. App migrations assume the backend roles and managed auth schema already exist and cannot bootstrap them.
 
 ## 4. Create the app's private environment
 
@@ -83,7 +86,7 @@ Fill the file locally, never in GitHub or chat:
 
 Generate secrets privately using a trusted password manager or the backend's tools. Keep assignments shell-compatible; quote special characters. Never use a `VITE_` prefix for a secret. Hosted managed administrative credentials are not available and must not be reused.
 
-If PostgreSQL is accessible only inside Docker, use a private connection reachable from the app process, for example a loopback-only port following your backend's documented configuration. Never open it publicly.
+Use a private PostgreSQL connection reachable from the app process, normally through `127.0.0.1:5432` on this VM. Never open it publicly. Use a database owner account for migrations, not the browser's public API role.
 
 ## 5. Install dependencies, apply schema and build
 

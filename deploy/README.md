@@ -2,7 +2,7 @@
 
 **GCP Ubuntu VM, starting fresh:** follow [GCP-UBUNTU.md](GCP-UBUNTU.md) for networking, GitHub source download, independent backend, HTTPS, first admin and verification.
 
-This deployment path runs the app on Node.js and its own PostgreSQL-backed authentication/data stack on an Ubuntu 24.04 VM. A plain PostgreSQL installation is not sufficient: authentication, the data API and row-level security are required. Use the official compatible backend Docker stack referenced below. This repository does not vendor that stack or its secrets.
+This deployment path runs the app and its PostgreSQL-backed authentication/data services directly on Ubuntu 24.04, using native packages/binaries and systemd. A plain PostgreSQL installation is not sufficient: compatible authentication, the data API and row-level security are required. This repository supplies the website deployment tooling, not a complete native backend installer.
 
 The hosted application is not switched to the VM by these files. Existing users, records and encrypted credentials are not automatically copied.
 
@@ -18,11 +18,21 @@ The hosted application is not switched to the VM by these files. Existing users,
 
 ## 1. Provision Ubuntu and the independent backend
 
-Use Ubuntu 24.04 LTS with Docker Engine/Compose, Node **22.12+** and Bun. The backend alone documents minimum 4 GB RAM, 2 CPUs, 40 GB SSD; allocate additional capacity for app and Chromium (8 GB RAM/4 CPUs is a starting point, not a load-tested guarantee).
+Use Ubuntu 24.04 LTS, native PostgreSQL, Node **22.12+** and Bun. Start with 8 GB RAM, 4 CPUs and 40 GB disk, with additional capacity for database growth, backups and Chromium; this is not a load-tested guarantee.
 
-Follow the [official backend Docker guide](https://supabase.com/docs/guides/self-hosting/docker). Select a reviewed release, keep its version/configuration backed up, generate fresh keys/passwords using its documented tools, and change all defaults. Do not use a development CLI stack as production. Keep its administrative console accessible only over SSH/VPN; expose only its API behind HTTPS.
+Install PostgreSQL through Ubuntu packages and enable its systemd service. Separately install compatible [Auth/GoTrue](https://github.com/supabase/auth) and [PostgREST](https://docs.postgrest.org/en/stable/references/install.html) native binaries, or compile reviewed releases following their upstream instructions. Run each as a dedicated unprivileged systemd service with private environment files. Review, pin and back up the releases and configuration. Do not use a development CLI stack as production.
 
-Bind the backend HTTP gateway to **127.0.0.1:8000**. Do not publicly publish PostgreSQL, connection-pooler ports, Studio, analytics or Docker daemon ports. Docker-published ports can bypass UFW: review Compose port bindings as well as your firewall. Use two DNS names: the website and the backend API. `nginx.conf.example` contains illustrative domains, not your real addresses. Replace them and use Certbot or company-issued trusted TLS certificates before using sign-in.
+The native backend must supply all of the following before app migrations run:
+
+- Compatible backend roles (`anon`, `authenticated`, `service_role` and a REST authenticator), role switching and grants; initialize these using reviewed backend bootstrap SQL, not improvised app migrations.
+- The managed `auth` schema, users, `auth.uid()` and `auth.role()` helpers expected by the checked-in migrations; Auth handles its own release-specific schema migrations.
+- Auth endpoints under `/auth/v1`, including password login, refresh, account administration, password verification/recovery and the custom OIDC provider used for Okta.
+- REST endpoints under `/rest/v1` with the `public` schema exposed, user JWTs applied to row-level security and the server administrative key accepted only for privileged operations.
+- A compatible API gateway that validates public/server API keys and correctly routes Auth and REST requests. Merely proxying unconfigured binaries is not enough; never substitute the administrative key for a browser key.
+
+**Stop here until these services are installed and verified.** This repository does not bundle native backend binaries, bootstrap SQL, backend systemd units or gateway configuration. Selecting and configuring a compatible native backend is a separate administration task; installing PostgreSQL and running the app migration command does not complete it.
+
+Bind that backend HTTP gateway to **127.0.0.1:8000**. Keep PostgreSQL and individual backend listeners on loopback or a restricted private interface; expose only the intended API through HTTPS. Keep administrative screens accessible only over SSH/VPN. Use two DNS names: the website and the backend API. `nginx.conf.example` contains illustrative domains, not your real addresses. Replace them and use Certbot or company-issued trusted TLS certificates before using sign-in.
 
 Configure the backend's public API URL, authentication external URL, website URL and allowed redirects consistently. Public app callbacks: `https://YOUR-APP/auth` and `https://YOUR-APP/reset-password`. Configure SMTP with confirmations enabled; never enable anonymous signup. **Before opening signup publicly**, create and verify the intended first administrator on a restricted installation: the existing signup trigger grants the first account Admin. All subsequent accounts wait for an Admin-granted role. No accounts or passwords are shipped.
 
@@ -64,7 +74,7 @@ Sign in to your new website as Admin and save Console Connect settings. Site ID 
 
 ## 5. Okta
 
-Use a compatible backend release **0.8.1 or later (Auth v2.196.0+)** supporting custom OIDC providers. Register **`custom:app-oidc`** using the backend's trusted Auth admin API (not merely the app's saved Okta form). Supply your exact Okta issuer, client ID/secret and scopes `openid`, `profile`, `email`. The backend Auth external URL must end in `/auth/v1`; register `https://YOUR-BACKEND/auth/v1/callback` in Okta. Do this using the official self-hosted custom-provider instructions; secrets must remain server-side. App-side Okta settings do not automatically create the provider.
+Use a compatible native Auth release **v2.196.0 or later** supporting custom OIDC providers, and verify that support in your selected release. Register **`custom:app-oidc`** using the backend's trusted Auth admin API (not merely the app's saved Okta form). Supply your exact Okta issuer, client ID/secret and scopes `openid`, `profile`, `email`. The backend Auth external URL must end in `/auth/v1`; register `https://YOUR-BACKEND/auth/v1/callback` in Okta. Do this using the official self-hosted custom-provider instructions; secrets must remain server-side. App-side Okta settings do not automatically create the provider.
 
 ## 6. Required acceptance checks
 
@@ -88,7 +98,9 @@ Deployment validation/unit tests, migration-runner behavior and helper installer
 
 ### Sources
 
-- https://supabase.com/docs/guides/self-hosting/docker
+- https://www.postgresql.org/download/linux/ubuntu/
+- https://github.com/supabase/auth
+- https://docs.postgrest.org/en/stable/references/install.html
 - https://supabase.com/docs/guides/auth
 - https://nodejs.org/en/download
 - https://bun.com/docs/installation
