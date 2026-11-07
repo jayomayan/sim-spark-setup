@@ -164,7 +164,7 @@ class InstallerChecks(unittest.TestCase):
     def test_new_cluster_does_not_restart_existing_cluster(self):
         with patch.object(installer.Path, 'iterdir', return_value=iter([Path('/usr/lib/postgresql/16')])), patch.object(installer, 'run', return_value='') as command, patch.dict(installer.PORTS, {'database': 5544}):
             self.assertEqual(installer.create_database_cluster(), '16')
-        self.assertEqual(command.call_args_list[0].args[0], ['pg_createcluster', '16', 'fieldops', '--port', '5544', '-o', 'listen_addresses=127.0.0.1', '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
+        self.assertEqual(command.call_args_list[0].args[0], ['pg_createcluster', '16', 'fieldops', '--port', '5544', '-o', "listen_addresses='127.0.0.1'", '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
         self.assertEqual(command.call_args_list[-1].args[0], ['pg_ctlcluster', '16', 'fieldops', 'restart'])
 
     def test_https_site_uses_chosen_ports_and_keeps_acme_renewal(self):

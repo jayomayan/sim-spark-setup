@@ -66,6 +66,8 @@ Upstream GitHub binary downloads require a published SHA-256 digest; the install
 
 No automatic rollback deletes database records or keys. Preserve partial state and inspect the services privately:
 
+If an older installer failed creating `fieldops` with a configuration syntax error near `.0`, its `listen_addresses` value was unquoted. The current installer quotes the address correctly. Back up and repair only `/etc/postgresql/<version>/fieldops/postgresql.conf`, replacing the exact malformed line `listen_addresses = 127.0.0.1` with `listen_addresses = '127.0.0.1'`. Never edit the unrelated `main` cluster. Starting the repaired cluster does not resume application installation; preserve partial state for recovery rather than rerunning the fresh installer.
+
 For failure during step 2, first run the updated installer's **read-only** report from your reviewed source checkout:
 
 ```bash
