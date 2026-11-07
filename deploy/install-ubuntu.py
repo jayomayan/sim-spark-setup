@@ -12,6 +12,8 @@ import hmac
 import io
 import json
 import os
+import pwd
+import grp
 from pathlib import Path
 import re
 import secrets
@@ -38,6 +40,8 @@ GO_VERSION = '1.26.5'
 GO_CHECKSUM = '5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053'
 PORTS = {'web': 3000, 'gateway': 8000, 'auth': 9999, 'rest': 3001, 'database': 5433}
 RUNTIME_PATH = str(BACKEND / 'node/bin') + ':' + str(BACKEND / 'bin') + ':/usr/bin:/bin'
+SERVICE_USERS = ('fieldops-web', 'fieldops-auth', 'fieldops-rest')
+APPROVED_ACCOUNTS = {}
 
 
 
@@ -171,6 +175,54 @@ def install_binary(path, content):
     os.chmod(path, 0o755)
 
 
+def service_account(user):
+    """Accept only dormant, locked, dedicated identities; never modify them."""
+    try:
+        account = pwd.getpwnam(user)
+    except KeyError:
+        return None
+    group = grp.getgrgid(account.pw_gid)
+    allowed_homes = ('/nonexistent', str(APP)) if user == 'fieldops-web' else ('/nonexistent',)
+    shadow = run(['getent', 'shadow', user], quiet=True).strip().split(':')
+    locked = len(shadow) >= 2 and shadow[1].startswith(('!', '*'))
+    if (account.pw_uid == 0 or account.pw_gid == 0 or account.pw_shell not in ('/usr/sbin/nologin', '/sbin/nologin', '/bin/false')
+            or account.pw_dir not in allowed_homes or group.gr_name != user or not locked
+            or any(member != user for member in group.gr_mem)
+            or any(other.pw_gid == account.pw_gid and other.pw_name != user for other in pwd.getpwall())
+            or any(user in other.gr_mem and other.gr_gid != account.pw_gid for other in grp.getgrall())):
+        raise RuntimeError(f'Existing account {user} is not a locked, dedicated Field Ops service account. It was not changed; review it before installing.')
+    processes = run(['ps', '-eo', 'uid='], quiet=True)
+    if any(uid.strip() == str(account.pw_uid) for uid in processes.splitlines()):
+        raise RuntimeError(f'Existing account {user} has running processes. It was not changed; review which service uses it.')
+    return (account.pw_uid, account.pw_gid, account.pw_dir, account.pw_shell)
+
+
+def check_service_accounts():
+    APPROVED_ACCOUNTS.clear()
+    existing = {}
+    for user in SERVICE_USERS:
+        identity = service_account(user)
+        if identity is not None:
+            existing[user] = identity
+    if existing:
+        print('Dormant, locked Field Ops service accounts found: ' + ', '.join(existing))
+        if not confirm('Reuse these accounts without changing their password, home, groups or permissions?'):
+            raise RuntimeError('Account reuse declined. No system changes made; no accounts were deleted.')
+        APPROVED_ACCOUNTS.update(existing)
+
+
+def create_service_accounts():
+    for user in SERVICE_USERS:
+        identity = service_account(user)
+        if identity is not None:
+            if APPROVED_ACCOUNTS.get(user) != identity:
+                raise RuntimeError(f'Account {user} changed or appeared after preflight; installation stopped without modifying it.')
+            continue
+        if user in APPROVED_ACCOUNTS:
+            raise RuntimeError(f'Approved account {user} disappeared after preflight; installation stopped.')
+        run(['useradd', '--system', '--user-group', '--home-dir', '/nonexistent', '--shell', '/usr/sbin/nologin', user])
+
+
 def preflight():
     if os.geteuid() != 0:
         raise RuntimeError('Run this installer with sudo on your target VM.')
@@ -194,17 +246,11 @@ def preflight():
             raise RuntimeError('A fieldops PostgreSQL cluster already exists; installation refused.')
     if any(p.exists() or p.is_symlink() for p in (Path('/etc/letsencrypt/live/field-ops-native'), Path('/etc/letsencrypt/archive/field-ops-native'), Path('/etc/letsencrypt/renewal/field-ops-native.conf'))):
         raise RuntimeError('The Field Ops certificate destination already exists.')
-    for user in ('fieldops-web', 'fieldops-auth', 'fieldops-rest'):
-        import pwd
-        try:
-            pwd.getpwnam(user)
-        except KeyError:
-            continue
-        raise RuntimeError('An installer service account already exists; installation refused.')
     source = Path(__file__).resolve().parent.parent
     for path in ('package.json', 'bun.lock', 'deploy/build.mjs', 'deploy/migrate.mjs', 'drizzle/migrations/meta/_journal.json'):
         if not (source / path).is_file():
             raise RuntimeError('Run the installer from a complete reviewed repository checkout.')
+    check_service_accounts()
     return source
 
 
@@ -361,8 +407,7 @@ def install(source, values):
             cluster_config.unlink(missing_ok=True)
         else:
             cluster_config.write_bytes(cluster_original)
-    for user in ('fieldops-web', 'fieldops-auth', 'fieldops-rest'):
-        run(['useradd', '--system', '--user-group', '--home-dir', '/nonexistent', '--shell', '/usr/sbin/nologin', user])
+    create_service_accounts()
     BACKEND.mkdir(mode=0o755)
     APP.mkdir(mode=0o755)
     # Exclude repository metadata and hosted credentials at every depth.

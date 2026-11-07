@@ -9,9 +9,11 @@ The installer runs the website, PostgreSQL, Auth, PostgREST and Nginx directly o
 - Allow inbound 80/443 in GCP; restrict SSH to your IP or IAP. Do not open database or internal service ports.
 - Have working SMTP hostname, submission port, username, password and sender address. Email confirmation and password recovery require SMTP. SMTP setup does not enable invitation notification emails in the app.
 - Clone a reviewed revision of your repository using your existing GitHub access. Do not embed access tokens in repository URLs or copy hosted `.env` files.
-- Back up existing websites, databases and Nginx settings first. Existing PostgreSQL clusters and global Node/Bun installations are left in place. Existing Field Ops destinations or service accounts are still refused; this is not an upgrade or restore tool.
+- Back up existing websites, databases and Nginx settings first. Existing PostgreSQL clusters and global Node/Bun installations are left in place. Existing Field Ops destinations are still refused; this is not an upgrade or restore tool. Dormant, locked, dedicated Field Ops service accounts can be reused with your explicit confirmation; their settings are not changed.
 
 ### Sharing a server
+
+If installation reports that a service account already exists, use the updated installer from your reviewed checkout and rerun `sudo python3 deploy/install-ubuntu.py`. It checks for a locked password, no-login shell, expected home, dedicated group and no running processes before offering reuse. Interactive accounts, shared groups or active accounts are refused with the account name. Do not delete users or change their permissions to bypass the checks. Existing app files, keys or database state remain protected; partial installation recovery is not automated.
 
 - Supply two **unused hostnames**. The installer checks existing Nginx names/patterns and refuses conflicts.
 - It asks for five private service ports and suggests unused values. Defaults are website `3000`, gateway `8000`, Auth `9999`, REST `3001`, and database `5433`; occupied defaults are skipped and duplicate choices rejected.
