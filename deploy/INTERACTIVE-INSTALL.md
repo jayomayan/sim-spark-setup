@@ -66,6 +66,14 @@ Upstream GitHub binary downloads require a published SHA-256 digest; the install
 
 No automatic rollback deletes database records or keys. Preserve partial state and inspect the services privately:
 
+For failure during step 2, first run the updated installer's **read-only** report from your reviewed source checkout:
+
+```bash
+sudo python3 deploy/install-ubuntu.py --diagnose
+```
+
+It displays Python compatibility and whether known installation paths exist, without opening secret settings, prompting for credentials or changing anything. Share only this report and the last progress lines. The installer now identifies unexpected failures by setup phase, exception type and source line, without exposing the error's potentially sensitive contents. Python safe-extraction support is checked before any installation writes; an older Python is one possible cause of failure during tool extraction, not a confirmed diagnosis of earlier runs.
+
 ```bash
 sudo systemctl status field-ops-auth field-ops-rest field-ops-console --no-pager
 sudo journalctl -u field-ops-auth -u field-ops-rest -u field-ops-console -n 80 --no-pager
