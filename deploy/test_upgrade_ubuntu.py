@@ -13,6 +13,15 @@ spec.loader.exec_module(upgrade)
 
 
 class UpgradeChecks(unittest.TestCase):
+    def test_saved_shared_server_ports_and_private_runtimes(self):
+        with patch.object(upgrade, 'DB_PORT', 5432), patch.object(upgrade, 'BUN', '/usr/local/bin/bun'), patch.object(upgrade, 'NODE_BIN', '/usr/local/bin'):
+            upgrade.configure_installation({'ports': {'database': 5544}, 'runtime_bin': '/opt/field-ops-backend/bin', 'node_bin': '/opt/field-ops-backend/node/bin'})
+            self.assertEqual(upgrade.DB_PORT, 5544)
+            self.assertEqual(upgrade.BUN, '/opt/field-ops-backend/bin/bun')
+            upgrade.configure_installation({})
+            self.assertEqual(upgrade.DB_PORT, 5432)
+            self.assertEqual(upgrade.BUN, '/usr/local/bin/bun')
+
     def test_migration_history_rejects_changes_and_missing_applied_entries(self):
         self.assertEqual(upgrade.validate_history({'0000_migration': 'old'}, {'0000_migration': 'old', '0001_next': 'new'}), ['0001_next'])
         for proposed in ({}, {'0000_migration': 'changed'}):
