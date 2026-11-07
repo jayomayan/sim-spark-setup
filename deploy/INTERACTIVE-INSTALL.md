@@ -4,7 +4,7 @@ The installer runs the website, PostgreSQL, Auth, PostgREST and Nginx directly o
 
 ## Before starting
 
-- Use a **fresh, dedicated Ubuntu 24.04 LTS x86_64 VM** with systemd, approximately 4 vCPUs, 8 GB RAM and 40 GB disk (at least 12 GB free). This is not a tested capacity guarantee.
+- Use a **fresh, dedicated Ubuntu x86_64 VM** (any supported Ubuntu release) with systemd, approximately 4 vCPUs, 8 GB RAM and 40 GB disk (at least 12 GB free). This is not a tested capacity guarantee.
 - Point **two distinct DNS hostnames** at its static public IP: website and backend API.
 - Allow inbound 80/443 in GCP; restrict SSH to your IP or IAP. Do not open database or internal service ports.
 - Have working SMTP hostname, submission port, username, password and sender address. Email confirmation and password recovery require SMTP. SMTP setup does not enable invitation notification emails in the app.
