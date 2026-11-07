@@ -8,7 +8,7 @@ All services run directly on Ubuntu using native packages/binaries and systemd. 
 
 ## 1. Prepare GCP networking
 
-- Use Ubuntu 24.04 LTS. Start with 4 vCPUs, 8 GB RAM and at least 40 GB disk; allocate more for database growth, backups and screenshot workloads. This is a starting size, not a tested capacity guarantee.
+- Use any supported Ubuntu release. Start with 4 vCPUs, 8 GB RAM and at least 40 GB disk; allocate more for database growth, backups and screenshot workloads. This is a starting size, not a tested capacity guarantee.
 - Reserve a static external IP. Point two DNS names to it: one for the website and one for the backend API.
 - Allow inbound TCP 80/443. Restrict SSH to your IP, or use GCP IAP with its documented firewall rules. Keep PostgreSQL, connection poolers and backend admin screens private.
 - For private router access, establish company-network VPN/routes. A GCP VM cannot reach company private addresses just because both use private IPs. Check overlapping address ranges and return routes.
