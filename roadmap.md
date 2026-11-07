@@ -1,5 +1,5 @@
 # Tasks
-- [ ] Add strong temporary-password generation and copy-both login controls to invitations; preserve copying after successful creation without persisting credentials.
+- [x] Add strong temporary-password generation and copy-both login controls to invitations; credentials remain transient after creation. Verified strength rules, signed-in clipboard contents and desktop/mobile layout; 15 tests pass.
 - [x] Record admin invitation attempts and outcomes in admin-only history, excluding passwords; verified successful/failed creation, reload persistence and non-admin read denial, then removed verification fixtures.
 - [x] Add admin-created username accounts with profile name/phone/optional contact email, strong temporary passwords and required first-login password change; verified invitation → sign-in → forced change → dashboard with a temporary account, then cleaned up.
 - [ ] Send invitation emails without exposing passwords; blocked on the user's verified sending domain (none configured). Email contact details are saved, but invitations are explicitly reported as not sent.
