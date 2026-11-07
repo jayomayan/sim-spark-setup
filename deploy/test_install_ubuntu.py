@@ -17,6 +17,20 @@ spec.loader.exec_module(installer)
 
 
 class InstallerChecks(unittest.TestCase):
+    def test_diagnose_does_not_prompt_or_install_or_read_secret_files(self):
+        with patch('sys.argv', ['install-ubuntu.py', '--diagnose']), patch.object(installer, 'settings') as settings, patch.object(installer, 'preflight') as preflight, patch.object(installer, 'install') as install, patch.object(installer.Path, 'read_text') as read, patch.object(installer.Path, 'read_bytes') as binary:
+            installer.main()
+        for action in (settings, preflight, install, read, binary):
+            action.assert_not_called()
+
+    def test_unexpected_failure_identifies_class_without_leaking_message(self):
+        try:
+            raise TypeError('password=do-not-print-this')
+        except TypeError as error:
+            summary = installer.failure_summary(error)
+        self.assertIn('TypeError', summary)
+        self.assertNotIn('do-not-print-this', summary)
+
     def account_context(self, *, shell='/usr/sbin/nologin', processes='', locked='!', groups=None):
         account = SimpleNamespace(pw_name='fieldops-web', pw_uid=991, pw_gid=991, pw_dir='/nonexistent', pw_shell=shell)
         group = SimpleNamespace(gr_name='fieldops-web', gr_gid=991, gr_mem=[])

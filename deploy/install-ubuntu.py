@@ -42,6 +42,30 @@ PORTS = {'web': 3000, 'gateway': 8000, 'auth': 9999, 'rest': 3001, 'database': 5
 RUNTIME_PATH = str(BACKEND / 'node/bin') + ':' + str(BACKEND / 'bin') + ':/usr/bin:/bin'
 SERVICE_USERS = ('fieldops-web', 'fieldops-auth', 'fieldops-rest')
 APPROVED_ACCOUNTS = {}
+INSTALL_PHASE = 'initial checks'
+
+
+def diagnose():
+    """Read-only, credential-free report for a stopped installation."""
+    print('Read-only installer diagnostics (no settings or secret contents shown)')
+    print('Python version: ' + sys.version.split()[0])
+    print('Safe archive extraction supported: ' + str(hasattr(tarfile, 'data_filter')))
+    for path in (CONFIG, STATE, APP, BACKEND, BACKEND / 'node', BACKEND / 'bin/bun', BACKEND / 'postgrest', BACKEND / 'gotrue'):
+        kind = 'symlink' if path.is_symlink() else 'directory' if path.is_dir() else 'file' if path.is_file() else 'absent'
+        print(str(path) + ': ' + kind)
+    print('No files changed. Preserve partial state; do not rerun installation yet.')
+
+
+def failure_summary(error):
+    # Never stringify arbitrary exceptions: messages may contain secrets, URLs
+    # or copied-file contents. Class and our own source line identify the fault.
+    line = None
+    trace = error.__traceback__
+    while trace:
+        if trace.tb_frame.f_code.co_filename == __file__:
+            line = trace.tb_lineno
+        trace = trace.tb_next
+    return f'Installation stopped during {INSTALL_PHASE}: {type(error).__name__}, installer line {line or "unknown"}. No secret values printed. Preserve partial state; do not rerun over it.'
 
 
 
@@ -233,6 +257,8 @@ def preflight():
         raise RuntimeError('This initial installer supports x86_64 VMs only.')
     if not Path('/run/systemd/system').exists():
         raise RuntimeError('A running systemd installation is required.')
+    if not hasattr(tarfile, 'data_filter'):
+        raise RuntimeError('This Python lacks safe archive extraction support. Install an updated Python 3 with tarfile.data_filter before running the installer; no system changes made.')
     for path in (APP, BACKEND, CONFIG, Path('/etc/field-ops-console.env'), Path('/etc/nginx/sites-available/field-ops-native'), Path('/etc/nginx/sites-enabled/field-ops-native'), Path('/etc/nginx/conf.d/field-ops-keys.conf'), Path('/etc/letsencrypt/renewal-hooks/deploy/field-ops-reload'), *(Path('/etc/systemd/system') / f'{name}.service' for name in ('field-ops-console', 'field-ops-auth', 'field-ops-rest'))):
         if path.exists() or path.is_symlink():
             raise RuntimeError(f'Existing destination detected: {path}. This is a fresh-install script, not an upgrade tool.')
@@ -356,7 +382,11 @@ def wait_url(url):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true', help='Prompt and validate only; do not install or write settings')
+    parser.add_argument('--diagnose', action='store_true', help='Show read-only Python and installation-path diagnostics; no secrets or changes')
     args = parser.parse_args()
+    if args.diagnose:
+        diagnose()
+        return
     source = None if args.dry_run else preflight()
     values = settings()
     selected = choose_ports('' if args.dry_run else None)
@@ -376,6 +406,8 @@ def main():
 
 
 def install(source, values):
+    global INSTALL_PHASE
+    INSTALL_PHASE = 'tool download verification'
     print('1/8 Downloading and verifying native tools…')
     node_name = f'node-v{NODE_VERSION}-linux-x64.tar.xz'
     sums = download(f'https://nodejs.org/dist/v{NODE_VERSION}/SHASUMS256.txt').decode()
@@ -388,6 +420,7 @@ def install(source, values):
     bun_data = release_asset('oven-sh/bun', BUN_VERSION, 'bun-linux-x64.zip')
     CONFIG.mkdir(mode=0o700)
     write(STATE, json.dumps({'status': 'installing', 'website': values['website'], 'api': values['api'], 'ports': dict(PORTS), 'runtime_bin': str(BACKEND / 'bin'), 'node_bin': str(BACKEND / 'node/bin'), 'versions': {'node': NODE_VERSION, 'auth': AUTH_VERSION, 'rest': REST_VERSION, 'bun': BUN_VERSION}}))
+    INSTALL_PHASE = 'Ubuntu packages'
     print('2/8 Installing Ubuntu packages and service accounts…')
     run(['apt-get', 'update'])
     package_env = {**os.environ, 'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'l'}
@@ -407,12 +440,19 @@ def install(source, values):
             cluster_config.unlink(missing_ok=True)
         else:
             cluster_config.write_bytes(cluster_original)
+    INSTALL_PHASE = 'service account setup'
+    print('  Checking and creating service accounts…')
     create_service_accounts()
+    INSTALL_PHASE = 'application directories'
     BACKEND.mkdir(mode=0o755)
     APP.mkdir(mode=0o755)
+    INSTALL_PHASE = 'source copy'
+    print('  Copying reviewed application source…')
     # Exclude repository metadata and hosted credentials at every depth.
     shutil.copytree(source, APP, dirs_exist_ok=True, ignore=shutil.ignore_patterns('.git', '.env', '.env.*', 'node_modules', '.output', 'dist', '.tanstack', '.lovable', '.workspace', '__pycache__'))
     run(['chown', '-R', 'fieldops-web:fieldops-web', str(APP)])
+    INSTALL_PHASE = 'native archive extraction'
+    print('  Extracting verified native tools…')
     with tempfile.TemporaryDirectory(prefix='field-ops-install-') as temp:
         staging = Path(temp)
         os.chmod(staging, 0o755)
@@ -430,6 +470,7 @@ def install(source, values):
             install_binary(BACKEND / 'postgrest', handle.read())
         with zipfile.ZipFile(io.BytesIO(bun_data)) as archive:
             install_binary(BACKEND / 'bin/bun', archive.read('bun-linux-x64/bun'))
+        INSTALL_PHASE = 'sign-in service compilation'
         print('3/8 Compiling the pinned sign-in service (this can take several minutes)…')
         auth_source = staging / 'auth'
         run(['git', 'clone', '--depth', '1', '--branch', AUTH_VERSION, 'https://github.com/supabase/auth.git', str(auth_source)])
@@ -445,6 +486,7 @@ def install(source, values):
         run([go, 'mod', 'verify'], cwd=auth_source, user='fieldops-auth', env=build_env)
         run([go, 'build', '-buildvcs=false', '-ldflags', f'-X github.com/supabase/auth/internal/utilities.Version={AUTH_VERSION}', '-o', str(auth_source / 'gotrue'), '.'], cwd=auth_source, user='fieldops-auth', env=build_env)
         install_binary(BACKEND / 'gotrue', (auth_source / 'gotrue').read_bytes())
+    INSTALL_PHASE = 'database initialization'
     print('4/8 Initializing the private database and keys…')
     postgres_version = create_database_cluster()
     state = json.loads(STATE.read_text())
@@ -483,6 +525,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
     run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data=f"CREATE ROLE fieldops_migration LOGIN SUPERUSER PASSWORD '{migration_password}';")
     app_env = {'FIELD_OPS_STANDALONE': '1', 'NODE_ENV': 'production', 'HOST': '127.0.0.1', 'PORT': str(PORTS['web']), 'VITE_SUPABASE_URL': f'https://{values["api"]}', 'VITE_SUPABASE_PUBLISHABLE_KEY': anon, 'SUPABASE_URL': f"http://127.0.0.1:{PORTS['gateway']}", 'SUPABASE_PUBLISHABLE_KEY': anon, 'SUPABASE_SERVICE_ROLE_KEY': service, 'DB_SECRET_KEY': secrets.token_hex(32)}
     environment('/etc/field-ops-console.env', app_env)
+    INSTALL_PHASE = 'application dependencies and migrations'
     print('5/8 Installing app dependencies and applying checked-in migrations…')
     run([str(BACKEND / 'bin/bun'), 'install', '--frozen-lockfile'], cwd=APP, user='fieldops-web', env={**os.environ, 'HOME': str(APP), 'PATH': RUNTIME_PATH})
     migration_env = {**os.environ, **app_env, 'PATH': RUNTIME_PATH, 'STANDALONE_DATABASE_URL': f"postgresql://fieldops_migration:{migration_password}@127.0.0.1:{PORTS['database']}/fieldops?sslmode=disable"}
@@ -494,6 +537,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
         # Revoke login even on failure; do not leave a reusable superuser password.
         run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data='ALTER ROLE fieldops_migration NOLOGIN PASSWORD NULL;')
     run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data='DROP ROLE fieldops_migration;')
+    INSTALL_PHASE = 'website build and service startup'
     print('6/8 Building the website and starting private services…')
     run([str(BACKEND / 'bin/bun'), 'run', 'build:standalone'], cwd=APP, user='fieldops-web', env={**os.environ, **app_env, 'HOME': str(APP), 'PATH': RUNTIME_PATH})
     unit('field-ops-auth', str(BACKEND / 'gotrue') + ' serve', CONFIG / 'auth.env', 'fieldops-auth', BACKEND)
@@ -503,6 +547,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
     run(['systemctl', 'enable', '--now', 'field-ops-auth', 'field-ops-rest', 'field-ops-console'])
     wait_url(f"http://127.0.0.1:{PORTS['auth']}/health")
     wait_url(f"http://127.0.0.1:{PORTS['web']}/")
+    INSTALL_PHASE = 'website gateway and HTTPS'
     print('7/8 Configuring the API gateway and trusted HTTPS…')
     configure_nginx(values, anon, service)
     run(['nginx', '-t'])
@@ -515,6 +560,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
     run(['systemctl', 'reload', 'nginx'])
     write('/etc/letsencrypt/renewal-hooks/deploy/field-ops-reload', '#!/bin/sh\n/usr/sbin/nginx -t && /bin/systemctl reload nginx\n', 0o755)
     run(['systemctl', 'enable', '--now', 'certbot.timer'])
+    INSTALL_PHASE = 'administrator creation and verification'
     print('8/8 Creating the first admin and checking installed services…')
     payload = {'email': values['admin'], 'password': values['password'], 'email_confirm': values['verified'], 'role': 'authenticated'}
     request = urllib.request.Request(f"http://127.0.0.1:{PORTS['auth']}/admin/users", data=json.dumps(payload).encode(), headers={'Authorization': 'Bearer ' + service, 'Content-Type': 'application/json'}, method='POST')
@@ -692,6 +738,6 @@ if __name__ == '__main__':
     except (EOFError, KeyboardInterrupt):
         print('\nCancelled. If installation had begun, do not delete database or secret files to retry.', file=sys.stderr)
         sys.exit(1)
-    except Exception:
-        print('Installation stopped. No secret values were printed. Inspect services privately and preserve partial state; do not rerun over it.', file=sys.stderr)
+    except Exception as error:
+        print(failure_summary(error), file=sys.stderr)
         sys.exit(1)
