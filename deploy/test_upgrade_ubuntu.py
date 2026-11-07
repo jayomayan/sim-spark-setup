@@ -33,18 +33,22 @@ class UpgradeChecks(unittest.TestCase):
         ignored = upgrade.ignore_source('/tmp', ['.git', '.env', '.env.local', 'node_modules', '.output', '.workspace', 'src', 'bun.lock'])
         self.assertEqual(ignored, ['.git', '.env', '.env.local', 'node_modules', '.output', '.workspace'])
 
-    def test_failed_migration_disables_temporary_superuser(self):
+    def test_migration_uses_peer_sql_without_superuser_password(self):
         calls = []
         def command(args, **kwargs):
             calls.append((args, kwargs))
-            if 'db:migrate:standalone' in args:
-                raise RuntimeError('migration failed')
-            return ''
-        with patch.object(upgrade, 'run', side_effect=command):
-            with self.assertRaises(RuntimeError):
-                upgrade.migrate(Path('/tmp/staged'), {})
-        self.assertIn('NOLOGIN PASSWORD NULL;', calls[-1][1]['data'])
+            return '{}'
+        with patch.object(upgrade, 'run', side_effect=command), patch.object(upgrade, 'source_manifest', return_value={}):
+            upgrade.migrate(Path('/tmp/staged'), {})
+        self.assertIn('BEGIN;', calls[-1][1]['data'])
+        self.assertIn('COMMIT;', calls[-1][1]['data'])
+        self.assertEqual(calls[-1][1]['user'], 'postgres')
         self.assertTrue(all('postgresql://' not in ' '.join(args) for args, _ in calls))
+
+    def test_shutdown_attempts_every_service_even_if_one_fails(self):
+        with patch.object(upgrade, 'run', side_effect=[RuntimeError('stop failed'), '', '']) as command:
+            self.assertEqual(upgrade.stop_services(), ['field-ops-console'])
+            self.assertEqual(command.call_count, 3)
 
     def test_dry_run_does_not_read_settings_or_upgrade(self):
         with patch('sys.argv', ['upgrade-ubuntu.py', '--dry-run']), patch('builtins.input', return_value=''), patch.object(upgrade, 'source_manifest', return_value={'0000_migration': 'hash'}), patch.object(upgrade, 'preflight') as preflight, patch.object(upgrade, 'upgrade') as install:

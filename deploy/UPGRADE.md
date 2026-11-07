@@ -21,9 +21,9 @@ Before confirming, arrange a maintenance window, finish active router/helper job
 
 1. Require Ubuntu 24.04, a completed native installation, healthy current services, private root-owned settings and sufficient staging disk space. Only one upgrade runs at a time.
 2. Reject missing or modified applied migrations using the database's private checksum journal.
-3. Copy clean new source to a staging folder under `/opt`, install locked dependencies and build there as the website service account while the current app stays online.
+3. Copy clean new source to a private staging folder under `/opt`, install locked dependencies and build using a separate deployment account while the current app stays online. Build commands receive public configuration only, not server secrets.
 4. Stop website/Auth/REST writes; save a PostgreSQL custom-format backup, database roles and private application/settings/service configuration under `/var/backups/field-ops/<timestamp>`. Verify the database archive is readable. This is **not** a full restore rehearsal.
-5. Apply pending journal migrations transactionally with a temporary local migration administrator. Disable its login and clear its password after use; remove it on success. No superuser password is added to the website environment.
+5. Freeze the staging folder to root ownership, revalidate migration inputs and apply reviewed SQL transactionally through the local PostgreSQL administrator's peer connection. Preserve the existing checksum journal; no superuser password is created or passed to application package scripts.
 6. Keep the previous app at `/opt/field-ops-previous-<timestamp>`, switch to the staged build, restart services, and check local/public website availability and the existing standalone readiness checks.
 
 Existing users, records, API credentials, signing/encryption keys, SMTP settings, service units and HTTPS configuration are preserved. The script never recreates accounts or replaces `/etc/field-ops-console.env`. It does not rotate keys, change domains or apply Auth's own schema migrations.
@@ -56,4 +56,4 @@ sudo systemctl start field-ops-auth field-ops-rest field-ops-console
 
 Sign in as an administrator, confirm existing records read back, test a non-admin's restrictions and perform approved Console Connect/helper checks. Complete [the standalone acceptance checklist](README.md#6-required-acceptance-checks). The automated readiness checks do not prove SMTP delivery, Okta, browser sign-in or live SIM/router operations.
 
-**Verification limit:** source validation, environment parsing, checksum guards, credential suppression and temporary-role cleanup are unit-tested. Full staging/build/backup/migration/recovery execution on a real Ubuntu VM remains unverified.
+**Verification limit:** source validation, environment parsing, checksum guards, credential suppression, peer-authenticated migration commands and shutdown handling are unit-tested. Full staging/build/backup/migration/recovery execution on a real Ubuntu VM remains unverified.

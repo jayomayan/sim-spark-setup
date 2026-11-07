@@ -10,6 +10,7 @@ import fcntl
 import hashlib
 import json
 import os
+import pwd
 from pathlib import Path
 import re
 import secrets
@@ -151,15 +152,35 @@ def write_status(destination, status, **extra):
 
 
 def migrate(staged, env):
-    role = 'fieldops_upgrade_' + secrets.token_hex(8)
-    password = secrets.token_hex(32)
-    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data=f"CREATE ROLE {role} LOGIN SUPERUSER PASSWORD '{password}';")
-    try:
-        run(['/usr/local/bin/bun', 'run', 'db:migrate:standalone'], cwd=staged, user='fieldops-web', env={**os.environ, **env, 'STANDALONE_DATABASE_URL': f'postgresql://{role}:{password}@127.0.0.1:5432/fieldops?sslmode=disable'})
-        run(['psql', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'fieldops'], user='postgres', cwd='/tmp', data=f'REASSIGN OWNED BY {role} TO fieldops_owner; DROP OWNED BY {role};')
-    finally:
-        run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data=f'ALTER ROLE {role} NOLOGIN PASSWORD NULL;')
-    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data=f'DROP ROLE {role};')
+    # Run only reviewed SQL through peer-authenticated PostgreSQL, never package
+    # scripts with a superuser connection password. Keep the existing journal.
+    proposed = source_manifest(staged)
+    applied = json.loads(run(['psql', '-d', 'fieldops', '-tAc', "SELECT coalesce(json_object_agg(tag,checksum),'{}'::json) FROM field_ops_deploy.migrations;"], user='postgres', cwd='/tmp'))
+    pending = validate_history(applied, proposed)
+    sql = ['BEGIN;', 'SELECT pg_advisory_xact_lock(803411790);']
+    # Check all saved history again inside the transaction before any new SQL.
+    for tag, checksum in applied.items():
+        if not re.fullmatch(r'\d{4}_[a-z_]+', tag) or not re.fullmatch(r'[a-f0-9]{64}', checksum):
+            raise RuntimeError('Invalid saved migration journal.')
+        sql.append(f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM field_ops_deploy.migrations WHERE tag='{tag}' AND checksum='{checksum}') THEN RAISE EXCEPTION 'Migration history changed'; END IF; END $$;")
+    for tag in pending:
+        content = (staged / f'drizzle/migrations/{tag}.sql').read_text()
+        # psql meta-commands execute outside SQL and can bypass transactions.
+        if re.search(r'^\s*\\', content, re.M) or re.search(r'\b(?:BEGIN|COMMIT|ROLLBACK)\s*;', content, re.I):
+            raise RuntimeError('Migration contains transaction control or client commands; manual review required.')
+        sql.extend([content, f"INSERT INTO field_ops_deploy.migrations(tag,checksum) VALUES ('{tag}','{proposed[tag]}');"])
+    sql.extend(['GRANT USAGE, SELECT ON SEQUENCE public.devices_id_seq TO authenticated; GRANT ALL ON SEQUENCE public.devices_id_seq TO service_role;', "NOTIFY pgrst, 'reload schema';", 'COMMIT;'])
+    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'fieldops'], user='postgres', cwd='/tmp', data='\n'.join(sql))
+
+
+def stop_services():
+    failed = []
+    for name in SERVICES:
+        try:
+            run(['systemctl', 'stop', name])
+        except Exception:
+            failed.append(name)
+    return failed
 
 
 def wait_site(url):
@@ -189,18 +210,29 @@ def upgrade(source, env, state, pending):
     write_status(destination, 'preparing', previous_app=str(previous), pending_migrations=pending)
     try:
         print('1/5 Preparing the new app while the current website stays online…')
+        try:
+            pwd.getpwnam('fieldops-deploy')
+        except KeyError:
+            run(['useradd', '--system', '--user-group', '--home-dir', '/nonexistent', '--shell', '/usr/sbin/nologin', 'fieldops-deploy'])
+        expected = source_manifest(source)
         shutil.copytree(source, staged, ignore=ignore_source)
-        run(['chown', '-R', 'fieldops-web:fieldops-web', str(staged)])
-        build_env = {**os.environ, **env, 'HOME': str(staged)}
-        run(['/usr/local/bin/bun', 'install', '--frozen-lockfile'], cwd=staged, user='fieldops-web', env=build_env)
-        run(['/usr/local/bin/bun', 'run', 'build:standalone'], cwd=staged, user='fieldops-web', env=build_env)
+        run(['chown', '-R', 'fieldops-deploy:fieldops-deploy', str(staged)])
+        run(['chmod', '700', str(staged)])
+        build_env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(staged), 'NODE_ENV': 'production', 'FIELD_OPS_STANDALONE': '1', **{key: value for key, value in env.items() if key.startswith('VITE_')}}
+        run(['/usr/local/bin/bun', 'install', '--frozen-lockfile'], cwd=staged, user='fieldops-deploy', env=build_env)
+        run(['/usr/local/bin/bun', 'run', 'build:standalone'], cwd=staged, user='fieldops-deploy', env=build_env)
         if not (staged / '.output/server/index.mjs').is_file():
             raise RuntimeError('New standalone server output is missing.')
         print('2/5 Stopping writes and creating private database/settings backups…')
         # Native API listeners are down during the snapshot, including Auth and
         # helper REST writes. Router jobs already running on helpers are not undone.
         stopped = True
-        run(['systemctl', 'stop', *SERVICES])
+        if stop_services():
+            raise RuntimeError('Could not stop all writers; upgrade refused.')
+        run(['chown', '-R', 'root:root', str(staged)])
+        run(['chmod', '-R', 'go-w', str(staged)])
+        if source_manifest(staged) != expected:
+            raise RuntimeError('Staged migration inputs changed during build; upgrade refused.')
         dump_database(destination)
         print('3/5 Applying checked-in application migrations…')
         if pending:
@@ -209,6 +241,8 @@ def upgrade(source, env, state, pending):
             migrate(staged, env)
             write_status(destination, 'migration_committed')
         print('4/5 Switching to the prepared app…')
+        run(['chown', '-R', 'fieldops-web:fieldops-web', str(staged)])
+        run(['chmod', '755', str(staged)])
         APP.rename(previous)
         try:
             staged.rename(APP)
@@ -228,8 +262,9 @@ def upgrade(source, env, state, pending):
         print('Backups and previous apps are not deleted automatically. Store encrypted off-VM backups and test restore.')
     except BaseException:
         if stopped:
-            run(['systemctl', 'stop', *SERVICES])
-            if not migration_started:
+            shutdown_failures = stop_services()
+            write_status(destination, 'failed_manual_recovery_required', shutdown_failures=shutdown_failures)
+            if not migration_started and not shutdown_failures:
                 if switched:
                     failed = Path('/opt') / ('field-ops-failed-' + stamp)
                     APP.rename(failed)
@@ -240,7 +275,6 @@ def upgrade(source, env, state, pending):
                 # A migration may have committed even when cleanup/checks failed.
                 # Never run old code against a possibly incompatible schema or
                 # silently restore a DB backup that would erase later writes.
-                write_status(destination, 'failed_manual_recovery_required')
                 print('Services remain stopped: database changes may have committed. Follow UPGRADE.md recovery instructions.', file=sys.stderr)
         else:
             write_status(destination, 'failed_before_downtime')
