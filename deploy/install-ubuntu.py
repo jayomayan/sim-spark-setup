@@ -94,7 +94,7 @@ def confirm(label, default=False):
 
 def settings():
     print('Frontier Field Ops Console — native Ubuntu installer')
-    print('Fresh dedicated Ubuntu 24.04 VM only. Existing installations are never overwritten.')
+    print('Fresh dedicated Ubuntu VM only. Existing installations are never overwritten.')
     print('Point two DNS names at this VM and allow inbound 80/443 before continuing.')
     website = ask('Website hostname', validate=domain)
     api = ask('Backend API hostname', validate=domain)
@@ -170,8 +170,8 @@ def preflight():
     if os.geteuid() != 0:
         raise RuntimeError('Run this installer with sudo on your target VM.')
     release = dict(line.strip().split('=', 1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)
-    if release.get('ID', '').strip('"') != 'ubuntu' or release.get('VERSION_ID', '').strip('"') != '24.04':
-        raise RuntimeError('This installer supports Ubuntu 24.04 LTS only.')
+    if release.get('ID', '').strip('"') != 'ubuntu':
+        raise RuntimeError('This installer supports Ubuntu only.')
     if os.uname().machine != 'x86_64':
         raise RuntimeError('This initial installer supports x86_64 VMs only.')
     if not Path('/run/systemd/system').exists():
