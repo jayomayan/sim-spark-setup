@@ -53,7 +53,7 @@ def email(value):
 
 
 def strong_password(value):
-    return len(value) >= 12 and len(value) <= 128 and all((re.search(r'[a-z]', value), re.search(r'[A-Z]', value), re.search(r'[0-9]', value), re.search(r'[^a-zA-Z0-9]', value))) and not any(c in value for c in '\r\n\x00')
+    return len(value) >= 12 and len(value) <= 128 and all((re.search(r'[a-z]', value), re.search(r'[A-Z]', value), re.search(r'[0-9]', value), re.search(r'[^a-zA-Z0-9\s]', value))) and not any(c in value for c in '\r\n\x00')
 
 
 def env_value(value):
@@ -176,7 +176,7 @@ def preflight():
         raise RuntimeError('This initial installer supports x86_64 VMs only.')
     if not Path('/run/systemd/system').exists():
         raise RuntimeError('A running systemd installation is required.')
-    for path in (APP, BACKEND, CONFIG, Path('/etc/field-ops-console.env'), Path('/etc/nginx/sites-available/field-ops-native'), Path('/etc/systemd/system/field-ops-console.service')):
+    for path in (APP, BACKEND, CONFIG, Path('/etc/field-ops-console.env'), Path('/etc/nginx/sites-available/field-ops-native'), Path('/etc/nginx/sites-enabled/field-ops-native'), Path('/etc/nginx/conf.d/field-ops-keys.conf'), *(Path('/etc/systemd/system') / f'{name}.service' for name in ('field-ops-console', 'field-ops-auth', 'field-ops-rest')), *(Path('/usr/local/bin') / name for name in ('node', 'npm', 'npx', 'bun'))):
         if path.exists() or path.is_symlink():
             raise RuntimeError(f'Existing destination detected: {path}. This is a fresh-install script, not an upgrade tool.')
     if shutil.disk_usage('/opt').free < 12 * 1024**3:
@@ -187,6 +187,13 @@ def preflight():
         raise RuntimeError('A required port is already occupied; use a fresh dedicated VM.')
     if Path('/etc/postgresql').exists() and any(Path('/etc/postgresql').iterdir()):
         raise RuntimeError('An existing PostgreSQL cluster was found; it will not be modified.')
+    for user in ('fieldops-web', 'fieldops-auth', 'fieldops-rest'):
+        import pwd
+        try:
+            pwd.getpwnam(user)
+        except KeyError:
+            continue
+        raise RuntimeError('An installer service account already exists; use a fresh VM.')
     source = Path(__file__).resolve().parent.parent
     for path in ('package.json', 'bun.lock', 'deploy/build.mjs', 'deploy/migrate.mjs', 'drizzle/migrations/meta/_journal.json'):
         if not (source / path).is_file():
@@ -351,7 +358,6 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
         # Revoke login even on failure; do not leave a reusable superuser password.
         run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data='ALTER ROLE fieldops_migration NOLOGIN PASSWORD NULL;')
     run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data='DROP ROLE fieldops_migration;')
-    # Owner must be able to maintain the app trigger on auth.users for updates.
     print('6/8 Building the website and starting private services…')
     run(['/usr/local/bin/bun', 'run', 'build:standalone'], cwd=APP, user='fieldops-web', env={**os.environ, **app_env, 'HOME': str(APP)})
     unit('field-ops-auth', str(BACKEND / 'gotrue') + ' serve', CONFIG / 'auth.env', 'fieldops-auth', BACKEND)
@@ -424,7 +430,7 @@ map $http_origin $field_ops_origin {{
     add_header Access-Control-Expose-Headers "content-range, x-total-count" always;
     add_header Vary Origin always;
     if ($request_method = OPTIONS) {{ return 204; }}
-    location ~ ^/auth/v1/(verify|callback|authorize|\.well-known/jwks\.json|health)$ {{
+    location ~ ^/auth/v1/(verify|callback|authorize|\\.well-known/jwks\\.json|health)$ {{
         rewrite ^/auth/v1/(.*)$ /$1 break;
         {common}
         proxy_pass http://127.0.0.1:9999;
