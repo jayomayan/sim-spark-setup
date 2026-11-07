@@ -110,6 +110,25 @@ class InstallerChecks(unittest.TestCase):
             installer.run(['psql', '-d', 'fieldops'], user='postgres')
         self.assertEqual(command.call_args.args[0], ['runuser', '-u', 'postgres', '--', 'psql', '-p', '5544', '-d', 'fieldops'])
 
+    def test_new_cluster_does_not_restart_existing_cluster(self):
+        with patch.object(installer.Path, 'iterdir', return_value=iter([Path('/usr/lib/postgresql/16')])), patch.object(installer, 'run', return_value='') as command, patch.dict(installer.PORTS, {'database': 5544}):
+            self.assertEqual(installer.create_database_cluster(), '16')
+        self.assertEqual(command.call_args_list[0].args[0], ['pg_createcluster', '16', 'fieldops', '--port', '5544', '-o', 'listen_addresses=127.0.0.1', '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
+        self.assertEqual(command.call_args_list[-1].args[0], ['pg_ctlcluster', '16', 'fieldops', 'restart'])
+
+    def test_https_site_uses_chosen_ports_and_keeps_acme_renewal(self):
+        values = {'website': 'ops.example.com', 'api': 'api.example.com'}
+        with patch.dict(installer.PORTS, {'web': 3100, 'gateway': 8100, 'auth': 9100, 'rest': 3200}), patch.object(installer.Path, 'is_symlink', return_value=False), patch.object(installer.Path, 'write_text') as write, patch.object(installer, 'write') as exclusive:
+            installer.configure_nginx(values, 'public-key', 'private-key', tls=True)
+        exclusive.assert_not_called()
+        config = write.call_args.args[0]
+        self.assertIn('listen 127.0.0.1:8100;', config)
+        self.assertIn('proxy_pass http://127.0.0.1:3100;', config)
+        self.assertIn('proxy_pass http://127.0.0.1:9100/;', config)
+        self.assertIn('proxy_pass http://127.0.0.1:3200/;', config)
+        self.assertIn('listen 443 ssl;', config)
+        self.assertIn('location ^~ /.well-known/acme-challenge/', config)
+
 
 if __name__ == '__main__':
     unittest.main()
