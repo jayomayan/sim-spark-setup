@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:standalone": "vite --config vite.standalone.config.ts",
     "build": "vite build",
     "build:standalone": "node deploy/build.mjs",
     "start:standalone": "node deploy/start.mjs",

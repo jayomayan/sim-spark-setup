@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Complete independence cleanup: standard standalone tooling, origin-local auth persistence, neutral local logo paths, reference inventory and final verification report; preserve hosted/generated security integrations.
 - [x] Remove editable platform branding from application pages, metadata and deployment guides; signed-in settings and 8 deployment tests pass. Required build package, generated integrations, hosted-destination safeguards and protected project guidance remain.
 - [x] Add fresh-install GCP Ubuntu instructions to the repository and link them from both READMEs; VM execution remains blocked on target access/configuration.
 - [x] Add strong temporary-password generation and copy-both login controls to invitations; credentials remain transient after creation. Verified strength rules, signed-in clipboard contents and desktop/mobile layout; 15 tests pass.

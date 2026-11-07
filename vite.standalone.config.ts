@@ -1,10 +1,31 @@
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import tsconfigPaths from "vite-tsconfig-paths";
+import { nitro } from "nitro/vite";
 
-// Explicitly selected only by build:standalone; the hosted app keeps its target.
-export default defineConfig({
-  // The wrapper otherwise reads VITE_* from the root hosted .env regardless of envDir.
-  envDefine: false,
-  nitro: { preset: "node-server" },
-  tanstackStart: { server: { entry: "server" } },
-  vite: { envDir: "deploy/env", envPrefix: "VITE_" },
-});
+// Separate standard Node configuration; never changes the hosted build target.
+export default defineConfig(({ command }) => ({
+  envDir: "deploy/env",
+  envPrefix: "VITE_",
+  css: { transformer: "lightningcss" },
+  resolve: {
+    alias: [
+      { find: /^\.\/previewAuthStorage$/, replacement: fileURLToPath(new URL("./deploy/auth-storage.ts", import.meta.url)) },
+      { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
+    ],
+    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
+  },
+  plugins: [
+    tailwindcss(),
+    tsconfigPaths({ projects: ["./tsconfig.json"] }),
+    tanstackStart({
+      server: { entry: "server" },
+      importProtection: { behavior: "error", client: { files: ["**/server/**"], specifiers: ["server-only"] } },
+    }),
+    ...(command === "build" ? nitro({ preset: "node-server" }) : []),
+    react(),
+  ],
+}));
