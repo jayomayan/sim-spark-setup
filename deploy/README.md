@@ -2,9 +2,9 @@
 
 **GCP Ubuntu VM, starting fresh:** follow [GCP-UBUNTU.md](GCP-UBUNTU.md) for networking, GitHub source download, independent backend, HTTPS, first admin and verification.
 
-This deployment path runs the app and its PostgreSQL-backed authentication/data services directly on Ubuntu 24.04, using native packages/binaries and systemd. A plain PostgreSQL installation is not sufficient: compatible authentication, the data API and row-level security are required. The repository supplies both manual deployment tooling and an interactive fresh-VM installer.
+This deployment path runs the app and its PostgreSQL-backed authentication/data services directly on Ubuntu, using native packages/binaries and systemd. A plain PostgreSQL installation is not sufficient: compatible authentication, the data API and row-level security are required. The repository supplies both manual deployment tooling and an interactive installer.
 
-**Interactive installer:** [INTERACTIVE-INSTALL.md](INTERACTIVE-INSTALL.md) covers `sudo python3 deploy/install-ubuntu.py`, which automates the native backend and app setup on a fresh Ubuntu 24.04 x86_64 VM. It remains unverified end-to-end on a target VM; use the manual requirements below as a compatibility reference.
+**Interactive installer:** [INTERACTIVE-INSTALL.md](INTERACTIVE-INSTALL.md) covers `sudo python3 deploy/install-ubuntu.py` on new or existing Ubuntu x86_64 servers. It supports existing Nginx websites with unused hostnames, selectable free ports, a separate PostgreSQL cluster and private runtimes. Other web servers on 80/443 require a reviewed proxy arrangement first. It remains unverified end-to-end on a target VM.
 
 **Interactive app upgrades:** [UPGRADE.md](UPGRADE.md) covers `sudo python3 deploy/upgrade-ubuntu.py` from a new reviewed checkout, with private backups, staged builds and migration safeguards.
 
@@ -22,7 +22,7 @@ The hosted application is not switched to the VM by these files. Existing users,
 
 ## 1. Provision Ubuntu and the independent backend
 
-Use Ubuntu 24.04 LTS, native PostgreSQL, Node **22.12+** and Bun. Start with 8 GB RAM, 4 CPUs and 40 GB disk, with additional capacity for database growth, backups and Chromium; this is not a load-tested guarantee.
+Use Ubuntu, native PostgreSQL, Node **22.12+** and Bun. Start with 8 GB RAM, 4 CPUs and 40 GB disk, with additional capacity for existing apps, database growth, backups and Chromium; this is not a load-tested guarantee.
 
 Install PostgreSQL through Ubuntu packages and enable its systemd service. Separately install compatible [Auth/GoTrue](https://github.com/supabase/auth) and [PostgREST](https://docs.postgrest.org/en/stable/references/install.html) native binaries, or compile reviewed releases following their upstream instructions. Run each as a dedicated unprivileged systemd service with private environment files. Review, pin and back up the releases and configuration. Do not use a development CLI stack as production.
 

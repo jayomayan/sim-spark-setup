@@ -55,7 +55,7 @@ class InstallerChecks(unittest.TestCase):
             installer.env_value('bad\nsetting')
 
     def test_dry_run_never_installs_and_prompts_hidden_secrets(self):
-        answers = iter(['ops.example.com', 'api.example.com', 'admin@example.com', 'smtp.example.com', '', 'mailer', '', 'n'])
+        answers = iter(['ops.example.com', 'api.example.com', 'admin@example.com', 'smtp.example.com', '', 'mailer', '', 'n', '', '', '', '', ''])
         with patch('sys.argv', ['install-ubuntu.py', '--dry-run']), patch('builtins.input', side_effect=lambda _: next(answers)), patch.object(installer.getpass, 'getpass', side_effect=['Example-Admin93!', 'Example-Admin93!', 'smtp-secret']) as hidden, patch.object(installer, 'install') as install, patch.object(installer, 'preflight') as preflight:
             installer.main()
         self.assertEqual(hidden.call_count, 3)
@@ -76,13 +76,58 @@ class InstallerChecks(unittest.TestCase):
         self.assertNotIn('secret', str(error.exception))
 
     def test_public_gateway_blocks_auth_administration_but_local_gateway_retains_it(self):
-        with patch.object(installer, 'write') as write, patch.object(installer.Path, 'symlink_to'):
+        with patch.object(installer, 'write') as write, patch.object(installer.Path, 'symlink_to'), patch.object(installer.Path, 'mkdir'):
             installer.configure_nginx({'website': 'ops.example.com', 'api': 'api.example.com'}, 'public-test-key', 'private-test-key')
         config = write.call_args_list[-1].args[1]
         local, public = config.split('server_name api.example.com;', 1)
         self.assertNotIn('location ^~ /auth/v1/admin', local)
         self.assertIn('location ^~ /auth/v1/admin { return 404; }', public)
         self.assertIn('proxy_hide_header Access-Control-Allow-Origin;', public)
+
+    def test_existing_web_app_ports_are_skipped(self):
+        listeners = 'LISTEN 0 128 127.0.0.1:3000 0.0.0.0:*\nLISTEN 0 128 [::]:5433 [::]:*'
+        with patch('builtins.input', return_value=''):
+            ports = installer.choose_ports(listeners)
+        self.assertEqual(ports['web'], 3001)
+        self.assertEqual(ports['database'], 5434)
+        self.assertEqual(len(set(ports.values())), 5)
+
+    def test_existing_nginx_is_allowed_but_other_web_server_is_not(self):
+        nginx = 'LISTEN 0 128 0.0.0.0:80 0.0.0.0:* users:(("nginx",pid=1,fd=6))'
+        with patch.object(installer, 'run', return_value=nginx), patch.object(installer.shutil, 'which', return_value=None):
+            installer.check_shared_host({'website': 'ops.example.com', 'api': 'api.example.com'})
+        with patch.object(installer, 'run', return_value=nginx.replace('nginx', 'apache2')), patch.object(installer.shutil, 'which', return_value=None):
+            with self.assertRaises(RuntimeError):
+                installer.check_shared_host({'website': 'ops.example.com', 'api': 'api.example.com'})
+
+    def test_existing_hostname_cannot_be_taken_over(self):
+        with patch.object(installer, 'run', side_effect=['', 'server_name ops.example.com;']), patch.object(installer.shutil, 'which', return_value='/usr/sbin/nginx'):
+            with self.assertRaises(RuntimeError):
+                installer.check_shared_host({'website': 'ops.example.com', 'api': 'api.example.com'})
+
+    def test_database_commands_target_only_dedicated_cluster(self):
+        with patch.dict(installer.PORTS, {'database': 5544}), patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as command:
+            installer.run(['psql', '-d', 'fieldops'], user='postgres')
+        self.assertEqual(command.call_args.args[0], ['runuser', '-u', 'postgres', '--', 'psql', '-p', '5544', '-d', 'fieldops'])
+
+    def test_new_cluster_does_not_restart_existing_cluster(self):
+        with patch.object(installer.Path, 'iterdir', return_value=iter([Path('/usr/lib/postgresql/16')])), patch.object(installer, 'run', return_value='') as command, patch.dict(installer.PORTS, {'database': 5544}):
+            self.assertEqual(installer.create_database_cluster(), '16')
+        self.assertEqual(command.call_args_list[0].args[0], ['pg_createcluster', '16', 'fieldops', '--port', '5544', '-o', 'listen_addresses=127.0.0.1', '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
+        self.assertEqual(command.call_args_list[-1].args[0], ['pg_ctlcluster', '16', 'fieldops', 'restart'])
+
+    def test_https_site_uses_chosen_ports_and_keeps_acme_renewal(self):
+        values = {'website': 'ops.example.com', 'api': 'api.example.com'}
+        with patch.dict(installer.PORTS, {'web': 3100, 'gateway': 8100, 'auth': 9100, 'rest': 3200}), patch.object(installer.Path, 'is_symlink', return_value=False), patch.object(installer.Path, 'write_text') as write, patch.object(installer, 'write') as exclusive:
+            installer.configure_nginx(values, 'public-key', 'private-key', tls=True)
+        exclusive.assert_not_called()
+        config = write.call_args.args[0]
+        self.assertIn('listen 127.0.0.1:8100;', config)
+        self.assertIn('proxy_pass http://127.0.0.1:3100;', config)
+        self.assertIn('proxy_pass http://127.0.0.1:9100/;', config)
+        self.assertIn('proxy_pass http://127.0.0.1:3200/;', config)
+        self.assertIn('listen 443 ssl;', config)
+        self.assertIn('location ^~ /.well-known/acme-challenge/', config)
 
 
 if __name__ == '__main__':
