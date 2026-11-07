@@ -47,3 +47,7 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+For independent development, use `bun run dev:standalone` with your own public backend configuration in `deploy/env/.env.local`. Only public `VITE_` values belong there; keep server secrets outside the repository. Production uses the private environment and commands in the deployment guide.
+
+The default development/build configuration is retained for the hosted preview. Independent deployment uses the separate standard configuration. See [the independence audit](deploy/INDEPENDENCE-AUDIT.md) for remaining development-only references and verification limits.

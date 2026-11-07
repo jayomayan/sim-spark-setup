@@ -28,7 +28,7 @@ try {
   const response = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: publicKey }, signal: AbortSignal.timeout(10000) });
   report("Authentication service reachable", response.ok);
 } catch { report("Authentication service reachable", false); }
-for (const table of ["profiles", "user_roles", "devices", "sim_activations", "agent_jobs", "agent_status", "database_connections", "console_connect_settings", "site_checks", "okta_settings", "helper_settings", "helper_enrollments"]) {
+for (const table of ["profiles", "user_roles", "devices", "sim_activations", "agent_jobs", "agent_status", "database_connections", "console_connect_settings", "site_checks", "okta_settings", "helper_settings", "helper_enrollments", "account_security", "invitation_history"]) {
   const { error } = await admin.from(table).select("*", { head: true, count: "exact" });
   report(`Administrative access to ${table}`, !error);
   const denied = await anonymous.from(table).select("*", { head: true, count: "exact" });
