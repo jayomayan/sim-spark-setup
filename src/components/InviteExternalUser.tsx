@@ -27,7 +27,7 @@ export function InviteExternalUser() {
       setResult(`Account created for ${saved.username}. Share the username and temporary password privately. A password change is required at first login.${saved.emailRequested ? " Email was not sent: a sending domain has not been configured." : ""}`);
       await qc.invalidateQueries({ queryKey: ["admin", "users"] });
     } catch (err) { setError(err instanceof Error ? err.message : "Couldn't invite user"); }
-    finally { setBusy(false); }
+    finally { setBusy(false); await qc.invalidateQueries({ queryKey: ["admin", "invitation-history"] }); }
   }
   return <form onSubmit={submit} className="mb-10 max-w-2xl space-y-4 border-b pb-8">
     <h2 className="text-xl font-semibold">Invite external user</h2>

@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ConsoleConnectSettings } from "@/components/ConsoleConnectSettings";
 import { HelperSettings } from "@/components/HelperSettings";
 import { InviteExternalUser } from "@/components/InviteExternalUser";
+import { InvitationHistory } from "@/components/InvitationHistory";
 
 type ProfileForm = { label: string; host: string; port: string; databaseName: string; username: string; password: string };
 
@@ -392,6 +393,7 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
               </div>)}
               {!accounts.isPending && !accounts.isError && filtered.length === 0 && <p className="py-8 text-sm text-muted-foreground">No users found.</p>}
             </div>
+            <InvitationHistory />
           </section>
         </TabsContent>
         <TabsContent value="okta">

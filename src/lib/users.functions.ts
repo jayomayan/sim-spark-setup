@@ -3,6 +3,19 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin } from "@/lib/admin-access";
 import { z } from "zod";
 import { inviteSchema, externalLoginEmail, firstLoginPasswordSchema } from "./invitations";
+import { invitationAuditRecord } from "./invitation-audit";
+
+export const listInvitationHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { page: number }) => z.object({ page: z.number().int().min(0).max(10000) }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const result = await context.supabase.from("invitation_history")
+      .select("id,admin_name,username,display_name,email,phone,status,email_status,created_at,finished_at", { count: "exact" })
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).range(data.page * 20, data.page * 20 + 19);
+    if (result.error) throw new Error("Couldn't load invitation history");
+    return { rows: result.data ?? [], total: result.count ?? 0 };
+  });
 
 export const inviteExternalUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -10,11 +23,24 @@ export const inviteExternalUser = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const adminProfile = await context.supabase.from("profiles").select("display_name,email,username").eq("id", context.userId).single();
+    if (adminProfile.error) throw new Error("Couldn't identify the inviting admin");
+    const adminName = adminProfile.data.display_name || adminProfile.data.username || adminProfile.data.email || context.userId;
+    const audit = await supabaseAdmin.from("invitation_history").insert(invitationAuditRecord(data, context.userId, adminName)).select("id").single();
+    if (audit.error || !audit.data) throw new Error("Couldn't record this invitation. No account was created; please retry.");
+    const auditId = audit.data.id;
+    async function finishAudit(status: "created" | "failed" | "setup_failed", userId?: string) {
+      const saved = await supabaseAdmin.from("invitation_history").update({ status, invited_user_id: userId ?? null, finished_at: new Date().toISOString() }).eq("id", auditId).select("id").single();
+      if (saved.error) throw new Error("Couldn't finish recording the invitation outcome. Check invitation history before retrying.");
+    }
     const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
       email: externalLoginEmail(data.username), password: data.password, email_confirm: true,
       user_metadata: { name: data.displayName },
     });
-    if (error || !created.user) throw new Error("Couldn't invite user. The username may already be taken, or the password was rejected.");
+    if (error || !created.user) {
+      await finishAudit("failed");
+      throw new Error("Couldn't invite user. The username may already be taken, or the password was rejected.");
+    }
     const userId = created.user.id;
     try {
       // No access role is issued until the immutable first-login requirement exists.
@@ -26,9 +52,11 @@ export const inviteExternalUser = createServerFn({ method: "POST" })
       if (role.error) throw role.error;
     } catch {
       const rollback = await supabaseAdmin.auth.admin.deleteUser(userId);
+      await finishAudit("setup_failed", rollback.error ? userId : undefined);
       if (rollback.error) throw new Error("Invitation setup failed. An account without operational access may remain; contact an admin before retrying.");
       throw new Error("Couldn't finish the invitation. No account was kept; please retry.");
     }
+    await finishAudit("created", userId);
     return { username: data.username, emailRequested: Boolean(data.email), emailSent: false as const };
   });
 
