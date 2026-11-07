@@ -32,6 +32,7 @@ Authentication is password for external , internal is okta
 
 ## Deploy to your own server
 
+- **Interactive installation:** [Run the Ubuntu installer](deploy/INTERACTIVE-INSTALL.md) for the database, sign-in services, website and HTTPS.
 - **Native installation on a GCP Ubuntu VM:** [Deployment instructions](deploy/GCP-UBUNTU.md) using Ubuntu services directly.
 - **Standalone setup and acceptance checks:** [Deployment reference](deploy/README.md).
 

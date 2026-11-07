@@ -2,7 +2,9 @@
 
 **GCP Ubuntu VM, starting fresh:** follow [GCP-UBUNTU.md](GCP-UBUNTU.md) for networking, GitHub source download, independent backend, HTTPS, first admin and verification.
 
-This deployment path runs the app and its PostgreSQL-backed authentication/data services directly on Ubuntu 24.04, using native packages/binaries and systemd. A plain PostgreSQL installation is not sufficient: compatible authentication, the data API and row-level security are required. This repository supplies the website deployment tooling, not a complete native backend installer.
+This deployment path runs the app and its PostgreSQL-backed authentication/data services directly on Ubuntu 24.04, using native packages/binaries and systemd. A plain PostgreSQL installation is not sufficient: compatible authentication, the data API and row-level security are required. The repository supplies both manual deployment tooling and an interactive fresh-VM installer.
+
+**Interactive installer:** [INTERACTIVE-INSTALL.md](INTERACTIVE-INSTALL.md) covers `sudo python3 deploy/install-ubuntu.py`, which automates the native backend and app setup on a fresh Ubuntu 24.04 x86_64 VM. It remains unverified end-to-end on a target VM; use the manual requirements below as a compatibility reference.
 
 The hosted application is not switched to the VM by these files. Existing users, records and encrypted credentials are not automatically copied.
 
@@ -30,7 +32,7 @@ The native backend must supply all of the following before app migrations run:
 - REST endpoints under `/rest/v1` with the `public` schema exposed, user JWTs applied to row-level security and the server administrative key accepted only for privileged operations.
 - A compatible API gateway that validates public/server API keys and correctly routes Auth and REST requests. Merely proxying unconfigured binaries is not enough; never substitute the administrative key for a browser key.
 
-**Stop here until these services are installed and verified.** This repository does not bundle native backend binaries, bootstrap SQL, backend systemd units or gateway configuration. Selecting and configuring a compatible native backend is a separate administration task; installing PostgreSQL and running the app migration command does not complete it.
+**Stop here until these services are installed and verified.** The interactive installer downloads/verifies native tools and generates bootstrap roles, backend systemd units and gateway configuration. For a manual deployment, supply the same prerequisites yourself; installing PostgreSQL and running the app migration command alone does not complete them.
 
 Bind that backend HTTP gateway to **127.0.0.1:8000**. Keep PostgreSQL and individual backend listeners on loopback or a restricted private interface; expose only the intended API through HTTPS. Keep administrative screens accessible only over SSH/VPN. Use two DNS names: the website and the backend API. `nginx.conf.example` contains illustrative domains, not your real addresses. Replace them and use Certbot or company-issued trusted TLS certificates before using sign-in.
 
