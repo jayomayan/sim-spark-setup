@@ -46,9 +46,19 @@ export const completeFirstLogin = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const requirement = await context.supabase.from("account_security").select("must_change_password").eq("user_id", context.userId).maybeSingle();
     if (requirement.error || !requirement.data?.must_change_password) throw new Error("No first-login password change is pending");
-    // Auth validates the current password; the database flag is never client-writable.
-    const changed = await context.supabase.auth.updateUser({ password: data.password, current_password: data.currentPassword });
+    // Use an isolated auth client: the request-scoped Data API client has no Auth session.
+    const identity = await context.supabase.auth.getUser();
+    if (identity.error || !identity.data.user?.email) throw new Error("Sign in again before changing your password");
+    const url = process.env['SUPABASE_URL'];
+    const key = process.env['SUPABASE_PUBLISHABLE_KEY'];
+    if (!url || !key) throw new Error("Password service unavailable");
+    const { createClient } = await import("@supabase/supabase-js");
+    const authClient = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    const verified = await authClient.auth.signInWithPassword({ email: identity.data.user.email, password: data.currentPassword });
+    if (verified.error || verified.data.user?.id !== context.userId) throw new Error("Current password is incorrect");
+    const changed = await authClient.auth.updateUser({ password: data.password, current_password: data.currentPassword });
     if (changed.error) throw new Error(changed.error.message);
+    await authClient.auth.signOut({ scope: "local" });
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const saved = await supabaseAdmin.from("account_security").update({ must_change_password: false, password_changed_at: new Date().toISOString() }).eq("user_id", context.userId).eq("must_change_password", true).select("user_id").single();
     if (saved.error) throw new Error("Password changed, but access is still locked. Retry using your new password as the current password and choose another new password.");
