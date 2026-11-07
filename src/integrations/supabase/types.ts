@@ -319,6 +319,51 @@ export type Database = {
         }
         Relationships: []
       }
+      invitation_history: {
+        Row: {
+          admin_id: string
+          admin_name: string
+          created_at: string
+          display_name: string
+          email: string | null
+          email_status: string
+          finished_at: string | null
+          id: string
+          invited_user_id: string | null
+          phone: string
+          status: string
+          username: string
+        }
+        Insert: {
+          admin_id: string
+          admin_name: string
+          created_at?: string
+          display_name: string
+          email?: string | null
+          email_status: string
+          finished_at?: string | null
+          id?: string
+          invited_user_id?: string | null
+          phone: string
+          status?: string
+          username: string
+        }
+        Update: {
+          admin_id?: string
+          admin_name?: string
+          created_at?: string
+          display_name?: string
+          email?: string | null
+          email_status?: string
+          finished_at?: string | null
+          id?: string
+          invited_user_id?: string | null
+          phone?: string
+          status?: string
+          username?: string
+        }
+        Relationships: []
+      }
       okta_settings: {
         Row: {
           client_id: string
