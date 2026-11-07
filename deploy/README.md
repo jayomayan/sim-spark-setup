@@ -6,6 +6,8 @@ This deployment path runs the app and its PostgreSQL-backed authentication/data 
 
 **Interactive installer:** [INTERACTIVE-INSTALL.md](INTERACTIVE-INSTALL.md) covers `sudo python3 deploy/install-ubuntu.py`, which automates the native backend and app setup on a fresh Ubuntu 24.04 x86_64 VM. It remains unverified end-to-end on a target VM; use the manual requirements below as a compatibility reference.
 
+**Interactive app upgrades:** [UPGRADE.md](UPGRADE.md) covers `sudo python3 deploy/upgrade-ubuntu.py` from a new reviewed checkout, with private backups, staged builds and migration safeguards.
+
 The hosted application is not switched to the VM by these files. Existing users, records and encrypted credentials are not automatically copied.
 
 ## What is included

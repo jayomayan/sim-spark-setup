@@ -60,6 +60,6 @@ sudo journalctl -u field-ops-auth -u field-ops-rest -u field-ops-console -n 80 -
 sudo nginx -t
 ```
 
-Do not share raw logs or secret files. Do not delete `/etc/field-ops` or the database to force a rerun. An unsuccessful fresh install should be diagnosed or restarted on a new VM after securing any needed records. Application updates use the reviewed migration/build procedure in [GCP-UBUNTU.md](GCP-UBUNTU.md#updates-and-troubleshooting), not this fresh-install script; apply future migrations with an authorized local database administrator and do not persist superuser credentials in the website environment.
+Do not share raw logs or secret files. Do not delete `/etc/field-ops` or the database to force a rerun. An unsuccessful fresh install should be diagnosed or restarted on a new VM after securing any needed records. For a completed installation, use [the interactive app upgrade script](UPGRADE.md), not the fresh installer; it preserves settings and uses a temporary authorized migration connection without persisting superuser credentials in the website environment.
 
 **Verification status:** safe prompt, validation, secret-handling and syntax checks are included in `test_install_ubuntu.py`. A complete fresh Ubuntu VM installation, SMTP delivery, production build, Okta and real integrations have not been exercised here. This script is a deployment starting point, not a production-readiness certification.
