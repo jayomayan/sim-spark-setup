@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, RefreshCw, UserPlus } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, RefreshCw, UserPlus } from "lucide-react";
 import { inviteExternalUser } from "@/lib/users.functions";
 import { inviteSchema } from "@/lib/invitations";
 import { formatInvitationCredentials, generateTemporaryPassword } from "@/lib/invitation-credentials";
@@ -19,6 +19,7 @@ export function InviteExternalUser() {
   const [result, setResult] = useState("");
   const [savedCredentials, setSavedCredentials] = useState<{ username: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const credentials = savedCredentials ?? form;
   function updateField(key: keyof typeof empty, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -45,6 +46,7 @@ export function InviteExternalUser() {
       setSavedCredentials({ username: saved.username, password: validated.data.password });
       setCopied(false);
       setForm(empty);
+      setShowPassword(false);
       setResult(`Account created for ${saved.username}. Share the username and temporary password privately. A password change is required at first login.${saved.emailRequested ? " Email was not sent: a sending domain has not been configured." : ""}`);
       await qc.invalidateQueries({ queryKey: ["admin", "users"] });
     } catch (err) { setError(err instanceof Error ? err.message : "Couldn't invite user"); }
@@ -56,7 +58,10 @@ export function InviteExternalUser() {
       {([{ key: "displayName", label: "Full name", type: "text" }, { key: "username", label: "Username", type: "text" }, { key: "phone", label: "Phone number", type: "tel" }, { key: "email", label: "Email (optional)", type: "email" }, { key: "password", label: "Temporary password", type: "password" }] as const).map(({ key, label, type }) => <div key={key} className={key === "password" ? "space-y-2 sm:col-span-2" : "space-y-2"}>
         <Label htmlFor={`invite-${key}`}>{label}</Label>
         <div className="flex flex-wrap gap-2">
-          <Input className="min-w-0 flex-1 basis-48" id={`invite-${key}`} type={type} autoComplete={key === "password" ? "new-password" : "off"} required={key !== "email"} disabled={busy} value={form[key]} placeholder={key === "phone" ? "+639171234567" : undefined} onChange={(event) => updateField(key, event.target.value)} />
+          <div className="relative min-w-0 flex-1 basis-48">
+            <Input className={key === "password" ? "pr-11" : undefined} id={`invite-${key}`} type={key === "password" && showPassword ? "text" : type} autoComplete={key === "password" ? "new-password" : "off"} required={key !== "email"} disabled={busy} value={form[key]} placeholder={key === "phone" ? "+639171234567" : undefined} onChange={(event) => updateField(key, event.target.value)} />
+            {key === "password" && <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-9 w-10 text-muted-foreground" disabled={busy} aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>}
+          </div>
           {key === "password" && <Button type="button" variant="outline" disabled={busy} onClick={generatePassword}><RefreshCw className="h-4 w-4" />Generate password</Button>}
         </div>
       </div>)}
