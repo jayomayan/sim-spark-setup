@@ -19,7 +19,7 @@ The hosted application is not switched to the VM by these files. Existing users,
 
 Use Ubuntu 24.04 LTS with Docker Engine/Compose, Node **22.12+** and Bun. The backend alone documents minimum 4 GB RAM, 2 CPUs, 40 GB SSD; allocate additional capacity for app and Chromium (8 GB RAM/4 CPUs is a starting point, not a load-tested guarantee).
 
-Follow the official backend Docker guide linked from https://docs.lovable.dev/tips-tricks/external-deployment-hosting. Select a reviewed release, keep its version/configuration backed up, generate fresh keys/passwords using its documented tools, and change all defaults. Do not use a development CLI stack as production. Keep its administrative console accessible only over SSH/VPN; expose only its API behind HTTPS.
+Follow the [official backend Docker guide](https://supabase.com/docs/guides/self-hosting/docker). Select a reviewed release, keep its version/configuration backed up, generate fresh keys/passwords using its documented tools, and change all defaults. Do not use a development CLI stack as production. Keep its administrative console accessible only over SSH/VPN; expose only its API behind HTTPS.
 
 Bind the backend HTTP gateway to **127.0.0.1:8000**. Do not publicly publish PostgreSQL, connection-pooler ports, Studio, analytics or Docker daemon ports. Docker-published ports can bypass UFW: review Compose port bindings as well as your firewall. Use two DNS names: the website and the backend API. `nginx.conf.example` contains illustrative domains, not your real addresses. Replace them and use Certbot or company-issued trusted TLS certificates before using sign-in.
 
@@ -34,7 +34,7 @@ sudo install -m 600 -o root -g root deploy/standalone.env.example /etc/field-ops
 sudoedit /etc/field-ops-console.env
 ```
 
-Fill every blank using your **new independently operated backend**. `VITE_SUPABASE_URL` is its public HTTPS API origin, `SUPABASE_URL` can be `http://127.0.0.1:8000`. Browser/server public keys must match; the server administrative key is separate and must never have a `VITE_` prefix. `STANDALONE_DATABASE_URL` is a private owner connection to its PostgreSQL database. Obtain it from your own stack, not Lovable Cloud. Use a randomly generated encryption secret of at least 32 characters (for example generate privately with `openssl rand -hex 32`). Treat the environment file as shell-compatible assignments when using the commands below; quote special characters. Do not print it.
+Fill every blank using your **new independently operated backend**. `VITE_SUPABASE_URL` is its public HTTPS API origin, `SUPABASE_URL` can be `http://127.0.0.1:8000`. Browser/server public keys must match; the server administrative key is separate and must never have a `VITE_` prefix. `STANDALONE_DATABASE_URL` is a private owner connection to its PostgreSQL database. Obtain it from your own stack, not the hosted environment. Use a randomly generated encryption secret of at least 32 characters (for example generate privately with `openssl rand -hex 32`). Treat the environment file as shell-compatible assignments when using the commands below; quote special characters. Do not print it.
 
 For restored encrypted records, preserve the original `DB_SECRET_KEY` or securely re-enter credentials in a fresh installation. New keys do not decrypt old values. The Admin Settings alternate database form does **not** switch the app's main database.
 
@@ -53,7 +53,7 @@ sudo bash -c 'set -a; . /etc/field-ops-console.env; set +a; cd /opt/field-ops-co
 sudo bash -c 'set -a; . /etc/field-ops-console.env; set +a; cd /opt/field-ops-console; runuser -u fieldops-web --preserve-environment -- bun run build:standalone'
 ```
 
-The migration runner refuses a database with existing application tables and no deployment journal; reconcile a data restore separately, rather than rerunning CREATE statements over it. Never restore managed auth schemas blindly. Backups, auth/provider configuration, storage objects, data and encryption secrets require separate migration planning. Build **on the VM**, outside the Lovable sandbox. A Node-target production build has not been executed in this sandbox. Runtime public-value changes require a new standalone build.
+The migration runner refuses a database with existing application tables and no deployment journal; reconcile a data restore separately, rather than rerunning CREATE statements over it. Never restore managed auth schemas blindly. Backups, auth/provider configuration, storage objects, data and encryption secrets require separate migration planning. Build **on the target VM**. A Node-target production build has not been executed in this development environment. Runtime public-value changes require a new standalone build.
 
 ## 4. Serve and install the helper
 
@@ -85,8 +85,8 @@ Deployment validation/unit tests, migration-runner behavior and helper installer
 
 ### Sources
 
-- https://docs.lovable.dev/tips-tricks/external-deployment-hosting
-- Official backend Docker and custom OIDC instructions linked from that guide.
+- https://supabase.com/docs/guides/self-hosting/docker
+- https://supabase.com/docs/guides/auth/oauth-server
 - https://nodejs.org/en/download
 - https://bun.com/docs/installation
 
