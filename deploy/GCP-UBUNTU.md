@@ -4,7 +4,7 @@ Deploy the GitHub source to your existing Ubuntu VM with a **new, independent da
 
 The application needs PostgreSQL **plus compatible authentication and data APIs**. Installing PostgreSQL alone or adding a connection in Admin Settings does not provide those APIs or switch the main database.
 
-All services run directly on Ubuntu using native packages/binaries and systemd. **Interactive fresh installation:** use [INTERACTIVE-INSTALL.md](INTERACTIVE-INSTALL.md) to install the native backend and website together. The sections below are the manual installation reference.
+All services run directly on Ubuntu using native packages/binaries and systemd. **Interactive installation:** use [INTERACTIVE-INSTALL.md](INTERACTIVE-INSTALL.md) to install the native backend and website together, including beside existing Nginx websites. It isolates runtimes and the database and asks for free ports; existing Field Ops installations are not overwritten. The sections below are the manual installation reference, with example ports that must be adjusted for conflicts.
 
 ## 1. Prepare GCP networking
 
@@ -50,7 +50,7 @@ The clone is a source staging folder only. Do not copy hosted environment files.
 
 ## 3. Configure native authentication and data services
 
-PostgreSQL is now installed, but the app still needs compatible Auth and REST services. Follow [the native backend requirements](README.md#1-provision-ubuntu-and-the-independent-backend): install reviewed GoTrue/Auth and PostgREST binaries (or compile reviewed releases) and run them as separate, unprivileged systemd services. Configure an API gateway on `127.0.0.1:8000` for the expected Auth and REST paths. Alternatively, the [interactive installer](INTERACTIVE-INSTALL.md) automates this setup on a fresh VM; do not mix it with a partially completed manual installation.
+PostgreSQL is now installed, but the app still needs compatible Auth and REST services. Follow [the native backend requirements](README.md#1-provision-ubuntu-and-the-independent-backend): install reviewed GoTrue/Auth and PostgREST binaries (or compile reviewed releases) and run them as separate, unprivileged systemd services. Configure an API gateway on `127.0.0.1:8000` for the expected Auth and REST paths, or another free port. Alternatively, the [interactive installer](INTERACTIVE-INSTALL.md) automates isolated setup on a new or existing Nginx server; do not mix it with a partially completed Field Ops manual installation.
 
 Before starting it:
 

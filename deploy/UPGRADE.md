@@ -19,7 +19,7 @@ Before confirming, arrange a maintenance window, finish active router/helper job
 
 ## Upgrade sequence
 
-1. Require Ubuntu 24.04, a completed native installation, healthy current services, private root-owned settings and sufficient staging disk space. Only one upgrade runs at a time.
+1. Require Ubuntu, a completed native installation, healthy current services, private root-owned settings and sufficient staging disk space. Use saved private runtime locations and database ports (legacy defaults for earlier installations). Only one upgrade runs at a time; unrelated websites and database clusters are not stopped.
 2. Reject missing or modified applied migrations using the database's private checksum journal.
 3. Copy clean new source to a private staging folder under `/opt`, install locked dependencies and build using a separate deployment account while the current app stays online. Build commands receive public configuration only, not server secrets.
 4. Stop website/Auth/REST writes; save a PostgreSQL custom-format backup, database roles and private application/settings/service configuration under `/var/backups/field-ops/<timestamp>`. Verify the database archive is readable. This is **not** a full restore rehearsal.
