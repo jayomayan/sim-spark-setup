@@ -32,7 +32,7 @@ Authentication is password for external , internal is okta
 
 ## Deploy to your own server
 
-- **Fresh installation on a GCP Ubuntu VM:** [Deployment instructions](deploy/GCP-UBUNTU.md).
+- **Native installation on a GCP Ubuntu VM:** [Deployment instructions](deploy/GCP-UBUNTU.md) using Ubuntu services directly.
 - **Standalone setup and acceptance checks:** [Deployment reference](deploy/README.md).
 
 The standalone app requires an independent PostgreSQL-backed authentication/data stack, not just a database. Existing hosted accounts and records are not copied automatically.

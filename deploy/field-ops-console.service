@@ -1,6 +1,6 @@
 [Unit]
 Description=Frontier Field Ops Console
-After=network-online.target docker.service
+After=network-online.target postgresql.service
 Wants=network-online.target
 
 [Service]
