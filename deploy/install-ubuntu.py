@@ -181,7 +181,7 @@ def preflight():
         raise RuntimeError('This initial installer supports x86_64 VMs only.')
     if not Path('/run/systemd/system').exists():
         raise RuntimeError('A running systemd installation is required.')
-    for path in (APP, BACKEND, CONFIG, Path('/etc/field-ops-console.env'), Path('/etc/nginx/sites-available/field-ops-native'), Path('/etc/nginx/sites-enabled/field-ops-native'), Path('/etc/nginx/conf.d/field-ops-keys.conf'), *(Path('/etc/systemd/system') / f'{name}.service' for name in ('field-ops-console', 'field-ops-auth', 'field-ops-rest'))):
+    for path in (APP, BACKEND, CONFIG, Path('/etc/field-ops-console.env'), Path('/etc/nginx/sites-available/field-ops-native'), Path('/etc/nginx/sites-enabled/field-ops-native'), Path('/etc/nginx/conf.d/field-ops-keys.conf'), Path('/etc/letsencrypt/renewal-hooks/deploy/field-ops-reload'), *(Path('/etc/systemd/system') / f'{name}.service' for name in ('field-ops-console', 'field-ops-auth', 'field-ops-rest'))):
         if path.exists() or path.is_symlink():
             raise RuntimeError(f'Existing destination detected: {path}. This is a fresh-install script, not an upgrade tool.')
     if shutil.disk_usage('/opt').free < 12 * 1024**3:
@@ -281,6 +281,7 @@ User={user}
 Group={user}
 WorkingDirectory={workdir}
 EnvironmentFile={env_file}
+Environment=PATH={RUNTIME_PATH}
 ExecStart={executable}
 Restart=on-failure
 RestartSec=5
@@ -352,7 +353,7 @@ def install(source, values):
     with cluster_config.open('ab') as handle:
         handle.write(b'\ncreate_main_cluster = false\n')
     try:
-        run(['apt-get', 'install', '-y', 'ca-certificates', 'curl', 'git', 'make', 'xz-utils', 'unzip', 'postgresql', 'postgresql-contrib', 'nginx', 'certbot', 'python3-certbot-nginx'], env=package_env)
+        run(['apt-get', 'install', '-y', '--no-upgrade', 'ca-certificates', 'curl', 'git', 'make', 'xz-utils', 'unzip', 'postgresql', 'postgresql-contrib', 'nginx', 'certbot', 'python3-certbot-nginx'], env=package_env)
     finally:
         if cluster_original is None:
             cluster_config.unlink(missing_ok=True)
@@ -437,7 +438,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
     environment('/etc/field-ops-console.env', app_env)
     print('5/8 Installing app dependencies and applying checked-in migrations…')
     run([str(BACKEND / 'bin/bun'), 'install', '--frozen-lockfile'], cwd=APP, user='fieldops-web', env={**os.environ, 'HOME': str(APP), 'PATH': RUNTIME_PATH})
-    migration_env = {**os.environ, **app_env, 'STANDALONE_DATABASE_URL': f"postgresql://fieldops_migration:{migration_password}@127.0.0.1:{PORTS['database']}/fieldops?sslmode=disable"}
+    migration_env = {**os.environ, **app_env, 'PATH': RUNTIME_PATH, 'STANDALONE_DATABASE_URL': f"postgresql://fieldops_migration:{migration_password}@127.0.0.1:{PORTS['database']}/fieldops?sslmode=disable"}
     try:
         run([str(BACKEND / 'bin/bun'), 'run', 'db:migrate:standalone'], cwd=APP, user='fieldops-web', env=migration_env)
         # Reassign app objects to the durable owner before dropping temporary role.

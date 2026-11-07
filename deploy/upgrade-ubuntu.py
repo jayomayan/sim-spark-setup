@@ -26,10 +26,16 @@ CONFIG = Path('/etc/field-ops')
 ENV = Path('/etc/field-ops-console.env')
 BACKUPS = Path('/var/backups/field-ops')
 SERVICES = ('field-ops-console', 'field-ops-auth', 'field-ops-rest')
+DB_PORT = 5432
+BUN = '/usr/local/bin/bun'
+NODE_BIN = '/usr/local/bin'
+
 EXCLUDED = {'.git', '.env', 'node_modules', '.output', 'dist', '.tanstack', '.workspace', '__pycache__'}
 
 
 def run(args, *, data=None, cwd=None, user=None, env=None):
+    if args[0] in ('psql', 'pg_isready') and user == 'postgres':
+        args = [args[0], '-p', str(DB_PORT), *args[1:]]
     if user:
         args = ['runuser', '-u', user, '--', *args]
     result = subprocess.run(args, input=data, cwd=cwd, env=env, text=True, capture_output=True)
@@ -52,9 +58,28 @@ def read_environment(path):
             raise RuntimeError('Unsupported or duplicate environment assignment; use the native installer format.')
         values[match[1]] = re.sub(r'\\(["\\])', r'\1', match[2])
     required = {'FIELD_OPS_STANDALONE', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'DB_SECRET_KEY'}
-    if not required.issubset(values) or values['FIELD_OPS_STANDALONE'] != '1' or values['SUPABASE_URL'] != 'http://127.0.0.1:8000':
+    if not required.issubset(values) or values['FIELD_OPS_STANDALONE'] != '1' or not re.fullmatch(r'http://127\.0\.0\.1:(\d{1,5})', values['SUPABASE_URL']):
         raise RuntimeError('This upgrade requires the existing native local backend configuration.')
+    port = int(values['SUPABASE_URL'].rsplit(':', 1)[1])
+    if not 1024 <= port <= 65535:
+        raise RuntimeError('Invalid local backend port.')
     return values
+
+
+def configure_installation(state):
+    """Use saved isolation metadata; older dedicated installations keep defaults."""
+    global DB_PORT, BUN, NODE_BIN
+    port = state.get('ports', {}).get('database', 5432)
+    if type(port) is not int or not 1024 <= port <= 65535:
+        raise RuntimeError('Invalid saved PostgreSQL port.')
+    DB_PORT = port
+    if state.get('runtime_bin'):
+        if state['runtime_bin'] != '/opt/field-ops-backend/bin' or state.get('node_bin') != '/opt/field-ops-backend/node/bin':
+            raise RuntimeError('Unsupported runtime destination in installation state.')
+        BUN = state['runtime_bin'] + '/bun'
+        NODE_BIN = state['node_bin']
+    else:
+        BUN, NODE_BIN = '/usr/local/bin/bun', '/usr/local/bin'
 
 
 def source_manifest(source):
@@ -97,11 +122,12 @@ def preflight(source):
     if os.geteuid() != 0:
         raise RuntimeError('Run with sudo on the target VM.')
     release = Path('/etc/os-release').read_text()
-    if not re.search(r'^ID=ubuntu$', release, re.M) or not re.search(r'^VERSION_ID="24\.04"$', release, re.M):
-        raise RuntimeError('Ubuntu 24.04 LTS is required.')
+    if not re.search(r'^ID="?ubuntu"?$', release, re.M):
+        raise RuntimeError('Ubuntu is required.')
     if not APP.is_dir() or APP.is_symlink() or not CONFIG.is_dir() or CONFIG.is_symlink() or ENV.is_symlink():
         raise RuntimeError('A native installation at the standard paths is required; symlinks are refused.')
     state = json.loads((CONFIG / 'installation.json').read_text())
+    configure_installation(state)
     if state.get('status') != 'installed':
         raise RuntimeError('The initial installation is incomplete; upgrade refused.')
     if source == APP or APP in source.parents or source in APP.parents:
@@ -122,12 +148,12 @@ def dump_database(destination):
     # File opened by root; peer-authenticated postgres emits backup over stdout.
     with open(destination / 'database.dump', 'xb') as handle:
         os.chmod(handle.name, 0o600)
-        result = subprocess.run(['runuser', '-u', 'postgres', '--', 'pg_dump', '-Fc', '-d', 'fieldops'], cwd='/tmp', stdout=handle, stderr=subprocess.PIPE)
+        result = subprocess.run(['runuser', '-u', 'postgres', '--', 'pg_dump', '-p', str(DB_PORT), '-Fc', '-d', 'fieldops'], cwd='/tmp', stdout=handle, stderr=subprocess.PIPE)
     if result.returncode:
         raise RuntimeError('Database backup failed; no migrations were run.')
     with open(destination / 'roles.sql', 'xb') as handle:
         os.chmod(handle.name, 0o600)
-        result = subprocess.run(['runuser', '-u', 'postgres', '--', 'pg_dumpall', '--globals-only'], cwd='/tmp', stdout=handle, stderr=subprocess.PIPE)
+        result = subprocess.run(['runuser', '-u', 'postgres', '--', 'pg_dumpall', '-p', str(DB_PORT), '--globals-only'], cwd='/tmp', stdout=handle, stderr=subprocess.PIPE)
     if result.returncode:
         raise RuntimeError('Database role backup failed; no migrations were run.')
     # Verify archive readability; a full restoration rehearsal remains separate.
@@ -218,9 +244,9 @@ def upgrade(source, env, state, pending):
         shutil.copytree(source, staged, ignore=ignore_source)
         run(['chown', '-R', 'fieldops-deploy:fieldops-deploy', str(staged)])
         run(['chmod', '700', str(staged)])
-        build_env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(staged), 'NODE_ENV': 'production', 'FIELD_OPS_STANDALONE': '1', **{key: value for key, value in env.items() if key.startswith('VITE_')}}
-        run(['/usr/local/bin/bun', 'install', '--frozen-lockfile'], cwd=staged, user='fieldops-deploy', env=build_env)
-        run(['/usr/local/bin/bun', 'run', 'build:standalone'], cwd=staged, user='fieldops-deploy', env=build_env)
+        build_env = {'PATH': NODE_BIN + ':' + str(Path(BUN).parent) + ':/usr/bin:/bin', 'HOME': str(staged), 'NODE_ENV': 'production', 'FIELD_OPS_STANDALONE': '1', **{key: value for key, value in env.items() if key.startswith('VITE_')}}
+        run([BUN, 'install', '--frozen-lockfile'], cwd=staged, user='fieldops-deploy', env=build_env)
+        run([BUN, 'run', 'build:standalone'], cwd=staged, user='fieldops-deploy', env=build_env)
         if not (staged / '.output/server/index.mjs').is_file():
             raise RuntimeError('New standalone server output is missing.')
         print('2/5 Stopping writes and creating private database/settings backups…')
@@ -253,9 +279,9 @@ def upgrade(source, env, state, pending):
         write_status(destination, 'app_switched')
         run(['systemctl', 'start', 'field-ops-auth', 'field-ops-rest', 'field-ops-console'])
         print('5/5 Checking the upgraded app…')
-        wait_site('http://127.0.0.1:3000/')
+        wait_site('http://127.0.0.1:' + env.get('PORT', '3000') + '/')
         wait_site('https://' + state['website'] + '/')
-        run(['/usr/local/bin/bun', 'run', 'check:standalone'], cwd=APP, user='fieldops-web', env={**os.environ, **env, 'HOME': str(APP)})
+        run([BUN, 'run', 'check:standalone'], cwd=APP, user='fieldops-web', env={**os.environ, **env, 'HOME': str(APP)})
         write_status(destination, 'complete')
         print('Upgrade complete. Verify sign-in, saved records and your operational integrations.')
         print(f'Private backup: {destination}\nPrevious app: {previous}')
