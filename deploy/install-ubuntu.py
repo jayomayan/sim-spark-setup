@@ -192,7 +192,7 @@ def preflight():
         clusters = run(['pg_lsclusters', '--no-header'], quiet=True)
         if any(len(line.split()) > 1 and line.split()[1] == 'fieldops' for line in clusters.splitlines()):
             raise RuntimeError('A fieldops PostgreSQL cluster already exists; installation refused.')
-    if Path('/etc/letsencrypt/live/field-ops-native').exists():
+    if any(p.exists() or p.is_symlink() for p in (Path('/etc/letsencrypt/live/field-ops-native'), Path('/etc/letsencrypt/archive/field-ops-native'), Path('/etc/letsencrypt/renewal/field-ops-native.conf'))):
         raise RuntimeError('The Field Ops certificate destination already exists.')
     for user in ('fieldops-web', 'fieldops-auth', 'fieldops-rest'):
         import pwd
@@ -264,7 +264,7 @@ def create_database_cluster():
     if not versions:
         raise RuntimeError('No installed native PostgreSQL version found.')
     version = versions[-1]
-    run(['pg_createcluster', version, 'fieldops', '--port', str(PORTS['database']), '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
+    run(['pg_createcluster', version, 'fieldops', '--port', str(PORTS['database']), '-o', 'listen_addresses=127.0.0.1', '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
     # Only this new cluster is configured. Never edit or restart other clusters.
     run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data="ALTER SYSTEM SET listen_addresses = '127.0.0.1';")
     run(['pg_ctlcluster', version, 'fieldops', 'restart'])
@@ -348,6 +348,8 @@ def install(source, values):
     # Debian's PostgreSQL packaging otherwise creates a default main cluster.
     # Preserve existing shared packaging configuration byte-for-byte.
     cluster_config = Path('/etc/postgresql-common/createcluster.conf')
+    if cluster_config.is_symlink():
+        raise RuntimeError('Refusing a symbolic-link PostgreSQL packaging configuration.')
     cluster_original = cluster_config.read_bytes() if cluster_config.exists() else None
     cluster_config.parent.mkdir(parents=True, exist_ok=True)
     with cluster_config.open('ab') as handle:
