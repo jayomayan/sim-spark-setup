@@ -14,9 +14,9 @@ export const checkDatabaseConnection = createServerFn({ method: "POST" })
     const started = Date.now();
     const { error } = await context.supabase.from("devices").select("id").limit(1);
     return {
-      provider: "Lovable Cloud",
+      provider: "Application backend",
       engine: "PostgreSQL",
-      connection: "Managed connection",
+      connection: "Primary connection",
       connected: !error,
       checkedAt: new Date().toISOString(),
       latencyMs: Date.now() - started,
@@ -186,7 +186,7 @@ export const getOktaSetup = createServerFn({ method: "POST" })
   .handler(async ({ context }): Promise<OktaSetup> => {
     await assertAdmin(context.supabase, context.userId);
     const baseUrl = process.env["SUPABASE_URL"];
-    if (!baseUrl) throw new Error("Lovable Cloud backend isn't connected");
+    if (!baseUrl) throw new Error("Application backend isn't connected");
     return { callbackUrl: `${baseUrl.replace(/\/+$/, "")}${OIDC_CALLBACK_PATH}` };
   });
 
@@ -227,7 +227,7 @@ export const checkOktaSignIn = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const baseUrl = process.env["SUPABASE_URL"];
     const publishableKey = process.env["SUPABASE_PUBLISHABLE_KEY"];
-    if (!baseUrl || !publishableKey) throw new Error("Lovable Cloud backend isn't connected");
+    if (!baseUrl || !publishableKey) throw new Error("Application backend isn't connected");
     const origin = baseUrl.replace(/\/+$/, "");
     try {
       const res = await fetch(

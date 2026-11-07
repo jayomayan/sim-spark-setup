@@ -10,7 +10,7 @@ delete env.LOVABLE_NITRO_PRESET;
 const result = spawnSync("bun", ["x", "vite", "build", "--config", "vite.standalone.config.ts"], { env, stdio: "inherit" });
 if (result.status !== 0) process.exit(result.status ?? 1);
 if (!existsSync(".output/server/index.mjs")) {
-  console.error("Node server output is missing. Build this deployment outside the Lovable sandbox.");
+  console.error("Node server output is missing. Build this deployment on the target VM with the standalone configuration.");
   process.exit(1);
 }
 mkdirSync(".output", { recursive: true });

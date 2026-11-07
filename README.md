@@ -30,24 +30,12 @@ Apply NTP settings to UR35
 
 Authentication is password for external , internal is okta
 
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://sim-spark-setup.lovable.app
-
 ## Deploy to your own server
 
 - **Fresh installation on a GCP Ubuntu VM:** [Deployment instructions](deploy/GCP-UBUNTU.md).
 - **Standalone setup and acceptance checks:** [Deployment reference](deploy/README.md).
 
 The standalone app requires an independent PostgreSQL-backed authentication/data stack, not just a database. Existing hosted accounts and records are not copied automatically.
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/661d8c35-7ab8-4b06-92d9-e5309e215c10).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
