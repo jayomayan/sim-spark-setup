@@ -28,7 +28,7 @@ export const listSettingsUsers = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
     const [profiles, roles] = await Promise.all([
-      context.supabase.from("profiles").select("id,email,display_name,created_at").order("created_at"),
+      context.supabase.from("profiles").select("id,email,display_name,username,phone,created_at").order("created_at"),
       context.supabase.from("user_roles").select("user_id,role"),
     ]);
     if (profiles.error || roles.error) throw new Error("Couldn't load users");
