@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('native_installer', Path(__file__).with_name('install-ubuntu.py'))
@@ -16,6 +17,42 @@ spec.loader.exec_module(installer)
 
 
 class InstallerChecks(unittest.TestCase):
+    def account_context(self, *, shell='/usr/sbin/nologin', processes='', locked='!', groups=None):
+        account = SimpleNamespace(pw_name='fieldops-web', pw_uid=991, pw_gid=991, pw_dir='/nonexistent', pw_shell=shell)
+        group = SimpleNamespace(gr_name='fieldops-web', gr_gid=991, gr_mem=[])
+        return account, group, ['fieldops-web:' + locked + ':0:0:0:0:0:0:', processes], groups or [group]
+
+    def test_safe_existing_account_can_be_approved_without_useradd(self):
+        identity = (991, 991, '/nonexistent', '/usr/sbin/nologin')
+        with patch.dict(installer.APPROVED_ACCOUNTS, {}, clear=True), patch.object(installer, 'service_account', side_effect=[identity, None, None]), patch.object(installer, 'confirm', return_value=True):
+            installer.check_service_accounts()
+            with patch.object(installer, 'service_account', side_effect=[identity, None, None]), patch.object(installer, 'run', return_value='') as command:
+                installer.create_service_accounts()
+            self.assertEqual(command.call_count, 2)
+            self.assertEqual([call.args[0][-1] for call in command.call_args_list], ['fieldops-auth', 'fieldops-rest'])
+
+    def test_declining_reuse_makes_no_changes(self):
+        with patch.dict(installer.APPROVED_ACCOUNTS, {}, clear=True), patch.object(installer, 'service_account', side_effect=[(991, 991, '/nonexistent', '/bin/false'), None, None]), patch.object(installer, 'confirm', return_value=False):
+            with self.assertRaises(RuntimeError):
+                installer.check_service_accounts()
+            self.assertEqual(installer.APPROVED_ACCOUNTS, {})
+
+    def test_active_interactive_unlocked_or_privileged_accounts_are_refused(self):
+        for kwargs in ({}, {'shell': '/bin/bash'}, {'processes': ' 991\n'}, {'locked': 'password-hash'}, {'groups': [SimpleNamespace(gr_gid=27, gr_mem=['fieldops-web'])]}):
+            account, group, output, groups = self.account_context(**kwargs)
+            with patch.object(installer.pwd, 'getpwnam', return_value=account), patch.object(installer.pwd, 'getpwall', return_value=[account]), patch.object(installer.grp, 'getgrgid', return_value=group), patch.object(installer.grp, 'getgrall', return_value=groups), patch.object(installer, 'run', side_effect=output):
+                if kwargs:
+                    with self.assertRaises(RuntimeError):
+                        installer.service_account('fieldops-web')
+                else:
+                    self.assertEqual(installer.service_account('fieldops-web'), (991, 991, '/nonexistent', '/usr/sbin/nologin'))
+
+    def test_account_appearing_after_approval_is_not_taken_over(self):
+        with patch.dict(installer.APPROVED_ACCOUNTS, {}, clear=True), patch.object(installer, 'service_account', return_value=(991, 991, '/nonexistent', '/bin/false')), patch.object(installer, 'run') as command:
+            with self.assertRaises(RuntimeError):
+                installer.create_service_accounts()
+        command.assert_not_called()
+
     def test_native_plan_accepts_dns_not_command_injection(self):
         self.assertEqual(installer.domain('Ops.Example.com'), 'ops.example.com')
         for value in ('https://ops.example.com', 'ops.example.com;id', 'ops.example.com/path', 'ops.example.com\nserver{}', '127.0.0.1', '-bad.example.com'):
