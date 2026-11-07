@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Add interactive native app upgrades with private backups, staged builds, migration safeguards and recovery instructions.
 - [x] Create an interactive native Ubuntu installer for PostgreSQL, sign-in/data services, website and HTTPS, with hidden password prompts, safe fresh-install guards and pinned downloads. Prompt/security unit checks and nine existing standalone checks pass; full VM installation remains blocked on target VM access/configuration as tracked below.
 - [x] Revise Ubuntu/GCP installation instructions for native packages/binaries and systemd; remove container commands and service dependency, disclose the unsupplied native backend setup prerequisite. Nine standalone safeguard tests pass; VM setup remains unverified.
 - [x] Complete editable independence cleanup: standard standalone tooling and origin-local auth persistence, neutral local logo, reference inventory and audit report. All 108 tests and hosted build pass; authenticated controls/logo verified. Protected hosted/generated integrations remain documented; full standalone build and live VM checks remain pending below.
