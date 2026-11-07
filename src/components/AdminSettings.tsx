@@ -297,16 +297,16 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
               {connection.isError && <p role="alert" className="mb-4 text-sm text-destructive">Couldn't check the connection. Please try again.</p>}
               <dl className="divide-y border-y text-sm">
                 {[
-                  ["Provider", "Lovable Cloud"],
+                  ["Provider", "Application backend"],
                   ["Database", "PostgreSQL"],
-                  ["Connection", "Managed connection"],
-                  ["Credentials", "Managed securely by Lovable Cloud"],
+                  ["Connection", "Primary connection"],
+                  ["Credentials", "Stored securely on the server"],
                   ["Status", connection.data ? (connection.data.connected ? "Connected" : "Connection failed") : "Not checked"],
                   ["Response time", connection.data ? `${connection.data.latencyMs} ms` : "—"],
                   ["Last checked", connection.data ? new Date(connection.data.checkedAt).toLocaleString() : "—"],
                 ].map(([label, value]) => <div key={label} className="grid grid-cols-1 gap-1 py-4 sm:grid-cols-[180px_1fr]"><dt className="text-muted-foreground">{label}</dt><dd className={label === "Status" ? "font-semibold text-primary" : "font-medium"}>{value}</dd></div>)}
               </dl>
-              <p className="mt-3 text-xs text-muted-foreground">The app's own data always runs on this managed connection. Save profiles below to keep other servers ready for tests and migrations.</p>
+              <p className="mt-3 text-xs text-muted-foreground">The app's own data always runs on this primary connection. Save profiles below to keep other servers ready for tests and migrations.</p>
             </section>
 
             <section>
@@ -471,8 +471,8 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
                   </div>
                 </li>
                 <li>
-                  <p className="font-semibold">2. Turn on OIDC sign-in in the Lovable Cloud backend</p>
-                  <p className="mt-1 text-muted-foreground">Open <span className="font-medium text-foreground">Users → Auth settings → OIDC</span>, switch OIDC sign-in on, then enter your Okta issuer URL (for example <code className="font-mono text-xs">https://yourcompany.okta.com</code>), the client ID from your Okta app, and the client secret. Save.</p>
+                  <p className="font-semibold">2. Turn on OIDC sign-in in your authentication service</p>
+                  <p className="mt-1 text-muted-foreground">Configure the OIDC provider with your Okta issuer URL (for example <code className="font-mono text-xs">https://yourcompany.okta.com</code>), client ID and client secret. For a standalone installation, follow the deployment guide's Okta setup instructions.</p>
                   <p className="mt-1 text-muted-foreground">For sign-in only (no profile sync), request the scopes <code className="font-mono text-xs">openid email profile</code>.</p>
                 </li>
                 <li>

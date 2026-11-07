@@ -122,7 +122,7 @@ export async function initializeExternalDatabase(creds: DbConnectionCredentials)
       return [...created];
     });
     return { ok: true, databaseCreated, tablesCreated, schemaVersion: EXTERNAL_SCHEMA_VERSION,
-      message: `${databaseCreated ? "Database created" : "Database connected"} — ${tablesCreated.length ? `${tablesCreated.length} required tables created` : "required tables already ready"}. Existing data is unchanged; the app still uses Lovable Cloud.` };
+      message: `${databaseCreated ? "Database created" : "Database connected"} — ${tablesCreated.length ? `${tablesCreated.length} required tables created` : "required tables already ready"}. Existing data is unchanged; the app still uses its primary connection.` };
   } catch (error) {
     return { ok: false, databaseCreated, tablesCreated: [], schemaVersion: null,
       message: `${setupError(error)}${databaseCreated ? " The new database was created, but table setup was rolled back; retry to finish." : ""}` };

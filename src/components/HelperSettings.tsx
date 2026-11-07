@@ -30,13 +30,12 @@ function InstallPanel() {
   const reset = useServerFn(rotateHelperKey);
   const [command, setCommand] = useState<{ text: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState<"make" | "reset" | null>(null);
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://your-console.lovable.app";
 
   async function generate() {
     setBusy("make");
     try {
       const { code, expiresAt } = await make();
-      setCommand({ text: buildInstallCommand(origin, code), expiresAt });
+      setCommand({ text: buildInstallCommand(window.location.origin, code), expiresAt });
     } catch {
       toast.error("Couldn't create an install command.");
     } finally {

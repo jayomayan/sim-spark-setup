@@ -47,7 +47,7 @@ The clone is a source staging folder only. Do not copy hosted environment files.
 
 ## 3. Install the independent backend
 
-Follow the production Docker backend setup referenced by [Lovable's external hosting guide](https://docs.lovable.dev/tips-tricks/external-deployment-hosting). Install it in a separate folder, select a reviewed release and follow its official key-generation, configuration and backup instructions. The app repository does not bundle that backend.
+Follow the [official production Docker backend guide](https://supabase.com/docs/guides/self-hosting/docker). Install it in a separate folder, select a reviewed release and follow its official key-generation, configuration and backup instructions. The app repository does not bundle that backend.
 
 Before starting it:
 

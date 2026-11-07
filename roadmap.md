@@ -1,4 +1,5 @@
 # Tasks
+- [x] Remove editable platform branding from application pages, metadata and deployment guides; signed-in settings and 8 deployment tests pass. Required build package, generated integrations, hosted-destination safeguards and protected project guidance remain.
 - [x] Add fresh-install GCP Ubuntu instructions to the repository and link them from both READMEs; VM execution remains blocked on target access/configuration.
 - [x] Add strong temporary-password generation and copy-both login controls to invitations; credentials remain transient after creation. Verified strength rules, signed-in clipboard contents and desktop/mobile layout; 15 tests pass.
 - [x] Record admin invitation attempts and outcomes in admin-only history, excluding passwords; verified successful/failed creation, reload persistence and non-admin read denial, then removed verification fixtures.
@@ -39,4 +40,4 @@
 - [x] Remove router log controls, collection, exports and references.
 - [x] Retire log storage and reject legacy log jobs.
 - [x] Verify signed-in Devices and dashboard screens.
-- [ ] Connect real Okta tenant: issuer, client ID and client secret (entered in Lovable Cloud auth settings, not in app).
+- [ ] Connect real Okta tenant: issuer, client ID and client secret (configured in the authentication service, not in app).
