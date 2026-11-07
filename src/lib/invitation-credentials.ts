@@ -5,8 +5,12 @@ const groups = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "234567
 function randomIndex(limit: number): number {
   const values = new Uint32Array(1);
   const ceiling = Math.floor(0x100000000 / limit) * limit;
-  do { globalThis.crypto.getRandomValues(values); } while (values[0] >= ceiling);
-  return values[0] % limit;
+  let value: number | undefined;
+  do {
+    globalThis.crypto.getRandomValues(values);
+    value = values[0];
+  } while (value === undefined || value >= ceiling);
+  return value % limit;
 }
 
 export function generateTemporaryPassword(): string {
