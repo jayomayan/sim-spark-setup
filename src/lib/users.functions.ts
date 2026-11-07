@@ -27,9 +27,10 @@ export const inviteExternalUser = createServerFn({ method: "POST" })
     if (adminProfile.error) throw new Error("Couldn't identify the inviting admin");
     const adminName = adminProfile.data.display_name || adminProfile.data.username || adminProfile.data.email || context.userId;
     const audit = await supabaseAdmin.from("invitation_history").insert(invitationAuditRecord(data, context.userId, adminName)).select("id").single();
-    if (audit.error) throw new Error("Couldn't record this invitation. No account was created; please retry.");
+    if (audit.error || !audit.data) throw new Error("Couldn't record this invitation. No account was created; please retry.");
+    const auditId = audit.data.id;
     async function finishAudit(status: "created" | "failed" | "setup_failed", userId?: string) {
-      const saved = await supabaseAdmin.from("invitation_history").update({ status, invited_user_id: userId ?? null, finished_at: new Date().toISOString() }).eq("id", audit.data.id).select("id").single();
+      const saved = await supabaseAdmin.from("invitation_history").update({ status, invited_user_id: userId ?? null, finished_at: new Date().toISOString() }).eq("id", auditId).select("id").single();
       if (saved.error) throw new Error("Couldn't finish recording the invitation outcome. Check invitation history before retrying.");
     }
     const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
