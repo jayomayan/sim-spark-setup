@@ -47,7 +47,10 @@ export const completeFirstLogin = createServerFn({ method: "POST" })
     const requirement = await context.supabase.from("account_security").select("must_change_password").eq("user_id", context.userId).maybeSingle();
     if (requirement.error || !requirement.data?.must_change_password) throw new Error("No first-login password change is pending");
     // Use an isolated auth client: the request-scoped Data API client has no Auth session.
-    const identity = await context.supabase.auth.getUser();
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const bearer = getRequest().headers.get("authorization")?.replace(/^Bearer /, "");
+    if (!bearer) throw new Error("Sign in again before changing your password");
+    const identity = await context.supabase.auth.getUser(bearer);
     if (identity.error || !identity.data.user?.email) throw new Error("Sign in again before changing your password");
     const url = process.env['SUPABASE_URL'];
     const key = process.env['SUPABASE_PUBLISHABLE_KEY'];
