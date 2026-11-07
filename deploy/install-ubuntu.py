@@ -248,7 +248,223 @@ def main():
 
 
 def install(source, values):
-    raise RuntimeError('Installation steps are not yet available.')
+    print('1/8 Downloading and verifying native tools…')
+    node_name = f'node-v{NODE_VERSION}-linux-x64.tar.xz'
+    sums = download(f'https://nodejs.org/dist/v{NODE_VERSION}/SHASUMS256.txt').decode()
+    expected = next((line.split()[0] for line in sums.splitlines() if line.split()[-1] == node_name), None)
+    node_data = download(f'https://nodejs.org/dist/v{NODE_VERSION}/{node_name}')
+    go_data = download(f'https://go.dev/dl/go{GO_VERSION}.linux-amd64.tar.gz')
+    if not expected or hashlib.sha256(node_data).hexdigest() != expected or hashlib.sha256(go_data).hexdigest() != GO_CHECKSUM:
+        raise RuntimeError('Node or Go checksum mismatch.')
+    rest_data = release_asset('PostgREST/postgrest', REST_VERSION, f'postgrest-{REST_VERSION}-linux-static-x86-64.tar.xz')
+    bun_data = release_asset('oven-sh/bun', BUN_VERSION, 'bun-linux-x64.zip')
+    CONFIG.mkdir(mode=0o700)
+    write(STATE, json.dumps({'status': 'installing', 'website': values['website'], 'api': values['api'], 'versions': {'node': NODE_VERSION, 'auth': AUTH_VERSION, 'rest': REST_VERSION, 'bun': BUN_VERSION}}))
+    print('2/8 Installing Ubuntu packages and service accounts…')
+    run(['apt-get', 'update'])
+    run(['apt-get', 'install', '-y', 'ca-certificates', 'curl', 'git', 'make', 'xz-utils', 'unzip', 'postgresql', 'postgresql-contrib', 'nginx', 'certbot', 'python3-certbot-nginx'], env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'})
+    for user in ('fieldops-web', 'fieldops-auth', 'fieldops-rest'):
+        run(['useradd', '--system', '--user-group', '--home-dir', '/nonexistent', '--shell', '/usr/sbin/nologin', user])
+    BACKEND.mkdir(mode=0o755)
+    APP.mkdir(mode=0o755)
+    # Exclude repository metadata and hosted credentials at every depth.
+    shutil.copytree(source, APP, dirs_exist_ok=True, ignore=shutil.ignore_patterns('.git', '.env', '.env.*', 'node_modules', '.output', 'dist', '.tanstack', '.lovable', '.workspace', '__pycache__'))
+    run(['chown', '-R', 'fieldops-web:fieldops-web', str(APP)])
+    with tempfile.TemporaryDirectory(prefix='field-ops-install-') as temp:
+        staging = Path(temp)
+        os.chmod(staging, 0o755)
+        for content, target in ((node_data, staging / 'node'), (go_data, staging / 'go')):
+            target.mkdir()
+            with tarfile.open(fileobj=io.BytesIO(content)) as archive:
+                archive.extractall(target, filter='data')
+        shutil.copytree(staging / 'node' / f'node-v{NODE_VERSION}-linux-x64', BACKEND / 'node')
+        for executable in ('node', 'npm', 'npx'):
+            path = Path('/usr/local/bin') / executable
+            if path.exists() or path.is_symlink():
+                raise RuntimeError('An existing Node installation was found; refusing to replace it.')
+            path.symlink_to(BACKEND / 'node/bin' / executable)
+        with tarfile.open(fileobj=io.BytesIO(rest_data)) as archive:
+            member = next(m for m in archive.getmembers() if Path(m.name).name == 'postgrest' and m.isfile())
+            handle = archive.extractfile(member)
+            if handle is None:
+                raise RuntimeError('PostgREST binary missing from archive.')
+            install_binary(BACKEND / 'postgrest', handle.read())
+        with zipfile.ZipFile(io.BytesIO(bun_data)) as archive:
+            install_binary('/usr/local/bin/bun', archive.read('bun-linux-x64/bun'))
+        print('3/8 Compiling the pinned sign-in service (this can take several minutes)…')
+        auth_source = staging / 'auth'
+        run(['git', 'clone', '--depth', '1', '--branch', AUTH_VERSION, 'https://github.com/supabase/auth.git', str(auth_source)])
+        if run(['git', 'rev-parse', 'HEAD'], cwd=auth_source).strip() != AUTH_COMMIT:
+            raise RuntimeError('Auth source revision does not match the reviewed commit.')
+        run(['chown', '-R', 'fieldops-auth:fieldops-auth', str(auth_source)])
+        cache = staging / 'cache'
+        cache.mkdir()
+        run(['chown', 'fieldops-auth:fieldops-auth', str(cache)])
+        go = str(staging / 'go/go/bin/go')
+        build_env = {**os.environ, 'HOME': str(cache), 'GOCACHE': str(cache / 'build'), 'GOPATH': str(cache / 'packages'), 'GOTOOLCHAIN': 'local', 'CGO_ENABLED': '0'}
+        run([go, 'mod', 'download'], cwd=auth_source, user='fieldops-auth', env=build_env)
+        run([go, 'mod', 'verify'], cwd=auth_source, user='fieldops-auth', env=build_env)
+        run([go, 'build', '-buildvcs=false', '-ldflags', f'-X github.com/supabase/auth/internal/utilities.Version={AUTH_VERSION}', '-o', str(auth_source / 'gotrue'), '.'], cwd=auth_source, user='fieldops-auth', env=build_env)
+        install_binary(BACKEND / 'gotrue', (auth_source / 'gotrue').read_bytes())
+    print('4/8 Initializing the private database and keys…')
+    run(['systemctl', 'enable', '--now', 'postgresql'])
+    passwords = {role: secrets.token_hex(32) for role in ('fieldops_owner', 'supabase_auth_admin', 'authenticator')}
+    sql = '\n'.join(f"CREATE ROLE {role} LOGIN NOINHERIT PASSWORD '{password}';" for role, password in passwords.items()) + '''
+CREATE ROLE anon NOLOGIN NOINHERIT;
+CREATE ROLE authenticated NOLOGIN NOINHERIT;
+CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
+GRANT anon, authenticated, service_role TO authenticator;
+CREATE DATABASE fieldops OWNER fieldops_owner;
+'''
+    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', data=sql, cwd='/tmp')
+    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'fieldops'], user='postgres', cwd='/tmp', data='''
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+CREATE SCHEMA auth AUTHORIZATION supabase_auth_admin;
+GRANT CONNECT ON DATABASE fieldops TO supabase_auth_admin, authenticator;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+''')
+    shared = secrets.token_hex(32)
+    anon, service = jwt(shared, 'anon'), jwt(shared, 'service_role')
+    db_url = lambda role: f'postgresql://{role}:{passwords[role]}@127.0.0.1:5432/fieldops?sslmode=disable'
+    auth_env = {'GOTRUE_API_HOST': '127.0.0.1', 'PORT': '9999', 'API_EXTERNAL_URL': f'https://{values["api"]}/auth/v1', 'GOTRUE_DB_DRIVER': 'postgres', 'DATABASE_URL': db_url('supabase_auth_admin'), 'DB_NAMESPACE': 'auth', 'GOTRUE_SITE_URL': f'https://{values["website"]}', 'GOTRUE_URI_ALLOW_LIST': f'https://{values["website"]}/auth,https://{values["website"]}/reset-password', 'GOTRUE_JWT_SECRET': shared, 'GOTRUE_JWT_EXP': '3600', 'GOTRUE_JWT_AUD': 'authenticated', 'GOTRUE_JWT_DEFAULT_GROUP_NAME': 'authenticated', 'GOTRUE_JWT_ADMIN_ROLES': 'service_role', 'GOTRUE_DISABLE_SIGNUP': 'true', 'GOTRUE_EXTERNAL_EMAIL_ENABLED': 'true', 'GOTRUE_EXTERNAL_PHONE_ENABLED': 'false', 'GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED': 'false', 'GOTRUE_MAILER_AUTOCONFIRM': 'false', 'GOTRUE_SMTP_HOST': values['smtp_host'], 'GOTRUE_SMTP_PORT': values['smtp_port'], 'GOTRUE_SMTP_USER': values['smtp_user'], 'GOTRUE_SMTP_PASS': values['smtp_password'], 'GOTRUE_SMTP_ADMIN_EMAIL': values['sender'], 'GOTRUE_SMTP_SENDER_NAME': 'Frontier Field Ops Console', 'GOTRUE_MAILER_URLPATHS_CONFIRMATION': '/auth/v1/verify', 'GOTRUE_MAILER_URLPATHS_RECOVERY': '/auth/v1/verify', 'GOTRUE_MAILER_URLPATHS_INVITE': '/auth/v1/verify', 'GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE': '/auth/v1/verify'}
+    environment(CONFIG / 'auth.env', auth_env)
+    run([str(BACKEND / 'gotrue'), 'migrate'], user='fieldops-auth', env={**os.environ, **auth_env}, cwd=BACKEND)
+    # Application trigger migration requires owner access to auth.users. Migration
+    # uses the local PostgreSQL administrator, never the REST/login role.
+    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'fieldops'], user='postgres', cwd='/tmp', data='GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role; GRANT EXECUTE ON FUNCTION auth.uid(), auth.role(), auth.jwt() TO anon, authenticated, service_role;')
+    rest_env = {'PGRST_DB_URI': db_url('authenticator'), 'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_ANON_ROLE': 'anon', 'PGRST_JWT_SECRET': shared, 'PGRST_JWT_SECRET_IS_BASE64': 'false', 'PGRST_JWT_AUD': 'authenticated', 'PGRST_SERVER_HOST': '127.0.0.1', 'PGRST_SERVER_PORT': '3001'}
+    environment(CONFIG / 'rest.env', rest_env)
+    # Use a dedicated temporary superuser migration connection; remove it after
+    # schema setup so no superuser credentials persist in the app environment.
+    migration_password = secrets.token_hex(32)
+    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data=f"CREATE ROLE fieldops_migration LOGIN SUPERUSER PASSWORD '{migration_password}';")
+    app_env = {'FIELD_OPS_STANDALONE': '1', 'NODE_ENV': 'production', 'HOST': '127.0.0.1', 'PORT': '3000', 'VITE_SUPABASE_URL': f'https://{values["api"]}', 'VITE_SUPABASE_PUBLISHABLE_KEY': anon, 'SUPABASE_URL': 'http://127.0.0.1:8000', 'SUPABASE_PUBLISHABLE_KEY': anon, 'SUPABASE_SERVICE_ROLE_KEY': service, 'DB_SECRET_KEY': secrets.token_hex(32)}
+    environment('/etc/field-ops-console.env', app_env)
+    print('5/8 Installing app dependencies and applying checked-in migrations…')
+    run(['/usr/local/bin/bun', 'install', '--frozen-lockfile'], cwd=APP, user='fieldops-web', env={**os.environ, 'HOME': str(APP)})
+    migration_env = {**os.environ, **app_env, 'STANDALONE_DATABASE_URL': f'postgresql://fieldops_migration:{migration_password}@127.0.0.1:5432/fieldops?sslmode=disable'}
+    try:
+        run(['/usr/local/bin/bun', 'run', 'db:migrate:standalone'], cwd=APP, user='fieldops-web', env=migration_env)
+        # Reassign app objects to the durable owner before dropping temporary role.
+        run(['psql', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'fieldops'], user='postgres', cwd='/tmp', data='REASSIGN OWNED BY fieldops_migration TO fieldops_owner; DROP OWNED BY fieldops_migration;')
+    finally:
+        # Revoke login even on failure; do not leave a reusable superuser password.
+        run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data='ALTER ROLE fieldops_migration NOLOGIN PASSWORD NULL;')
+    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data='DROP ROLE fieldops_migration;')
+    # Owner must be able to maintain the app trigger on auth.users for updates.
+    print('6/8 Building the website and starting private services…')
+    run(['/usr/local/bin/bun', 'run', 'build:standalone'], cwd=APP, user='fieldops-web', env={**os.environ, **app_env, 'HOME': str(APP)})
+    unit('field-ops-auth', str(BACKEND / 'gotrue') + ' serve', CONFIG / 'auth.env', 'fieldops-auth', BACKEND)
+    unit('field-ops-rest', str(BACKEND / 'postgrest'), CONFIG / 'rest.env', 'fieldops-rest', BACKEND)
+    unit('field-ops-console', '/usr/local/bin/node ' + str(APP / 'deploy/start.mjs'), '/etc/field-ops-console.env', 'fieldops-web', APP, 'field-ops-auth.service field-ops-rest.service')
+    run(['systemctl', 'daemon-reload'])
+    run(['systemctl', 'enable', '--now', 'field-ops-auth', 'field-ops-rest', 'field-ops-console'])
+    wait_url('http://127.0.0.1:9999/health')
+    wait_url('http://127.0.0.1:3000/')
+    print('7/8 Configuring the API gateway and trusted HTTPS…')
+    configure_nginx(values, anon, service)
+    run(['nginx', '-t'])
+    run(['systemctl', 'enable', '--now', 'nginx'])
+    run(['systemctl', 'reload', 'nginx'])
+    run(['certbot', '--nginx', '--non-interactive', '--agree-tos', '--redirect', '--email', values['admin'], '-d', values['website'], '-d', values['api']])
+    run(['systemctl', 'enable', '--now', 'certbot.timer'])
+    print('8/8 Creating the first admin and checking installed services…')
+    payload = {'email': values['admin'], 'password': values['password'], 'email_confirm': values['verified'], 'role': 'authenticated'}
+    request = urllib.request.Request('http://127.0.0.1:9999/admin/users', data=json.dumps(payload).encode(), headers={'Authorization': 'Bearer ' + service, 'Content-Type': 'application/json'}, method='POST')
+    with urllib.request.urlopen(request, timeout=30) as response:
+        account = json.load(response)
+    if not values['verified']:
+        # Send a confirmation email using the Auth resend flow, not a password email.
+        request = urllib.request.Request('http://127.0.0.1:9999/resend', data=json.dumps({'type': 'signup', 'email': values['admin']}).encode(), headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(request, timeout=30):
+            pass
+    check = run(['psql', '-tAc', "SELECT count(*) FROM public.user_roles WHERE role='admin';", '-d', 'fieldops'], user='postgres', cwd='/tmp').strip()
+    if check != '1' or not account.get('id'):
+        raise RuntimeError('First administrator role was not confirmed.')
+    run(['/usr/local/bin/bun', 'run', 'check:standalone'], cwd=APP, user='fieldops-web', env={**os.environ, **app_env, 'HOME': str(APP)})
+    for url in (f'https://{values["website"]}/', f'https://{values["api"]}/auth/v1/health'):
+        wait_url(url)
+    state = json.loads(STATE.read_text())
+    state['status'] = 'installed'
+    STATE.write_text(json.dumps(state))
+    values['password'] = ''
+    print(f'Installed: https://{values["website"]}')
+    print('Sign in with the administrator email and password you entered; confirm the email first if requested.')
+    print('Next: configure Console Connect and Okta; enroll the Network Helper from Admin Settings on a machine with router access.')
+    print('Back up /etc/field-ops, /etc/field-ops-console.env and the PostgreSQL database securely. Do not share their contents.')
+    print('This installer is not an upgrade tool. Complete the VM acceptance checklist before allowing operational access.')
+
+
+def configure_nginx(values, anon, service):
+    website, api = values['website'], values['api']
+    write('/etc/nginx/conf.d/field-ops-keys.conf', f'''map $http_apikey $field_ops_key_ok {{
+    default 0;
+    "{anon}" 1;
+    "{service}" 1;
+}}
+map $http_authorization $field_ops_authorization {{
+    default $http_authorization;
+    "" "Bearer $http_apikey";
+}}
+map $http_origin $field_ops_origin {{
+    default "";
+    "https://{website}" "https://{website}";
+}}
+''')
+    common = '''proxy_set_header Authorization $field_ops_authorization;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+'''
+    gateway = f'''access_log off;
+    add_header Access-Control-Allow-Origin $field_ops_origin always;
+    add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+    add_header Access-Control-Allow-Headers "authorization, apikey, content-type, x-client-info, prefer, range, accept-profile, content-profile, x-supabase-api-version" always;
+    add_header Access-Control-Expose-Headers "content-range, x-total-count" always;
+    add_header Vary Origin always;
+    if ($request_method = OPTIONS) {{ return 204; }}
+    location ~ ^/auth/v1/(verify|callback|authorize|\.well-known/jwks\.json|health)$ {{
+        rewrite ^/auth/v1/(.*)$ /$1 break;
+        {common}
+        proxy_pass http://127.0.0.1:9999;
+    }}
+    location /auth/v1/ {{
+        if ($field_ops_key_ok = 0) {{ return 401; }}
+        {common}
+        proxy_pass http://127.0.0.1:9999/;
+    }}
+    location /rest/v1/ {{
+        if ($field_ops_key_ok = 0) {{ return 401; }}
+        {common}
+        proxy_pass http://127.0.0.1:3001/;
+    }}
+    location / {{ return 404; }}
+'''
+    write('/etc/nginx/sites-available/field-ops-native', f'''server {{
+    listen 127.0.0.1:8000;
+    server_name localhost;
+    {gateway}
+}}
+server {{
+    listen 80;
+    server_name {api};
+    {gateway}
+}}
+server {{
+    listen 80;
+    server_name {website};
+    location / {{
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+    }}
+}}
+''', 0o600)
+    Path('/etc/nginx/sites-enabled/field-ops-native').symlink_to('/etc/nginx/sites-available/field-ops-native')
 
 
 if __name__ == '__main__':
