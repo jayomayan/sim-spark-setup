@@ -336,7 +336,7 @@ def create_database_cluster():
     if not versions:
         raise RuntimeError('No installed native PostgreSQL version found.')
     version = versions[-1]
-    run(['pg_createcluster', version, 'fieldops', '--port', str(PORTS['database']), '-o', 'listen_addresses=127.0.0.1', '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
+    run(['pg_createcluster', version, 'fieldops', '--port', str(PORTS['database']), '-o', "listen_addresses='127.0.0.1'", '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
     # Only this new cluster is configured. Never edit or restart other clusters.
     run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data="ALTER SYSTEM SET listen_addresses = '127.0.0.1';")
     run(['pg_ctlcluster', version, 'fieldops', 'restart'])
