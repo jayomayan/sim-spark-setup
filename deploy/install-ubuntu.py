@@ -23,6 +23,7 @@ import tempfile
 import time
 import urllib.request
 import urllib.error
+import zipfile
 
 APP = Path('/opt/field-ops-console')
 BACKEND = Path('/opt/field-ops-backend')
@@ -30,8 +31,11 @@ CONFIG = Path('/etc/field-ops')
 STATE = CONFIG / 'installation.json'
 NODE_VERSION = '22.22.0'
 AUTH_VERSION = 'v2.196.0'
-REST_VERSION = 'v12.2.12'
+REST_VERSION = 'v16.5'
 BUN_VERSION = 'bun-v1.3.3'
+AUTH_COMMIT = '0204331ca41a5b49f076b6fa3dc6c0d20b996590'
+GO_VERSION = '1.26.5'
+GO_CHECKSUM = '5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053'
 
 
 def domain(value):
@@ -56,14 +60,14 @@ def env_value(value):
     if any(c in value for c in '\r\n\x00'):
         raise ValueError('Multiline settings are not supported.')
     # Compatible with both systemd EnvironmentFile and a shell's source command.
-    return "'" + value.replace("'", "'\\''") + "'"
+    return '"' + ''.join('\\' + c if c in '\\"$`' else c for c in value) + '"'
 
 
 def jwt(secret, role, now=None):
     now = int(time.time()) if now is None else now
     encode = lambda value: base64.urlsafe_b64encode(value).rstrip(b'=').decode()
     header = encode(json.dumps({'alg': 'HS256', 'typ': 'JWT'}, separators=(',', ':')).encode())
-    body = encode(json.dumps({'role': role, 'iss': 'supabase', 'iat': now, 'exp': now + 10 * 365 * 86400}, separators=(',', ':')).encode())
+    body = encode(json.dumps({'role': role, 'aud': 'authenticated', 'iss': 'supabase', 'iat': now, 'exp': now + 10 * 365 * 86400}, separators=(',', ':')).encode())
     message = header + '.' + body
     return message + '.' + encode(hmac.new(secret.encode(), message.encode(), hashlib.sha256).digest())
 
@@ -71,7 +75,8 @@ def jwt(secret, role, now=None):
 def ask(label, default='', validate=None, hidden=False):
     while True:
         prompt = label + (f' [{default}]' if default else '') + ': '
-        value = (getpass.getpass(prompt) if hidden else input(prompt)).strip() or default
+        raw = getpass.getpass(prompt) if hidden else input(prompt)
+        value = (raw if hidden else raw.strip()) or default
         try:
             if not value:
                 raise ValueError('This value is required.')
@@ -80,10 +85,6 @@ def ask(label, default='', validate=None, hidden=False):
             return validate(value) if validate else value
         except ValueError as error:
             print(error)
-
-
-def yes(label, default=False):
-    return input(label + (' [Y/n]: ' if default else ' [y/N]: ')).strip().lower() in ('y', 'yes') or (default and not False if False else False)  # replaced below by explicit parsing
 
 
 def confirm(label, default=False):
