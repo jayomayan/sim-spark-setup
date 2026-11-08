@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import importlib.util
 import json
+import re
 from pathlib import Path
 import subprocess
 import tempfile

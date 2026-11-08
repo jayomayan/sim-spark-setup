@@ -784,8 +784,8 @@ def configure_nginx(values, anon, service, tls=False):
         (BACKEND / 'acme').mkdir(mode=0o755)
         write('/etc/nginx/conf.d/field-ops-keys.conf', f'''map $http_apikey $field_ops_key_ok {{
     default 0;
-    "{anon}" 1;
-    "{service}" 1;
+    "~^{re.escape(anon)}$" 1;
+    "~^{re.escape(service)}$" 1;
 }}
 map $http_authorization $field_ops_authorization {{
     default $http_authorization;
