@@ -5,6 +5,7 @@ No secrets are passed in command arguments or printed. --dry-run asks the same
 questions but makes no system changes. This is not an upgrade/migration tool.
 """
 import argparse
+import fcntl
 import base64
 import getpass
 import hashlib
@@ -26,6 +27,7 @@ import time
 import urllib.request
 import urllib.error
 import zipfile
+from urllib.parse import urlsplit
 
 APP = Path('/opt/field-ops-console')
 BACKEND = Path('/opt/field-ops-backend')
@@ -403,9 +405,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true', help='Prompt and validate only; do not install or write settings')
     parser.add_argument('--diagnose', action='store_true', help='Show read-only Python and installation-path diagnostics; no secrets or changes')
+    parser.add_argument('--resume-after-auth', action='store_true', help='Continue only a verified partial installation after Auth tables were created')
     args = parser.parse_args()
     if args.diagnose:
         diagnose()
+        return
+    if args.resume_after_auth:
+        if args.dry_run:
+            raise RuntimeError('Use --resume-after-auth separately from --dry-run.')
+        resume_after_auth()
         return
     source = None if args.dry_run else preflight()
     values = settings()
@@ -517,6 +525,12 @@ CREATE DATABASE fieldops OWNER fieldops_owner;
     auth_env = {'GOTRUE_API_HOST': '127.0.0.1', 'PORT': str(PORTS['auth']), 'API_EXTERNAL_URL': f'https://{values["api"]}/auth/v1', 'GOTRUE_DB_DRIVER': 'postgres', 'DATABASE_URL': db_url('supabase_auth_admin'), 'DB_NAMESPACE': 'auth', 'GOTRUE_SITE_URL': f'https://{values["website"]}', 'GOTRUE_URI_ALLOW_LIST': f'https://{values["website"]}/auth,https://{values["website"]}/reset-password', 'GOTRUE_JWT_SECRET': shared, 'GOTRUE_JWT_EXP': '3600', 'GOTRUE_JWT_AUD': 'authenticated', 'GOTRUE_JWT_DEFAULT_GROUP_NAME': 'authenticated', 'GOTRUE_JWT_ADMIN_ROLES': 'service_role', 'GOTRUE_DISABLE_SIGNUP': 'true', 'GOTRUE_EXTERNAL_EMAIL_ENABLED': 'true', 'GOTRUE_EXTERNAL_PHONE_ENABLED': 'false', 'GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED': 'false', 'GOTRUE_MAILER_AUTOCONFIRM': 'false', 'GOTRUE_SMTP_HOST': values['smtp_host'], 'GOTRUE_SMTP_PORT': values['smtp_port'], 'GOTRUE_SMTP_USER': values['smtp_user'], 'GOTRUE_SMTP_PASS': values['smtp_password'], 'GOTRUE_SMTP_ADMIN_EMAIL': values['sender'], 'GOTRUE_SMTP_SENDER_NAME': 'Frontier Field Ops Console', 'GOTRUE_MAILER_URLPATHS_CONFIRMATION': '/auth/v1/verify', 'GOTRUE_MAILER_URLPATHS_RECOVERY': '/auth/v1/verify', 'GOTRUE_MAILER_URLPATHS_INVITE': '/auth/v1/verify', 'GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE': '/auth/v1/verify'}
     environment(CONFIG / 'auth.env', auth_env)
     run([str(BACKEND / 'gotrue'), 'migrate'], user='fieldops-auth', env={**os.environ, **auth_env}, cwd=BACKEND)
+    complete_install(values, shared, db_url)
+
+
+def complete_install(values, shared, db_url):
+    global INSTALL_PHASE
+    anon, service = jwt(shared, 'anon'), jwt(shared, 'service_role')
     # Application trigger migration requires owner access to auth.users. Migration
     # uses the local PostgreSQL administrator, never the REST/login role.
     run(['psql', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'fieldops'], user='postgres', cwd='/tmp', data='GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role; GRANT EXECUTE ON FUNCTION auth.uid(), auth.role(), auth.jwt() TO anon, authenticated, service_role;')
@@ -590,6 +604,92 @@ CREATE DATABASE fieldops OWNER fieldops_owner;
     print('Next: configure Console Connect and Okta; enroll the Network Helper from Admin Settings on a machine with router access.')
     print('Back up /etc/field-ops, /etc/field-ops-console.env and the PostgreSQL database securely. Do not share their contents.')
     print('This installer is not an upgrade tool. Complete the VM acceptance checklist before allowing operational access.')
+
+
+def resume_state():
+    """Accept only the exact pre-REST checkpoint; never overwrite later state."""
+    for path in (CONFIG, STATE, CONFIG / 'auth.env', APP, BACKEND):
+        if path.is_symlink() or not path.exists() or path.stat().st_uid != 0:
+            # The installed app is intentionally owned by its dedicated account.
+            if path != APP or path.is_symlink() or not path.is_dir() or path.stat().st_uid != pwd.getpwnam('fieldops-web').pw_uid:
+                raise RuntimeError('Continuation refused: installation path ownership or type changed.')
+    if (CONFIG / 'auth.env').stat().st_mode & 0o077:
+        raise RuntimeError('Continuation refused: sign-in settings are not private.')
+    state = json.loads(STATE.read_text())
+    ports = state.get('ports', {})
+    if state.get('status') != 'installing' or set(ports) != set(PORTS) or ports.get('database') != 5432:
+        raise RuntimeError('Continuation refused: this is not the supported partial installation.')
+    if any(type(p) is not int or not 1 <= p <= 65535 for p in ports.values()) or len(set(ports.values())) != 5:
+        raise RuntimeError('Continuation refused: saved ports are invalid.')
+    for path in (CONFIG / 'rest.env', Path('/etc/field-ops-console.env'),
+                 Path('/etc/nginx/sites-available/field-ops-native'), Path('/etc/nginx/sites-enabled/field-ops-native'),
+                 Path('/etc/nginx/conf.d/field-ops-keys.conf'), Path('/etc/letsencrypt/live/field-ops-native'),
+                 *(Path('/etc/systemd/system') / (name + '.service') for name in ('field-ops-auth', 'field-ops-rest', 'field-ops-console'))):
+        if path.exists() or path.is_symlink():
+            raise RuntimeError('Continuation refused: later installation state exists; preserve it for manual recovery.')
+    settings = {}
+    for line in (CONFIG / 'auth.env').read_text().splitlines():
+        key, separator, value = line.partition('=')
+        if not separator or key in settings:
+            raise RuntimeError('Continuation refused: invalid private settings format.')
+        settings[key] = json.loads(value)
+    website, api = domain(state['website']), domain(state['api'])
+    url = urlsplit(settings['DATABASE_URL'])
+    if url.hostname != '127.0.0.1' or url.port != 5432 or url.path != '/fieldops' or url.username != 'supabase_auth_admin':
+        raise RuntimeError('Continuation refused: sign-in database destination differs.')
+    if settings.get('GOTRUE_SITE_URL') != 'https://' + website or settings.get('API_EXTERNAL_URL') != 'https://' + api + '/auth/v1' or settings.get('PORT') != str(ports['auth']) or settings.get('DB_NAMESPACE') != 'auth' or not settings.get('GOTRUE_JWT_SECRET'):
+        raise RuntimeError('Continuation refused: sign-in settings differ from saved installation.')
+    return state, settings
+
+
+def resume_after_auth():
+    global INSTALL_PHASE
+    if os.geteuid() != 0:
+        raise RuntimeError('Run continuation with sudo on the target Ubuntu server.')
+    # Hold the private directory lock throughout validation and continuation.
+    if CONFIG.is_symlink() or not CONFIG.is_dir() or CONFIG.stat().st_uid != 0 or CONFIG.stat().st_mode & 0o077:
+        raise RuntimeError('Continuation refused: private installation directory is unsafe.')
+    with CONFIG.open() if False else open('/run/field-ops-resume.lock', 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        state, auth = resume_state()
+        PORTS.update(state['ports'])
+        values = {'website': state['website'], 'api': state['api']}
+        for user in SERVICE_USERS:
+            if service_account(user) is None:
+                raise RuntimeError('Continuation refused: a dedicated service account is missing.')
+        for path in (BACKEND / 'gotrue', BACKEND / 'postgrest', BACKEND / 'node/bin/node', BACKEND / 'bin/bun'):
+            if path.is_symlink() or not path.is_file() or path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
+                raise RuntimeError('Continuation refused: native tool missing or unsafe.')
+        if not (APP / 'package.json').is_file() or not (APP / 'deploy/migrate.mjs').is_file():
+            raise RuntimeError('Continuation refused: installed application source is missing.')
+        check_shared_host(values)
+        if set(PORTS.values()) - {5432} & listening_ports():
+            raise RuntimeError('Continuation refused: a saved private service port is occupied.')
+        check = run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-At', '-d', 'fieldops'], user='postgres', cwd='/tmp', data="""
+SELECT (to_regclass('auth.users') IS NOT NULL AND to_regprocedure('auth.jwt()') IS NOT NULL
+ AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public')
+ AND NOT EXISTS (SELECT 1 FROM auth.users)
+ AND NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fieldops_migration'));
+""").strip()
+        if check != 't':
+            raise RuntimeError('Continuation refused: Auth setup is incomplete or application/account state already exists.')
+        print('Continue using existing sign-in settings and installed application source; no downloads or database recreation.')
+        values['admin'] = ask('First administrator email', validate=email)
+        values['password'] = ask('First administrator password (12+ characters with upper/lowercase, number and symbol)', hidden=True, validate=lambda v: v if strong_password(v) else (_ for _ in ()).throw(ValueError('Use a strong password.')))
+        if ask('Confirm administrator password', hidden=True) != values['password']:
+            raise RuntimeError('Passwords do not match.')
+        values['verified'] = confirm('Mark ONLY this installer-created administrator email as already verified?')
+        if not confirm('Back up the database and finish this partial installation now?'):
+            return
+        INSTALL_PHASE = 'continuation backup'
+        backup = CONFIG / ('before-continuation-' + time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()) + '.sql')
+        write(backup, run(['pg_dump', '-p', '5432', '-d', 'fieldops'], user='postgres', cwd='/tmp'), 0o600)
+        # Only the REST role password was lost before its settings were saved.
+        # Generate that role's password; retain the existing Auth signing key.
+        password = secrets.token_hex(32)
+        run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'fieldops'], user='postgres', cwd='/tmp', data="SET password_encryption = 'scram-sha-256';\nALTER ROLE authenticator PASSWORD '" + password + "';")
+        db_url = lambda role: f'postgresql://{role}:{password}@127.0.0.1:5432/fieldops?sslmode=disable'
+        complete_install(values, auth['GOTRUE_JWT_SECRET'], db_url)
 
 
 def configure_nginx(values, anon, service, tls=False):
