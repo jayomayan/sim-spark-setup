@@ -1,7 +1,8 @@
-import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouteContext } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouteContext, useRouterState } from "@tanstack/react-router";
 import logo from "@/assets/fta-logo.png.asset.json";
 import { useQueryClient } from "@tanstack/react-query";
-import { Cpu, Gauge, Globe, ListTree, LogOut, Radio, Server, Settings } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Cpu, Gauge, Globe, ListTree, LogOut, Menu, Radio, Server, Settings, X } from "lucide-react";
 import { canAccessAdminSettings, canAccessOperationalTools } from "@/lib/admin-access";
 import { supabase } from "@/integrations/supabase/client";
 import { HelperStatus } from "@/components/HelperStatus";
