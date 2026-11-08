@@ -20,6 +20,24 @@ spec.loader.exec_module(installer)
 
 
 class InstallerChecks(unittest.TestCase):
+    def test_helper_only_never_calls_app_setup(self):
+        helper = SimpleNamespace(preflight=lambda api: None, settings=lambda api: {'console': 'https://ops.example.com'}, install=lambda api, values: None)
+        with patch('sys.argv', ['install-ubuntu.py', '--helper-only', '--dry-run']), patch.object(installer, 'helper_module', return_value=helper), patch.object(installer, 'preflight') as preflight, patch.object(installer, 'settings') as settings, patch.object(installer, 'choose_ports') as ports, patch.object(installer, 'install') as install:
+            installer.main()
+        for action in (preflight, settings, ports, install):
+            action.assert_not_called()
+
+    def test_helper_url_requires_https_without_credentials(self):
+        helper = installer.helper_module()
+        self.assertEqual(helper.console_url('https://ops.example.com/'), 'https://ops.example.com')
+        for url in ('http://ops.example.com', 'https://user:pass@ops.example.com', 'https://ops.example.com/path', 'https://ops.example.com:8000'):
+            with self.assertRaises(ValueError):
+                helper.console_url(url)
+
+    def test_helper_enrollment_does_not_follow_redirects(self):
+        helper = installer.helper_module()
+        self.assertIsNone(helper.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://elsewhere.example.com'))
+
     def test_diagnose_does_not_prompt_or_install_or_read_secret_files(self):
         with patch('sys.argv', ['install-ubuntu.py', '--diagnose']), patch.object(installer, 'settings') as settings, patch.object(installer, 'preflight') as preflight, patch.object(installer, 'install') as install, patch.object(installer.Path, 'read_text') as read, patch.object(installer.Path, 'read_bytes') as binary:
             installer.main()
