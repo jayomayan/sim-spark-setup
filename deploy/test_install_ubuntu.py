@@ -43,7 +43,6 @@ class InstallerChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             prefix = Path(temp) / 'helper'
             env_file, unit_file = Path(temp) / 'helper.env', Path(temp) / 'helper.service'
-            archive = SimpleNamespace(__enter__=lambda self: self, __exit__=lambda *args: None)
             from unittest.mock import MagicMock
             with patch.object(helper, 'PREFIX', prefix), patch.object(helper, 'ENV', env_file), patch.object(helper, 'UNIT', unit_file), patch.object(helper, 'preflight'), patch.object(helper.tarfile, 'open', return_value=MagicMock()), patch.object(installer, 'download', side_effect=[hashlib.sha256(b'archive').hexdigest().encode() + f'  node-v{installer.NODE_VERSION}-linux-x64.tar.xz'.encode(), b'archive']), patch.object(installer, 'run') as run, patch.object(installer, 'ask', return_value='private-code'), patch.object(helper, 'enroll', return_value='private-token') as enroll:
                 helper.install(installer, {'console': 'https://ops.example.com'})
