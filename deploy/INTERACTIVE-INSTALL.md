@@ -65,6 +65,24 @@ Upstream GitHub binary downloads require a published SHA-256 digest; the install
 
 ## If installation stops
 
+### Step 4: Auth migration denied access to public
+
+The sign-in migration runner creates its tracking table without a schema qualifier. The updated installer sets a database-specific search path of `auth, public` for the Auth role, retaining the restriction on creating objects in `public`. It also installs `pgcrypto` in `fieldops`, required for UUID defaults on PostgreSQL 12. Neither change modifies other databases, starts clusters or changes PostgreSQL server configuration.
+
+For an earlier partial installation, only after confirming that `fieldops` and its Auth role/schema exist, Auth has no tables, and database login works, apply this scoped repair as the local database administrator:
+
+```bash
+sudo -u postgres psql -X -p 5432 -d fieldops -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+ALTER ROLE supabase_auth_admin IN DATABASE fieldops SET search_path = auth, public;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+COMMIT;
+SQL
+```
+
+Preserve the existing keys, settings and database; do not rerun the fresh installer over this partial state. This repair is not an installation-resume command. Verify the Auth migration separately before planning continuation. Do not make the private environment file readable by other users or source it in a shell.
+
 No automatic rollback deletes database records or keys. Preserve partial state and inspect the services privately:
 
 Older installers may have left a separate `fieldops` cluster and partial application folders. The current installer does not need that cluster and will not modify or remove it. Preserve partial state; do not delete databases or rerun over existing application folders. Recovery requires checking what the earlier attempt created first.
