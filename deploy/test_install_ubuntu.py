@@ -67,6 +67,7 @@ class InstallerChecks(unittest.TestCase):
 
         def fake_run(args, **kwargs):
             calls.append(args)
+            calls.append(kwargs.get('data') or '')
             if args[:3] == ['psql', '-X', '-At']:
                 return '1\n'
             return ''
