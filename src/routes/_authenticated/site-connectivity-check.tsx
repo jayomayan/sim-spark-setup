@@ -1,7 +1,7 @@
-import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity, Server, History, ChevronDown } from "lucide-react";
+import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity, History, ChevronDown } from "lucide-react";
 import { lookupSite } from "@/lib/aeris.functions";
 import { runJob } from "@/lib/jobs";
 import { listSiteChecks, saveSiteCheck, type SiteCheck } from "@/lib/site-checks";
@@ -20,7 +20,6 @@ const emptyTiles = (): Record<BrowserPort, Tile> => ({ 80: { state: "idle" }, 44
 
 function SiteConnectivityCheck() {
   const lookup = useServerFn(lookupSite);
-  const { isAdmin } = useRouteContext({ from: "/_authenticated" });
   const [pingState, setPingState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [pingError, setPingError] = useState<string | null>(null);
@@ -103,9 +102,7 @@ function SiteConnectivityCheck() {
 
   return (
     <>
-      <PageHeader kicker="Remote access" title="Site Connectivity Check">
-        {isAdmin && <Button asChild variant="outline" size="sm"><Link to="/helper"><Server className="h-4 w-4" />Helper setup</Link></Button>}
-      </PageHeader>
+      <PageHeader kicker="Remote access" title="Site Connectivity Check" />
       <div className="space-y-6">
         <form onSubmit={connect} className="flex flex-col gap-3 border-b pb-6 sm:flex-row">
           <Input aria-label="Site ID or private IP" maxLength={32} value={query} disabled={busy} onChange={(e) => setQuery(e.target.value)} placeholder="Site ID (PH010010) or private IP (10.x.x.x)" className="font-mono" />
