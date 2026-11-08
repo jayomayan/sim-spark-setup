@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import importlib.util
 import json
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -218,6 +219,19 @@ class InstallerChecks(unittest.TestCase):
         self.assertNotIn('location ^~ /auth/v1/admin', local)
         self.assertIn('location ^~ /auth/v1/admin { return 404; }', public)
         self.assertIn('proxy_hide_header Access-Control-Allow-Origin;', public)
+
+    def test_long_api_keys_use_anchored_literal_regex_not_map_hash(self):
+        keys = (installer.jwt('test-signing-key', 'anon', now=100), installer.jwt('test-signing-key', 'service_role', now=100))
+        with patch.object(installer, 'write') as write, patch.object(installer.Path, 'symlink_to'), patch.object(installer.Path, 'mkdir'):
+            installer.configure_nginx({'website': 'ops.example.com', 'api': 'api.example.com'}, *keys)
+        config = write.call_args_list[0].args[1]
+        patterns = re.findall(r'"~(.*?)" 1;', config)
+        self.assertEqual(len(patterns), 2)
+        for key, pattern in zip(keys, patterns):
+            self.assertIsNotNone(re.fullmatch(pattern, key))
+            self.assertIsNone(re.fullmatch(pattern, key.replace('.', 'x')))
+            self.assertIsNone(re.fullmatch(pattern, key + 'extra'))
+            self.assertNotIn('"' + key + '" 1;', config)
 
     def test_existing_web_app_ports_are_skipped(self):
         listeners = 'LISTEN 0 128 127.0.0.1:3000 0.0.0.0:*\nLISTEN 0 128 [::]:5432 [::]:*'
