@@ -23,7 +23,7 @@ import path from "node:path";
 import https from "node:https";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.7.0";
+const VERSION = "1.7.1";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -212,7 +212,9 @@ const handlers = {
     return routerPost(checkIp(ip), p, config.ntp);
   },
   async site_ping({ ip }) {
-    const { out } = await run("ping", ["-n", "-c", "4", "-W", "2", "-w", "10", checkIp(ip)], 15_000);
+    // With both -c and -w, Linux ping may keep sending until four replies arrive.
+    // Bound execution with execFile's timeout instead, keeping exactly four probes.
+    const { out } = await run("ping", ["-n", "-c", "4", "-W", "2", checkIp(ip)], 15_000);
     const packets = out.match(/(\d+) packets transmitted,\s*(\d+) (?:packets )?received,.*?([\d.]+)% packet loss/);
     if (!packets) throw new Error("Ping returned an unreadable result. Check ping is installed on this machine.");
     const transmitted = Number(packets[1]), received = Number(packets[2]);

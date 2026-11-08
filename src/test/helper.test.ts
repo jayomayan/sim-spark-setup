@@ -12,9 +12,32 @@ import {
   parseNtpServers,
 } from "@/lib/helper-settings";
 import { HELPER_FILES, HELPER_VERSION } from "@/lib/helper-release";
+import { pingResultSchema } from "@/lib/site-connectivity";
 
 const helperSource = readFileSync("public/helper/field-ops-helper.mjs", "utf8");
 const installerSource = readFileSync("public/helper/install.sh", "utf8");
+
+describe("live helper ping", () => {
+  it("sends four probes even when initial packets are lost and returns displayable statistics", async () => {
+    const start = helperSource.indexOf("  async site_ping(");
+    const end = helperSource.indexOf("  async site_capture(", start);
+    const calls: unknown[][] = [];
+    const ping = runInNewContext(`({${helperSource.slice(start, end)}}).site_ping`, {
+      checkIp: (ip: string) => ip,
+      run: async (command: string, args: string[], timeout: number) => {
+        calls.push([command, args, timeout]);
+        // Reproduce the VM's count+deadline behavior if that flag regresses.
+        return { code: 0, out: args.includes("-w")
+          ? "7 packets transmitted, 4 received, 42.8571% packet loss\nrtt min/avg/max/mdev = 69.739/74.512/76.877/2.808 ms"
+          : "4 packets transmitted, 3 received, 25% packet loss\nrtt min/avg/max/mdev = 79.119/79.862/81.253/0.984 ms" };
+      },
+    });
+    const result = pingResultSchema.parse(await ping({ ip: "10.194.94.52" }));
+    expect(calls).toEqual([["ping", ["-n", "-c", "4", "-W", "2", "10.194.94.52"], 15_000]]);
+    expect(result).toEqual({ reachable: true, transmitted: 4, received: 3, packetLoss: 25,
+      minMs: 79.119, avgMs: 79.862, maxMs: 81.253 });
+  });
+});
 
 describe("helper release", () => {
   it("serves the same version the helper program reports about itself", () => {
