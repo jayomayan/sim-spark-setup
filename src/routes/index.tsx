@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import logo from "@/assets/fta-logo.png.asset.json";
 import towerWireframe from "@/assets/cellular-tower-wireframe.png";
 import { Button } from "@/components/ui/button";
+import { useSignedIn } from "@/lib/session-context";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Landing() {
+  const signedIn = useSignedIn();
   return (
     <main className="relative flex min-h-screen flex-col justify-center overflow-hidden px-6 py-16">
       <img
@@ -36,7 +38,7 @@ function Landing() {
           Activate SIMs, push firewall and time settings to UR35 routers, and manage field devices.
         </p>
         <div className="mt-10 flex gap-3">
-          <Button asChild size="lg"><Link to="/auth">Sign in</Link></Button>
+          {signedIn === false && <Button asChild size="lg"><Link to="/auth">Sign in</Link></Button>}
           <Button asChild size="lg" variant="secondary"><Link to="/dashboard">Open dashboard</Link></Button>
         </div>
         <div className="mt-16 grid gap-px overflow-hidden rounded-lg border bg-border font-mono text-sm sm:grid-cols-3">
