@@ -38,6 +38,32 @@ class InstallerChecks(unittest.TestCase):
         helper = installer.helper_module()
         self.assertIsNone(helper.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://elsewhere.example.com'))
 
+    def test_helper_installs_without_app_commands_or_secret_arguments(self):
+        helper = installer.helper_module()
+        with tempfile.TemporaryDirectory() as temp:
+            prefix = Path(temp) / 'helper'
+            env_file, unit_file = Path(temp) / 'helper.env', Path(temp) / 'helper.service'
+            archive = SimpleNamespace(__enter__=lambda self: self, __exit__=lambda *args: None)
+            from unittest.mock import MagicMock
+            with patch.object(helper, 'PREFIX', prefix), patch.object(helper, 'ENV', env_file), patch.object(helper, 'UNIT', unit_file), patch.object(helper, 'preflight'), patch.object(helper.tarfile, 'open', return_value=MagicMock()), patch.object(installer, 'download', side_effect=[hashlib.sha256(b'archive').hexdigest().encode() + f'  node-v{installer.NODE_VERSION}-linux-x64.tar.xz'.encode(), b'archive']), patch.object(installer, 'run') as run, patch.object(installer, 'ask', return_value='private-code'), patch.object(helper, 'enroll', return_value='private-token') as enroll:
+                helper.install(installer, {'console': 'https://ops.example.com'})
+            self.assertEqual(env_file.stat().st_mode & 0o777, 0o600)
+            self.assertIn('AGENT_TOKEN="private-token"', env_file.read_text())
+            self.assertIn('User=fieldops-helper', unit_file.read_text())
+            self.assertNotIn('private-token', unit_file.read_text())
+            enroll.assert_called_once_with('https://ops.example.com', 'private-code')
+            arguments = str([call.args for call in run.call_args_list])
+            for forbidden in ('private-code', 'private-token', 'psql', 'nginx', 'certbot', 'postgresql', 'nodesource'):
+                self.assertNotIn(forbidden, arguments)
+
+    def test_helper_refuses_existing_files_before_installation(self):
+        helper = installer.helper_module()
+        with tempfile.TemporaryDirectory() as temp:
+            existing = Path(temp)
+            with patch.object(helper.os, 'geteuid', return_value=0), patch.object(helper.os, 'uname', return_value=SimpleNamespace(machine='x86_64')), patch.object(helper.Path, 'read_text', return_value='ID=ubuntu'), patch.object(helper.Path, 'exists', return_value=True), patch.object(helper, 'PREFIX', existing):
+                with self.assertRaisesRegex(RuntimeError, 'existing helper files'):
+                    helper.preflight(installer)
+
     def test_diagnose_does_not_prompt_or_install_or_read_secret_files(self):
         with patch('sys.argv', ['install-ubuntu.py', '--diagnose']), patch.object(installer, 'settings') as settings, patch.object(installer, 'preflight') as preflight, patch.object(installer, 'install') as install, patch.object(installer.Path, 'read_text') as read, patch.object(installer.Path, 'read_bytes') as binary:
             installer.main()
