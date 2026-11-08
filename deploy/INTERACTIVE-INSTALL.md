@@ -83,6 +83,18 @@ SQL
 
 Preserve the existing keys, settings and database; do not rerun the fresh installer over this partial state. This repair is not an installation-resume command. Verify the Auth migration separately before planning continuation. Do not make the private environment file readable by other users or source it in a shell.
 
+### Continue after successful Auth setup
+
+From an updated reviewed source checkout, use:
+
+```bash
+sudo python3 deploy/install-ubuntu.py --resume-after-auth
+```
+
+Use your separately installed newer Python executable if the system Python is too old. This mode only accepts `status: installing`, completed Auth tables with no users or application tables, absent REST/app settings, and no later service/Nginx/certificate outputs. It validates saved ports, native tools, dedicated accounts and private file ownership, and refuses occupied ports or conflicting websites. It uses the application source already copied under `/opt/field-ops-console`; updating the checkout does not replace that source.
+
+The command asks again for the first administrator email/password and email-verification choice. It retains Auth settings, SMTP credentials and the existing signing key; creates a private database backup; replaces only the unsaved REST-role password; and continues steps 5–8. It does not recreate the database, download tools or compile Auth again. Any later failure preserves partial state and requires another review, not another automatic rerun. Live VM completion remains unverified.
+
 No automatic rollback deletes database records or keys. Preserve partial state and inspect the services privately:
 
 Older installers may have left a separate `fieldops` cluster and partial application folders. The current installer does not need that cluster and will not modify or remove it. Preserve partial state; do not delete databases or rerun over existing application folders. Recovery requires checking what the earlier attempt created first.

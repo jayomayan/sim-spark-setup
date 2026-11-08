@@ -613,6 +613,8 @@ def resume_state():
             # The installed app is intentionally owned by its dedicated account.
             if path != APP or path.is_symlink() or not path.is_dir() or path.stat().st_uid != pwd.getpwnam('fieldops-web').pw_uid:
                 raise RuntimeError('Continuation refused: installation path ownership or type changed.')
+    if not STATE.is_file() or not (CONFIG / 'auth.env').is_file() or not APP.is_dir() or not BACKEND.is_dir():
+        raise RuntimeError('Continuation refused: invalid installation path types.')
     if (CONFIG / 'auth.env').stat().st_mode & 0o077:
         raise RuntimeError('Continuation refused: sign-in settings are not private.')
     state = json.loads(STATE.read_text())
@@ -624,6 +626,7 @@ def resume_state():
     for path in (CONFIG / 'rest.env', Path('/etc/field-ops-console.env'),
                  Path('/etc/nginx/sites-available/field-ops-native'), Path('/etc/nginx/sites-enabled/field-ops-native'),
                  Path('/etc/nginx/conf.d/field-ops-keys.conf'), Path('/etc/letsencrypt/live/field-ops-native'),
+                 Path('/etc/letsencrypt/archive/field-ops-native'), Path('/etc/letsencrypt/renewal/field-ops-native.conf'),
                  *(Path('/etc/systemd/system') / (name + '.service') for name in ('field-ops-auth', 'field-ops-rest', 'field-ops-console'))):
         if path.exists() or path.is_symlink():
             raise RuntimeError('Continuation refused: later installation state exists; preserve it for manual recovery.')
@@ -649,7 +652,8 @@ def resume_after_auth():
     # Hold the private directory lock throughout validation and continuation.
     if CONFIG.is_symlink() or not CONFIG.is_dir() or CONFIG.stat().st_uid != 0 or CONFIG.stat().st_mode & 0o077:
         raise RuntimeError('Continuation refused: private installation directory is unsafe.')
-    with CONFIG.open() if False else open('/run/field-ops-resume.lock', 'a') as lock:
+    descriptor = os.open('/run/field-ops-resume.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, 'r+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         state, auth = resume_state()
         PORTS.update(state['ports'])
@@ -663,7 +667,7 @@ def resume_after_auth():
         if not (APP / 'package.json').is_file() or not (APP / 'deploy/migrate.mjs').is_file():
             raise RuntimeError('Continuation refused: installed application source is missing.')
         check_shared_host(values)
-        if set(PORTS.values()) - {5432} & listening_ports():
+        if (set(PORTS.values()) - {5432}) & occupied_ports(run(['ss', '-H', '-ltn'], quiet=True)):
             raise RuntimeError('Continuation refused: a saved private service port is occupied.')
         check = run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-At', '-d', 'fieldops'], user='postgres', cwd='/tmp', data="""
 SELECT (to_regclass('auth.users') IS NOT NULL AND to_regprocedure('auth.jwt()') IS NOT NULL
