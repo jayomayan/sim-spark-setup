@@ -35,6 +35,12 @@ function Layout() {
   const { user, isAdmin, isMember } = useRouteContext({ from: "/_authenticated" });
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   async function signOut() {
     await qc.cancelQueries();
