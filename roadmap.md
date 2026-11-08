@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Simplify native installation to reuse local PostgreSQL on 5432 without creating clusters; protect existing databases/roles and verify installer/upgrade compatibility.
 - [x] Correct PostgreSQL cluster address quoting; all 29 installer/upgrade tests pass. Provide backed-up, exact-line repair for the user's down fieldops cluster; VM startup and installation recovery await the user's results.
 - [x] Add credential-free phase/error reporting, early safe-extraction compatibility validation and read-only partial-state diagnostics; 29 installer/upgrade tests pass. Actual step-2 failure diagnosis waits on the user's VM diagnostic report; rerun protections remain intact.
 - [x] Allow explicitly approved safe reuse of dormant, locked, dedicated Field Ops accounts; revalidate before use and reject active, interactive or shared identities without modifying them. All 27 installer/upgrade tests pass; actual server account state remains unverified without VM access.
