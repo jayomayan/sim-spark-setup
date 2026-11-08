@@ -38,6 +38,51 @@ class InstallerChecks(unittest.TestCase):
         preflight.assert_not_called()
         install.assert_not_called()
 
+    def test_restart_clean_routes_separately_from_install_and_resume(self):
+        with patch('sys.argv', ['install-ubuntu.py', '--restart-clean']), patch.object(installer, 'restart_clean') as clean, patch.object(installer, 'preflight') as preflight, patch.object(installer, 'install') as install, patch.object(installer, 'resume_after_auth') as resume:
+            installer.main()
+        clean.assert_called_once()
+        for action in (preflight, install, resume):
+            action.assert_not_called()
+
+    def test_restart_clean_refuses_combination_with_other_modes(self):
+        for extra in ('--dry-run', '--resume-after-auth'):
+            with patch('sys.argv', ['install-ubuntu.py', '--restart-clean', extra]), patch.object(installer, 'restart_clean') as clean:
+                with self.assertRaises(RuntimeError):
+                    installer.main()
+            clean.assert_not_called()
+
+    def test_restart_clean_requires_root_and_exact_confirmation(self):
+        with patch.object(installer.os, 'geteuid', return_value=1000), patch.object(installer, 'ask') as ask:
+            with self.assertRaises(RuntimeError):
+                installer.restart_clean()
+        ask.assert_not_called()
+        with patch.object(installer.os, 'geteuid', return_value=0), patch.object(installer, 'ask', return_value='restart'), patch.object(installer, 'run') as command, patch.object(installer.shutil, 'move') as move:
+            installer.restart_clean()
+        command.assert_not_called()
+        move.assert_not_called()
+
+    def test_restart_clean_drops_only_installer_database_and_roles(self):
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(args)
+            if args[:3] == ['psql', '-X', '-At']:
+                return '1\n'
+            return ''
+
+        with patch.object(installer.os, 'geteuid', return_value=0), patch.object(installer, 'ask', return_value='RESTART'), \
+             patch.object(installer, 'run', side_effect=fake_run), patch.object(installer.shutil, 'which', return_value='/usr/bin/psql'), \
+             patch.object(installer.shutil, 'move'), patch.object(installer.Path, 'exists', return_value=False), \
+             patch.object(installer.Path, 'is_symlink', return_value=False), patch.object(installer.Path, 'mkdir'):
+            installer.restart_clean()
+        sql = ' '.join(str(call) for call in calls)
+        self.assertIn("DROP DATABASE fieldops", sql)
+        for role in ('fieldops_migration', 'fieldops_owner', 'supabase_auth_admin', 'authenticator', 'anon', 'authenticated', 'service_role'):
+            self.assertIn('DROP ROLE IF EXISTS ' + role, sql)
+        self.assertNotIn('DROP CLUSTER', sql)
+        self.assertFalse(any(call and call[0] == 'pg_dropcluster' for call in calls))
+
     def test_resume_requires_root_before_any_secret_read(self):
         with patch.object(installer.os, 'geteuid', return_value=1000), patch.object(installer, 'resume_state') as read:
             with self.assertRaises(RuntimeError):
