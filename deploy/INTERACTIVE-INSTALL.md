@@ -115,6 +115,16 @@ sudo nginx -t
 
 Do not share raw logs or secret files. Do not delete `/etc/field-ops` or the database to force a rerun. Diagnose an unsuccessful installation without changing unrelated websites or databases. For a completed installation, use [the interactive app upgrade script](UPGRADE.md), not the installer; it uses the saved database port and private runtimes and preserves settings. Older installations retain their previous defaults.
 
+### Starting over completely
+
+When a partial or failed installation should be abandoned rather than continued, run from your reviewed source checkout:
+
+```bash
+sudo python3 deploy/install-ubuntu.py --restart-clean
+```
+
+It lists what it will remove and requires typing `RESTART` to confirm. It stops and removes the three Field Ops services, removes only the Field Ops Nginx site and key map, deletes the `field-ops-native` certificate if one was issued, drops the `fieldops` database and the installer-created roles from local PostgreSQL, and moves the remaining folders (`/opt/field-ops-console`, `/opt/field-ops-backend`, `/etc/field-ops`, `/etc/field-ops-console.env`) into a timestamped backup under `/var/backups/` instead of deleting them. Service accounts are kept for safe reuse; other websites, databases, clusters and the existing PostgreSQL installation are untouched. Afterwards a fresh `sudo python3 deploy/install-ubuntu.py` run is accepted again.
+
 **Verification status:** prompt, port selection, conflicting web server/hostname refusal, dedicated database targeting and secret-handling checks are included in `test_install_ubuntu.py`. Complete new/shared Ubuntu server installation, existing-site continuity, SMTP delivery, production build, Okta and real integrations have not been exercised here. This script is a deployment starting point, not a production-readiness certification.
 ### Continuation stopped with `FileNotFoundError` at step 5
 

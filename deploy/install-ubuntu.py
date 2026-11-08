@@ -411,14 +411,84 @@ def wait_url(url):
     raise RuntimeError('A local service did not become healthy; inspect its journal privately.')
 
 
+def restart_clean():
+    """Remove a partial or failed installation so a fresh install can run.
+
+    Moves remaining files into a timestamped backup instead of deleting them,
+    drops only the installer-created database and roles, and leaves service
+    accounts, other websites, other databases and clusters untouched.
+    """
+    if os.geteuid() != 0:
+        raise RuntimeError('Run clean restart with sudo on the target Ubuntu server.')
+    print('Clean restart removes the Field Ops installation so a fresh install can run:')
+    for path in (APP, BACKEND, CONFIG, Path('/etc/field-ops-console.env')):
+        print('  ' + str(path) + ': ' + ('present' if path.exists() or path.is_symlink() else 'absent'))
+    print('  services: field-ops-console, field-ops-auth, field-ops-rest')
+    print('  Nginx: field-ops-native site and key map only')
+    print('  database: fieldops and installer-created roles on local PostgreSQL')
+    print('  certificate: field-ops-native, if issued')
+    print('Service accounts are kept for safe reuse; other websites, databases and clusters are untouched.')
+    print('Remaining files are moved to a timestamped backup, not deleted.')
+    if ask("Type RESTART to remove this installation") != 'RESTART':
+        print('Cancelled. No changes made.')
+        return
+    for name in ('field-ops-console', 'field-ops-auth', 'field-ops-rest'):
+        unit_path = Path('/etc/systemd/system') / (name + '.service')
+        if unit_path.exists() or unit_path.is_symlink():
+            try:
+                run(['systemctl', 'disable', '--now', name], quiet=True)
+            except Exception:
+                print('  Note: service ' + name + ' was not running; continuing.')
+            unit_path.unlink()
+    if any((Path('/etc/systemd/system') / (name + '.service')).exists() for name in ('field-ops-console', 'field-ops-auth', 'field-ops-rest')):
+        raise RuntimeError('Clean restart refused: a service file could not be removed.')
+    run(['systemctl', 'daemon-reload'], quiet=True)
+    for path in (Path('/etc/nginx/sites-enabled/field-ops-native'), Path('/etc/nginx/sites-available/field-ops-native'),
+                 Path('/etc/nginx/conf.d/field-ops-keys.conf'), Path('/etc/letsencrypt/renewal-hooks/deploy/field-ops-reload')):
+        if path.is_symlink() or path.exists():
+            path.unlink()
+    try:
+        run(['nginx', '-t'], quiet=True)
+        run(['systemctl', 'reload', 'nginx'], quiet=True)
+    except Exception:
+        print('  Note: Nginx was not reloaded; check it before serving other sites.')
+    cert_paths = [Path('/etc/letsencrypt/live/field-ops-native'), Path('/etc/letsencrypt/archive/field-ops-native'), Path('/etc/letsencrypt/renewal/field-ops-native.conf')]
+    if any(p.exists() or p.is_symlink() for p in cert_paths):
+        try:
+            run(['certbot', 'delete', '--cert-name', 'field-ops-native', '--non-interactive'], quiet=True)
+        except Exception:
+            raise RuntimeError('Clean restart refused: the Field Ops certificate could not be removed; remove it with certbot and retry.')
+    if shutil.which('psql'):
+        exists = run(['psql', '-X', '-At', '-d', 'postgres', '-c', "SELECT 1 FROM pg_database WHERE datname = 'fieldops'"], user='postgres', cwd='/tmp', quiet=True).strip()
+        if exists == '1':
+            run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'postgres'], user='postgres', cwd='/tmp',
+                data="SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'fieldops' AND pid <> pg_backend_pid();\nDROP DATABASE fieldops;")
+        run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'postgres'], user='postgres', cwd='/tmp',
+            data='\n'.join('DROP ROLE IF EXISTS ' + role + ';' for role in ('fieldops_migration', 'fieldops_owner', 'supabase_auth_admin', 'authenticator', 'anon', 'authenticated', 'service_role')))
+    stamp = time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())
+    backup = Path('/var/backups/field-ops-clean-' + stamp)
+    backup.mkdir(mode=0o700)
+    for path in (APP, BACKEND, CONFIG, Path('/etc/field-ops-console.env')):
+        if path.is_symlink() or path.exists():
+            shutil.move(str(path), str(backup / path.name))
+    print('Clean restart complete. Remaining files preserved under ' + str(backup))
+    print('You can now run a fresh installation: sudo python3 deploy/install-ubuntu.py')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true', help='Prompt and validate only; do not install or write settings')
     parser.add_argument('--diagnose', action='store_true', help='Show read-only Python and installation-path diagnostics; no secrets or changes')
     parser.add_argument('--resume-after-auth', action='store_true', help='Continue only a verified partial installation after Auth tables were created')
+    parser.add_argument('--restart-clean', action='store_true', help='Remove a partial or failed installation (kept in a backup) so a fresh install can run')
     args = parser.parse_args()
     if args.diagnose:
         diagnose()
+        return
+    if args.restart_clean:
+        if args.dry_run or args.resume_after_auth:
+            raise RuntimeError('Use --restart-clean on its own.')
+        restart_clean()
         return
     if args.resume_after_auth:
         if args.dry_run:
