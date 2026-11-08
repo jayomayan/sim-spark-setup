@@ -195,9 +195,24 @@ class InstallerChecks(unittest.TestCase):
                 installer.check_shared_host({'website': 'ops.example.com', 'api': 'api.example.com'})
 
     def test_database_commands_use_existing_postgres_port(self):
-        with patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as command:
+        with patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as command, \
+                patch.object(installer, 'runuser_path', return_value='/usr/sbin/runuser'):
             installer.run(['psql', '-d', 'fieldops'], user='postgres')
-        self.assertEqual(command.call_args.args[0], ['runuser', '-u', 'postgres', '--', 'psql', '-p', '5432', '-d', 'fieldops'])
+        self.assertEqual(command.call_args.args[0], ['/usr/sbin/runuser', '-u', 'postgres', '--', 'psql', '-p', '5432', '-d', 'fieldops'])
+
+    def test_service_commands_find_runuser_despite_private_path(self):
+        # The app's private PATH omits /usr/sbin; runuser must still be absolute.
+        with patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as command, \
+                patch.object(installer, 'runuser_path', return_value='/sbin/runuser'):
+            installer.run(['/opt/field-ops-backend/bin/bun', 'install'], user='fieldops-web', env={'PATH': installer.RUNTIME_PATH})
+        self.assertEqual(command.call_args.args[0][0], '/sbin/runuser')
+        self.assertNotIn('sbin', installer.RUNTIME_PATH)
+
+    def test_temporary_migration_superuser_is_created_inside_cleanup(self):
+        source = Path(installer.__file__).read_text()
+        create = source.index("CREATE ROLE fieldops_migration")
+        self.assertGreater(create, source.index("'bun'), 'install', '--frozen-lockfile'"))
+        self.assertLess(source.index('try:', create), source.index("'db:migrate:standalone'"))
 
     def test_existing_postgres_check_is_read_only(self):
         with patch.object(installer.shutil, 'which', return_value='/usr/bin/tool'), patch.object(installer, 'run', side_effect=['', '120022\n']) as command:
