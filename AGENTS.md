@@ -10,6 +10,7 @@
 <!-- LOVABLE:END -->
 
 - Router work never runs in the app server: SNMP, NTP, UR35 config, ping and Site Connectivity Check captures all use `agent_jobs` and the on-network helper, so one install covers everything.
+- Share homepage session state via the root auth listener and SignedInContext to avoid duplicate subscriptions.
 - The helper's key, ordered router login pairs and firewall/NTP templates live in `public.helper_settings` (admin-only RLS, secrets encrypted like database connection passwords); login pairs have stable IDs so blank passwords retain only their own saved secret, and the helper tries the next pair only on HTTP 401/403. Machines enroll once and pull settings and releases automatically. Legacy login columns serve older helpers only. `src/lib/helper-release.ts` is the single source of the helper version and a test asserts it matches the shipped helper file.
 - Supported router jobs are defined in `src/lib/job-types.ts` and validated before queueing and dispatching so retired jobs cannot execute.
 - The helper atomically replaces its local UR35_Credentials.txt on every successful settings refresh with ordered space-separated login pairs and mode 0600; configuration revision advances only after the write succeeds so failures retry without exposing plaintext in logs or app downloads.
