@@ -350,6 +350,19 @@ SELECT 'role_conflict' FROM pg_roles WHERE rolname IN
     return str(int(lines[0]) // 10000)
 
 
+def prepare_auth_database():
+    # Pop creates its migration tracking table without a schema qualifier.
+    # Keep that table in auth, not public (where CREATE is deliberately revoked).
+    run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'fieldops'], user='postgres', cwd='/tmp', data='''
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+CREATE SCHEMA auth AUTHORIZATION supabase_auth_admin;
+ALTER ROLE supabase_auth_admin IN DATABASE fieldops SET search_path = auth, public;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+GRANT CONNECT ON DATABASE fieldops TO supabase_auth_admin, authenticator;
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin, anon, authenticated, service_role;
+''')
+
+
 def unit(name, executable, env_file, user, workdir, after='postgresql.service'):
     write('/etc/systemd/system/' + name + '.service', f'''[Unit]
 Description=Frontier {name}
@@ -497,12 +510,7 @@ GRANT anon, authenticated, service_role TO authenticator;
 CREATE DATABASE fieldops OWNER fieldops_owner;
 '''
     run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', data=sql, cwd='/tmp')
-    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q', '-d', 'fieldops'], user='postgres', cwd='/tmp', data='''
-REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-CREATE SCHEMA auth AUTHORIZATION supabase_auth_admin;
-GRANT CONNECT ON DATABASE fieldops TO supabase_auth_admin, authenticator;
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-''')
+    prepare_auth_database()
     shared = secrets.token_hex(32)
     anon, service = jwt(shared, 'anon'), jwt(shared, 'service_role')
     db_url = lambda role: f"postgresql://{role}:{passwords[role]}@127.0.0.1:{PORTS['database']}/fieldops?sslmode=disable"

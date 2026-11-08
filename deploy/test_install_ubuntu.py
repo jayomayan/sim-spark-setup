@@ -168,6 +168,22 @@ class InstallerChecks(unittest.TestCase):
         self.assertNotIn('ALTER', command.call_args.kwargs['data'])
         self.assertNotIn('CREATE', command.call_args.kwargs['data'])
 
+    def test_auth_tracking_table_targets_auth_without_public_create_permission(self):
+        with patch.object(installer, 'run') as command:
+            installer.prepare_auth_database()
+        self.assertEqual(command.call_args.args[0][-2:], ['-d', 'fieldops'])
+        sql = command.call_args.kwargs['data']
+        self.assertIn('ALTER ROLE supabase_auth_admin IN DATABASE fieldops SET search_path = auth, public;', sql)
+        self.assertIn('REVOKE CREATE ON SCHEMA public FROM PUBLIC;', sql)
+        self.assertNotIn('GRANT CREATE', sql)
+        self.assertNotIn('ALTER SYSTEM', sql)
+
+    def test_postgres12_uuid_support_is_installed_before_auth_migrations(self):
+        with patch.object(installer, 'run') as command:
+            installer.prepare_auth_database()
+        self.assertIn('CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;', command.call_args.kwargs['data'])
+        self.assertIn('GRANT USAGE ON SCHEMA public TO supabase_auth_admin,', command.call_args.kwargs['data'])
+
     def test_existing_database_or_roles_are_never_reused_or_overwritten(self):
         for result in ('120022\ndatabase_conflict\n', '120022\nrole_conflict\n'):
             with patch.object(installer.shutil, 'which', return_value='/usr/bin/tool'), patch.object(installer, 'run', side_effect=['', result]) as command:
