@@ -31,6 +31,44 @@ class InstallerChecks(unittest.TestCase):
         self.assertIn('TypeError', summary)
         self.assertNotIn('do-not-print-this', summary)
 
+    def test_resume_routes_to_continuation_not_fresh_install(self):
+        with patch('sys.argv', ['install-ubuntu.py', '--resume-after-auth']), patch.object(installer, 'resume_after_auth') as resume, patch.object(installer, 'preflight') as preflight, patch.object(installer, 'install') as install:
+            installer.main()
+        resume.assert_called_once()
+        preflight.assert_not_called()
+        install.assert_not_called()
+
+    def test_resume_requires_root_before_any_secret_read(self):
+        with patch.object(installer.os, 'geteuid', return_value=1000), patch.object(installer, 'resume_state') as read:
+            with self.assertRaises(RuntimeError):
+                installer.resume_after_auth()
+        read.assert_not_called()
+
+    def test_resume_preserves_auth_settings_and_refuses_later_outputs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config, app, backend = (root / name for name in ('config', 'app', 'backend'))
+            for path in (config, app, backend):
+                path.mkdir()
+            state = {'status': 'installing', 'ports': dict(installer.PORTS), 'website': 'ops.example.com', 'api': 'api.example.com'}
+            (config / 'installation.json').write_text(json.dumps(state))
+            auth = {'DATABASE_URL': 'postgresql://supabase_auth_admin:test@127.0.0.1:5432/fieldops', 'GOTRUE_SITE_URL': 'https://ops.example.com', 'API_EXTERNAL_URL': 'https://api.example.com/auth/v1', 'PORT': '9999', 'DB_NAMESPACE': 'auth', 'GOTRUE_JWT_SECRET': 'preserve-test-key'}
+            installer.environment(config / 'auth.env', auth)
+            original_exists = Path.exists
+            with patch.object(installer, 'CONFIG', config), patch.object(installer, 'STATE', config / 'installation.json'), patch.object(installer, 'APP', app), patch.object(installer, 'BACKEND', backend), patch.object(Path, 'exists', lambda p: original_exists(p) if str(p).startswith(temp) else False), patch.object(Path, 'is_symlink', return_value=False):
+                saved, loaded = installer.resume_state()
+                self.assertEqual(loaded, auth)
+                self.assertEqual(saved['ports']['database'], 5432)
+                (config / 'rest.env').write_text('existing')
+                with self.assertRaises(RuntimeError):
+                    installer.resume_state()
+                (config / 'rest.env').unlink()
+                state['status'] = 'installed'
+                (config / 'installation.json').write_text(json.dumps(state))
+                with self.assertRaises(RuntimeError):
+                    installer.resume_state()
+            self.assertEqual((config / 'auth.env').read_text(), ''.join(k + '=' + installer.env_value(v) + '\n' for k, v in auth.items()))
+
     def account_context(self, *, shell='/usr/sbin/nologin', processes='', locked='!', groups=None):
         account = SimpleNamespace(pw_name='fieldops-web', pw_uid=991, pw_gid=991, pw_dir='/nonexistent', pw_shell=shell)
         group = SimpleNamespace(gr_name='fieldops-web', gr_gid=991, gr_mem=[])

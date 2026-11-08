@@ -1,4 +1,5 @@
 # Tasks
+- [x] Add guarded continuation after successful native Auth setup, retaining existing settings and keys; 38 installer/upgrade tests pass. VM continuation remains unverified without target access; user must run the updated continuation command.
 - [x] Correct native Auth migration search path and PostgreSQL 12 UUID prerequisite; 35 installer/upgrade tests pass. Provide scoped repair without restarting setup; actual Auth migration and installation continuation await VM results.
 - [x] Simplify native installation to reuse local PostgreSQL on 5432 without creating clusters or changing server settings; existing database/role conflicts stop safely. All 33 installer/upgrade tests pass; full VM installation remains unverified without target access.
 - [x] Correct PostgreSQL cluster address quoting; all 29 installer/upgrade tests pass. Provide backed-up, exact-line repair for the user's down fieldops cluster; VM startup and installation recovery await the user's results.

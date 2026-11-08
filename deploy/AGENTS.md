@@ -1,0 +1,2 @@
+- Native Auth uses a role-and-database scoped auth, public search path and pgcrypto in fieldops, so migration tracking stays private and PostgreSQL 12 UUID defaults work without public CREATE privileges.
+- Resume only the verified pre-REST checkpoint after completed Auth migration; preserve Auth settings and signing keys, back up first, rotate only the unsaved authenticator password, and refuse any later outputs or ambiguous state to avoid overwriting partial installations.
