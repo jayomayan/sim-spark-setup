@@ -1,4 +1,5 @@
 # Tasks
+- [x] Correct helper ping count/deadline interaction: remove Linux -w so packet loss cannot cause extra probes; release 1.7.1 with live-handler regression coverage. Target VM verification requires deploying the updated helper.
 - [x] Add interactive app/helper selection and helper-only installation with private runtimes, secure enrollment and safety tests; live Ubuntu enrollment/browser validation requires target VM execution.
 - [x] Add guarded continuation after successful native Auth setup, retaining existing settings and keys; 38 installer/upgrade tests pass. VM continuation remains unverified without target access; user must run the updated continuation command.
 - [x] Correct native Auth migration search path and PostgreSQL 12 UUID prerequisite; 35 installer/upgrade tests pass. Provide scoped repair without restarting setup; actual Auth migration and installation continuation await VM results.
