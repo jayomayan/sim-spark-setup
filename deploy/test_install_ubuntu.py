@@ -7,6 +7,7 @@ import json
 import re
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('native_installer', Path(__file__).with_name('install-ubuntu.py'))
 installer = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = installer
 spec.loader.exec_module(installer)
 
 
@@ -191,7 +193,7 @@ class InstallerChecks(unittest.TestCase):
             installer.env_value('bad\nsetting')
 
     def test_dry_run_never_installs_and_prompts_hidden_secrets(self):
-        answers = iter(['ops.example.com', 'api.example.com', 'admin@example.com', 'smtp.example.com', '', 'mailer', '', 'n', '', '', '', '', ''])
+        answers = iter(['1', 'ops.example.com', 'api.example.com', 'admin@example.com', 'smtp.example.com', '', 'mailer', '', 'n', '', '', '', '', ''])
         with patch('sys.argv', ['install-ubuntu.py', '--dry-run']), patch('builtins.input', side_effect=lambda _: next(answers)), patch.object(installer.getpass, 'getpass', side_effect=['Example-Admin93!', 'Example-Admin93!', 'smtp-secret']) as hidden, patch.object(installer, 'install') as install, patch.object(installer, 'preflight') as preflight:
             installer.main()
         self.assertEqual(hidden.call_count, 3)
