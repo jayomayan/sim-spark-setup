@@ -29,6 +29,7 @@ Before confirming, arrange a maintenance window, finish active router/helper job
 Existing users, records, API credentials, signing/encryption keys, SMTP settings, service units and HTTPS configuration are preserved. The script never recreates accounts or replaces `/etc/field-ops-console.env`. It does not rotate keys, change domains or apply Auth's own schema migrations.
 
 Backups contain password hashes, encrypted integration credentials and **decryption/signing secrets**: they are root-only but not automatically encrypted at rest. Use encrypted disks and encrypted off-VM backup storage. The script neither uploads backups nor deletes old backups/builds; plan capacity and retention. Keep TLS certificate backups separately.
+New installations use existing PostgreSQL on 5432; older installations retain their saved port. Neither installation nor upgrades create new clusters. The global-role backup includes all roles on that PostgreSQL service, potentially including unrelated applications; keep it private and never restore it over a shared server without review.
 
 ## Failure and recovery
 

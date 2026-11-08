@@ -136,11 +136,11 @@ class InstallerChecks(unittest.TestCase):
         self.assertIn('proxy_hide_header Access-Control-Allow-Origin;', public)
 
     def test_existing_web_app_ports_are_skipped(self):
-        listeners = 'LISTEN 0 128 127.0.0.1:3000 0.0.0.0:*\nLISTEN 0 128 [::]:5433 [::]:*'
+        listeners = 'LISTEN 0 128 127.0.0.1:3000 0.0.0.0:*\nLISTEN 0 128 [::]:5432 [::]:*'
         with patch('builtins.input', return_value=''):
             ports = installer.choose_ports(listeners)
         self.assertEqual(ports['web'], 3001)
-        self.assertEqual(ports['database'], 5434)
+        self.assertEqual(ports['database'], 5432)
         self.assertEqual(len(set(ports.values())), 5)
 
     def test_existing_nginx_is_allowed_but_other_web_server_is_not(self):
@@ -156,16 +156,35 @@ class InstallerChecks(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 installer.check_shared_host({'website': 'ops.example.com', 'api': 'api.example.com'})
 
-    def test_database_commands_target_only_dedicated_cluster(self):
-        with patch.dict(installer.PORTS, {'database': 5544}), patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as command:
+    def test_database_commands_use_existing_postgres_port(self):
+        with patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as command:
             installer.run(['psql', '-d', 'fieldops'], user='postgres')
-        self.assertEqual(command.call_args.args[0], ['runuser', '-u', 'postgres', '--', 'psql', '-p', '5544', '-d', 'fieldops'])
+        self.assertEqual(command.call_args.args[0], ['runuser', '-u', 'postgres', '--', 'psql', '-p', '5432', '-d', 'fieldops'])
 
-    def test_new_cluster_does_not_restart_existing_cluster(self):
-        with patch.object(installer.Path, 'iterdir', return_value=iter([Path('/usr/lib/postgresql/16')])), patch.object(installer, 'run', return_value='') as command, patch.dict(installer.PORTS, {'database': 5544}):
-            self.assertEqual(installer.create_database_cluster(), '16')
-        self.assertEqual(command.call_args_list[0].args[0], ['pg_createcluster', '16', 'fieldops', '--port', '5544', '-o', "listen_addresses='127.0.0.1'", '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
-        self.assertEqual(command.call_args_list[-1].args[0], ['pg_ctlcluster', '16', 'fieldops', 'restart'])
+    def test_existing_postgres_check_is_read_only(self):
+        with patch.object(installer.shutil, 'which', return_value='/usr/bin/tool'), patch.object(installer, 'run', side_effect=['', '120022\n']) as command:
+            self.assertEqual(installer.check_existing_postgres(), '12')
+        self.assertEqual([call.args[0][0] for call in command.call_args_list], ['pg_isready', 'psql'])
+        self.assertNotIn('ALTER', command.call_args.kwargs['data'])
+        self.assertNotIn('CREATE', command.call_args.kwargs['data'])
+
+    def test_existing_database_or_roles_are_never_reused_or_overwritten(self):
+        for result in ('120022\ndatabase_conflict\n', '120022\nrole_conflict\n'):
+            with patch.object(installer.shutil, 'which', return_value='/usr/bin/tool'), patch.object(installer, 'run', side_effect=['', result]) as command:
+                with self.assertRaises(RuntimeError):
+                    installer.check_existing_postgres()
+            self.assertEqual(command.call_count, 2)
+
+    def test_missing_postgres_does_not_create_a_cluster(self):
+        with patch.object(installer.shutil, 'which', return_value=None), patch.object(installer, 'run') as command:
+            with self.assertRaises(RuntimeError):
+                installer.check_existing_postgres()
+        command.assert_not_called()
+
+    def test_occupied_postgres_port_is_allowed_by_shared_host_check(self):
+        listeners = 'LISTEN 0 128 127.0.0.1:5432 0.0.0.0:* users:(("postgres",pid=1,fd=6))'
+        with patch.object(installer, 'run', return_value=listeners), patch.object(installer.shutil, 'which', return_value=None):
+            installer.check_shared_host({'website': 'ops.example.com', 'api': 'api.example.com'})
 
     def test_https_site_uses_chosen_ports_and_keeps_acme_renewal(self):
         values = {'website': 'ops.example.com', 'api': 'api.example.com'}

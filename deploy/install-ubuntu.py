@@ -38,7 +38,7 @@ BUN_VERSION = 'bun-v1.3.3'
 AUTH_COMMIT = '0204331ca41a5b49f076b6fa3dc6c0d20b996590'
 GO_VERSION = '1.26.5'
 GO_CHECKSUM = '5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053'
-PORTS = {'web': 3000, 'gateway': 8000, 'auth': 9999, 'rest': 3001, 'database': 5433}
+PORTS = {'web': 3000, 'gateway': 8000, 'auth': 9999, 'rest': 3001, 'database': 5432}
 RUNTIME_PATH = str(BACKEND / 'node/bin') + ':' + str(BACKEND / 'bin') + ':/usr/bin:/bin'
 SERVICE_USERS = ('fieldops-web', 'fieldops-auth', 'fieldops-rest')
 APPROVED_ACCOUNTS = {}
@@ -264,12 +264,7 @@ def preflight():
             raise RuntimeError(f'Existing destination detected: {path}. This is a fresh-install script, not an upgrade tool.')
     if shutil.disk_usage('/opt').free < 12 * 1024**3:
         raise RuntimeError('At least 12 GB free disk space is needed for source and build tools.')
-    # Existing clusters and runtime binaries are left untouched. A separate
-    # PostgreSQL cluster with its own roles, data directory and port is created.
-    if shutil.which('pg_lsclusters'):
-        clusters = run(['pg_lsclusters', '--no-header'], quiet=True)
-        if any(len(line.split()) > 1 and line.split()[1] == 'fieldops' for line in clusters.splitlines()):
-            raise RuntimeError('A fieldops PostgreSQL cluster already exists; installation refused.')
+    check_existing_postgres()
     if any(p.exists() or p.is_symlink() for p in (Path('/etc/letsencrypt/live/field-ops-native'), Path('/etc/letsencrypt/archive/field-ops-native'), Path('/etc/letsencrypt/renewal/field-ops-native.conf'))):
         raise RuntimeError('The Field Ops certificate destination already exists.')
     source = Path(__file__).resolve().parent.parent
@@ -293,9 +288,14 @@ def occupied_ports(listeners):
 
 def choose_ports(listeners=None):
     used = occupied_ports(run(['ss', '-H', '-ltn'], quiet=True) if listeners is None else listeners)
+    used.add(5432)
     chosen = {}
     print('Choose private service ports; existing listeners are excluded automatically.')
     for name, preferred in PORTS.items():
+        if name == 'database':
+            chosen[name] = 5432
+            used.add(5432)
+            continue
         candidate = preferred
         while candidate in used or candidate in (80, 443):
             candidate += 1
@@ -314,7 +314,7 @@ def check_shared_host(values):
     listeners = run(['ss', '-H', '-ltnp'], quiet=True)
     for line in listeners.splitlines():
         ports = occupied_ports(line)
-        if ports.intersection(PORTS.values()):
+        if ports.intersection(value for name, value in PORTS.items() if name != 'database'):
             raise RuntimeError('A selected private port is now occupied; no services were installed.')
         if ports.intersection({80, 443}) and not re.search(r'\("nginx"[,)]', line):
             raise RuntimeError('Another web server owns port 80/443. Configure Nginx sharing first; the installer will not stop it.')
@@ -328,19 +328,26 @@ def check_shared_host(values):
             for name in names:
                 if name == host or (name.startswith('*.') and host.endswith(name[1:])) or (name.startswith('.') and (host == name[1:] or host.endswith(name))) or name.startswith('~'):
                     raise RuntimeError('An existing Nginx hostname or pattern conflicts with this installation; choose unused hostnames or review that site first.')
-    print('Existing websites, runtimes and PostgreSQL clusters will not be replaced.')
+    print('Existing websites, runtimes and PostgreSQL settings will not be replaced.')
 
 
-def create_database_cluster():
-    versions = sorted((p.name for p in Path('/usr/lib/postgresql').iterdir() if p.name.isdigit()), key=int)
-    if not versions:
-        raise RuntimeError('No installed native PostgreSQL version found.')
-    version = versions[-1]
-    run(['pg_createcluster', version, 'fieldops', '--port', str(PORTS['database']), '-o', "listen_addresses='127.0.0.1'", '--start', '--', '--auth-local=peer', '--auth-host=scram-sha-256'])
-    # Only this new cluster is configured. Never edit or restart other clusters.
-    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data="ALTER SYSTEM SET listen_addresses = '127.0.0.1';")
-    run(['pg_ctlcluster', version, 'fieldops', 'restart'])
-    return version
+def check_existing_postgres():
+    """Read-only checks on the existing service; never create/start a cluster."""
+    if not shutil.which('psql') or not shutil.which('pg_isready'):
+        raise RuntimeError('Existing PostgreSQL on port 5432 is required. Install and start PostgreSQL separately; this installer does not create clusters.')
+    run(['pg_isready', '-h', '127.0.0.1'], user='postgres', cwd='/tmp', quiet=True)
+    result = run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-At', '-d', 'postgres'], user='postgres', cwd='/tmp', quiet=True, data="""
+SELECT current_setting('server_version_num');
+SELECT 'database_conflict' FROM pg_database WHERE datname = 'fieldops';
+SELECT 'role_conflict' FROM pg_roles WHERE rolname IN
+('fieldops_owner', 'supabase_auth_admin', 'authenticator', 'anon', 'authenticated', 'service_role', 'fieldops_migration');
+""")
+    lines = result.strip().splitlines()
+    if not lines or not lines[0].isdigit():
+        raise RuntimeError('Could not verify existing PostgreSQL on port 5432.')
+    if len(lines) != 1:
+        raise RuntimeError('The fieldops database or required backend roles already exist on port 5432. Nothing was replaced; preserve partial state or use the upgrade script for a completed installation.')
+    return str(int(lines[0]) // 10000)
 
 
 def unit(name, executable, env_file, user, workdir, after='postgresql.service'):
@@ -391,6 +398,7 @@ def main():
     values = settings()
     selected = choose_ports('' if args.dry_run else None)
     PORTS.update(selected)
+    print('Database: existing local PostgreSQL on port 5432; no clusters will be created.')
     if not args.dry_run:
         check_shared_host(values)
     print(f'\nWebsite: https://{values["website"]}\nAPI: https://{values["api"]}')
@@ -424,22 +432,9 @@ def install(source, values):
     print('2/8 Installing Ubuntu packages and service accounts…')
     run(['apt-get', 'update'])
     package_env = {**os.environ, 'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'l'}
-    # Debian's PostgreSQL packaging otherwise creates a default main cluster.
-    # Preserve existing shared packaging configuration byte-for-byte.
-    cluster_config = Path('/etc/postgresql-common/createcluster.conf')
-    if cluster_config.is_symlink():
-        raise RuntimeError('Refusing a symbolic-link PostgreSQL packaging configuration.')
-    cluster_original = cluster_config.read_bytes() if cluster_config.exists() else None
-    cluster_config.parent.mkdir(parents=True, exist_ok=True)
-    with cluster_config.open('ab') as handle:
-        handle.write(b'\ncreate_main_cluster = false\n')
-    try:
-        run(['apt-get', 'install', '-y', '--no-upgrade', 'ca-certificates', 'curl', 'git', 'make', 'xz-utils', 'unzip', 'postgresql', 'postgresql-contrib', 'nginx', 'certbot', 'python3-certbot-nginx'], env=package_env)
-    finally:
-        if cluster_original is None:
-            cluster_config.unlink(missing_ok=True)
-        else:
-            cluster_config.write_bytes(cluster_original)
+    # PostgreSQL must already be installed. Do not install server packages that
+    # could implicitly create another cluster or edit host-wide database settings.
+    run(['apt-get', 'install', '-y', '--no-upgrade', 'ca-certificates', 'curl', 'git', 'make', 'xz-utils', 'unzip', 'nginx', 'certbot', 'python3-certbot-nginx'], env=package_env)
     INSTALL_PHASE = 'service account setup'
     print('  Checking and creating service accounts…')
     create_service_accounts()
@@ -488,13 +483,13 @@ def install(source, values):
         install_binary(BACKEND / 'gotrue', (auth_source / 'gotrue').read_bytes())
     INSTALL_PHASE = 'database initialization'
     print('4/8 Initializing the private database and keys…')
-    postgres_version = create_database_cluster()
+    postgres_version = check_existing_postgres()
     state = json.loads(STATE.read_text())
     state['postgres_version'] = postgres_version
-    state['postgres_cluster'] = 'fieldops'
+    state['postgres_mode'] = 'existing'
     STATE.write_text(json.dumps(state))
     passwords = {role: secrets.token_hex(32) for role in ('fieldops_owner', 'supabase_auth_admin', 'authenticator')}
-    sql = '\n'.join(f"CREATE ROLE {role} LOGIN NOINHERIT PASSWORD '{password}';" for role, password in passwords.items()) + '''
+    sql = "SET password_encryption = 'scram-sha-256';\n" + '\n'.join(f"CREATE ROLE {role} LOGIN NOINHERIT PASSWORD '{password}';" for role, password in passwords.items()) + '''
 CREATE ROLE anon NOLOGIN NOINHERIT;
 CREATE ROLE authenticated NOLOGIN NOINHERIT;
 CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
