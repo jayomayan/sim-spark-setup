@@ -40,6 +40,20 @@ sudo python3 deploy/install-ubuntu.py
 
 Answer the prompts for website/API hostnames, administrator email and strong password, SMTP settings, first-admin email verification and private service ports. Password prompts are hidden. No passwords or private keys are printed or passed in command arguments. Confirm the final summary to begin. Downloads/builds can take several minutes; a failed step stops installation. Dry run only previews questions; it does not prove that the target server is compatible.
 
+### App and helper choices
+
+The first prompt offers **app only**, **app and helper**, or **helper only**. App and helper finishes the website first, then asks you to sign in, open Admin Settings → Network Helper, generate a one-time installation code and paste the code at the hidden prompt. No helper key is printed. The helper is installed on this machine only after you confirm it can reach your routers over the network or VPN.
+
+For an existing website, install just the helper from the reviewed repository checkout:
+
+```bash
+sudo python3 deploy/install-ubuntu.py --helper-only
+```
+
+Preview without changes using `python3 deploy/install-ubuntu.py --helper-only --dry-run`. Helper-only asks for the existing console HTTPS address, network reachability confirmation and final installation confirmation; it does not require PostgreSQL, SMTP or website hostnames and never runs app setup. The one-time enrollment code is requested only during real installation, after dependencies are ready; obtain a fresh code from an administrator then.
+
+The helper gets a verified private Node runtime under `/opt/field-ops-helper`, a dedicated `fieldops-helper` account, Chromium screenshot dependencies and the `field-ops-helper` systemd service. Its token stays in root-only `/etc/field-ops-helper.env`; router settings and releases continue to arrive from the console. Existing helper files/accounts or partial installations are refused rather than overwritten. Packages and Chromium system dependencies are host-wide; use a maintenance window. If helper setup fails after the app succeeds, preserve helper partial state; do not rerun the full app installer. Verify the helper online indicator and an approved ping/screenshot from Admin Settings; starting the service alone does not establish router reachability.
+
 The installer keeps public signup disabled: admins invite subsequent users. Email auto-confirmation remains off. If you decline the explicit first-admin verification question, the installer sends a confirmation email; verify delivery before use. It never sends the administrator password by email.
 
 ## What is installed
@@ -59,7 +73,7 @@ Upstream GitHub binary downloads require a published SHA-256 digest; the install
 
 1. Open your HTTPS website and sign in as the first administrator. Confirm the email first if requested.
 2. Re-enter and test Console Connect credentials in Admin Settings. Configure the independent Okta sign-in provider separately; saved app settings alone do not enable it.
-3. Enroll the Network Helper through Admin Settings on a machine with access to your routers. The installer does not assume the GCP VM has company-network routes or silently deploy a helper to the wrong network.
+3. Verify the installed Network Helper in Admin Settings, or use helper-only mode on a machine with access to your routers. The installer does not assume the GCP VM has company-network routes or silently deploy a helper to the wrong network.
 4. Complete [the acceptance checklist](README.md#6-required-acceptance-checks): password login/change/recovery, member restrictions, saved records, helper ping/screenshots, and approved live SIM/router operations.
 5. Configure encrypted backups and test restore, reboot recovery and certificate renewal. Keep database backups and encryption/signing secrets together securely.
 

@@ -7,6 +7,7 @@ import json
 import re
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -14,10 +15,54 @@ from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('native_installer', Path(__file__).with_name('install-ubuntu.py'))
 installer = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = installer
 spec.loader.exec_module(installer)
 
 
 class InstallerChecks(unittest.TestCase):
+    def test_helper_only_never_calls_app_setup(self):
+        helper = SimpleNamespace(preflight=lambda api: None, settings=lambda api: {'console': 'https://ops.example.com'}, install=lambda api, values: None)
+        with patch('sys.argv', ['install-ubuntu.py', '--helper-only', '--dry-run']), patch.object(installer, 'helper_module', return_value=helper), patch.object(installer, 'preflight') as preflight, patch.object(installer, 'settings') as settings, patch.object(installer, 'choose_ports') as ports, patch.object(installer, 'install') as install:
+            installer.main()
+        for action in (preflight, settings, ports, install):
+            action.assert_not_called()
+
+    def test_helper_url_requires_https_without_credentials(self):
+        helper = installer.helper_module()
+        self.assertEqual(helper.console_url('https://ops.example.com/'), 'https://ops.example.com')
+        for url in ('http://ops.example.com', 'https://user:pass@ops.example.com', 'https://ops.example.com/path', 'https://ops.example.com:8000'):
+            with self.assertRaises(ValueError):
+                helper.console_url(url)
+
+    def test_helper_enrollment_does_not_follow_redirects(self):
+        helper = installer.helper_module()
+        self.assertIsNone(helper.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://elsewhere.example.com'))
+
+    def test_helper_installs_without_app_commands_or_secret_arguments(self):
+        helper = installer.helper_module()
+        with tempfile.TemporaryDirectory() as temp:
+            prefix = Path(temp) / 'helper'
+            env_file, unit_file = Path(temp) / 'helper.env', Path(temp) / 'helper.service'
+            from unittest.mock import MagicMock
+            with patch.object(helper, 'PREFIX', prefix), patch.object(helper, 'ENV', env_file), patch.object(helper, 'UNIT', unit_file), patch.object(helper, 'preflight'), patch.object(helper.tarfile, 'open', return_value=MagicMock()), patch.object(installer, 'download', side_effect=[hashlib.sha256(b'archive').hexdigest().encode() + f'  node-v{installer.NODE_VERSION}-linux-x64.tar.xz'.encode(), b'archive']), patch.object(installer, 'run') as run, patch.object(installer, 'ask', return_value='private-code'), patch.object(helper, 'enroll', return_value='private-token') as enroll:
+                helper.install(installer, {'console': 'https://ops.example.com'})
+            self.assertEqual(env_file.stat().st_mode & 0o777, 0o600)
+            self.assertIn('AGENT_TOKEN="private-token"', env_file.read_text())
+            self.assertIn('User=fieldops-helper', unit_file.read_text())
+            self.assertNotIn('private-token', unit_file.read_text())
+            enroll.assert_called_once_with('https://ops.example.com', 'private-code')
+            arguments = str([call.args for call in run.call_args_list])
+            for forbidden in ('private-code', 'private-token', 'psql', 'nginx', 'certbot', 'postgresql', 'nodesource'):
+                self.assertNotIn(forbidden, arguments)
+
+    def test_helper_refuses_existing_files_before_installation(self):
+        helper = installer.helper_module()
+        with tempfile.TemporaryDirectory() as temp:
+            existing = Path(temp)
+            with patch.object(helper.os, 'geteuid', return_value=0), patch.object(helper.os, 'uname', return_value=SimpleNamespace(machine='x86_64')), patch.object(helper.Path, 'read_text', return_value='ID=ubuntu'), patch.object(helper.Path, 'exists', return_value=True), patch.object(helper, 'PREFIX', existing):
+                with self.assertRaisesRegex(RuntimeError, 'existing helper files'):
+                    helper.preflight(installer)
+
     def test_diagnose_does_not_prompt_or_install_or_read_secret_files(self):
         with patch('sys.argv', ['install-ubuntu.py', '--diagnose']), patch.object(installer, 'settings') as settings, patch.object(installer, 'preflight') as preflight, patch.object(installer, 'install') as install, patch.object(installer.Path, 'read_text') as read, patch.object(installer.Path, 'read_bytes') as binary:
             installer.main()
@@ -191,7 +236,7 @@ class InstallerChecks(unittest.TestCase):
             installer.env_value('bad\nsetting')
 
     def test_dry_run_never_installs_and_prompts_hidden_secrets(self):
-        answers = iter(['ops.example.com', 'api.example.com', 'admin@example.com', 'smtp.example.com', '', 'mailer', '', 'n', '', '', '', '', ''])
+        answers = iter(['1', 'ops.example.com', 'api.example.com', 'admin@example.com', 'smtp.example.com', '', 'mailer', '', 'n', '', '', '', '', ''])
         with patch('sys.argv', ['install-ubuntu.py', '--dry-run']), patch('builtins.input', side_effect=lambda _: next(answers)), patch.object(installer.getpass, 'getpass', side_effect=['Example-Admin93!', 'Example-Admin93!', 'smtp-secret']) as hidden, patch.object(installer, 'install') as install, patch.object(installer, 'preflight') as preflight:
             installer.main()
         self.assertEqual(hidden.call_count, 3)

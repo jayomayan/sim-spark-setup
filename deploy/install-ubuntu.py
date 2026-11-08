@@ -11,6 +11,7 @@ import getpass
 import hashlib
 import hmac
 import io
+import importlib.util
 import json
 import os
 import pwd
@@ -475,13 +476,23 @@ def restart_clean():
     print('You can now run a fresh installation: sudo python3 deploy/install-ubuntu.py')
 
 
+def helper_module():
+    spec = importlib.util.spec_from_file_location('native_helper_installer', Path(__file__).with_name('install-helper.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true', help='Prompt and validate only; do not install or write settings')
     parser.add_argument('--diagnose', action='store_true', help='Show read-only Python and installation-path diagnostics; no secrets or changes')
     parser.add_argument('--resume-after-auth', action='store_true', help='Continue only a verified partial installation after Auth tables were created')
     parser.add_argument('--restart-clean', action='store_true', help='Remove a partial or failed installation (kept in a backup) so a fresh install can run')
+    parser.add_argument('--helper-only', action='store_true', help='Install only the network helper; do not install the app or touch its database')
     args = parser.parse_args()
+    if args.helper_only and (args.diagnose or args.restart_clean or args.resume_after_auth):
+        raise RuntimeError('Use --helper-only separately from recovery and diagnostic modes.')
     if args.diagnose:
         diagnose()
         return
@@ -495,8 +506,25 @@ def main():
             raise RuntimeError('Use --resume-after-auth separately from --dry-run.')
         resume_after_auth()
         return
+    mode = 'helper' if args.helper_only else ask('Install: 1 = app only, 2 = app and helper, 3 = helper only', '1',
+        lambda v: {'1': 'app', '2': 'both', '3': 'helper'}[v] if v in ('1', '2', '3') else (_ for _ in ()).throw(ValueError('Choose 1, 2 or 3.')))
+    helper = helper_module() if mode in ('helper', 'both') else None
+    if mode == 'helper':
+        if not args.dry_run:
+            helper.preflight(sys.modules[__name__])
+        helper_values = helper.settings(sys.modules[__name__])
+        if args.dry_run:
+            print('Helper dry run complete. No code requested, files written or services changed.')
+        elif confirm('Install only the network helper now?'):
+            helper.install(sys.modules[__name__], helper_values)
+        return
     source = None if args.dry_run else preflight()
     values = settings()
+    helper_values = None
+    if helper:
+        if not args.dry_run:
+            helper.preflight(sys.modules[__name__])
+        helper_values = helper.settings(sys.modules[__name__], 'https://' + values['website'])
     selected = choose_ports('' if args.dry_run else None)
     PORTS.update(selected)
     print('Database: existing local PostgreSQL on port 5432; no clusters will be created.')
@@ -512,6 +540,9 @@ def main():
         print('Cancelled. No system changes made.')
         return
     install(source, values)
+    if helper and helper_values:
+        print('App installed. Sign in as admin to generate the helper enrollment code when prompted.')
+        helper.install(sys.modules[__name__], helper_values)
 
 
 def install(source, values):
