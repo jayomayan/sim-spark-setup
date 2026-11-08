@@ -116,3 +116,14 @@ sudo nginx -t
 Do not share raw logs or secret files. Do not delete `/etc/field-ops` or the database to force a rerun. Diagnose an unsuccessful installation without changing unrelated websites or databases. For a completed installation, use [the interactive app upgrade script](UPGRADE.md), not the installer; it uses the saved database port and private runtimes and preserves settings. Older installations retain their previous defaults.
 
 **Verification status:** prompt, port selection, conflicting web server/hostname refusal, dedicated database targeting and secret-handling checks are included in `test_install_ubuntu.py`. Complete new/shared Ubuntu server installation, existing-site continuity, SMTP delivery, production build, Okta and real integrations have not been exercised here. This script is a deployment starting point, not a production-readiness certification.
+### Continuation stopped with `FileNotFoundError` at step 5
+
+Older installers could not find the system `runuser` command when running app commands with the private tool PATH, and could leave the temporary `fieldops_migration` login behind. After updating the source checkout:
+
+```bash
+sudo -u postgres psql -X -p 5432 -d postgres -v ON_ERROR_STOP=1 -c "ALTER ROLE fieldops_migration NOLOGIN PASSWORD NULL;" -c "DROP ROLE fieldops_migration;"
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+sudo mkdir -m 700 "/etc/field-ops/failed-continuation-$STAMP" &&
+sudo mv /etc/field-ops/rest.env /etc/field-ops-console.env "/etc/field-ops/failed-continuation-$STAMP/"
+sudo python3 deploy/install-ubuntu.py --resume-after-auth
+```

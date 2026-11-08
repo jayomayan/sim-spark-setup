@@ -33,11 +33,20 @@ NODE_BIN = '/usr/local/bin'
 EXCLUDED = {'.git', '.env', 'node_modules', '.output', 'dist', '.tanstack', '.workspace', '__pycache__'}
 
 
+def runuser_path():
+    # Build environments use a private PATH without /usr/sbin; resolve runuser directly.
+    for candidate in ('/usr/sbin/runuser', '/sbin/runuser'):
+        path = Path(candidate)
+        if path.is_file() and path.stat().st_uid == 0 and not path.stat().st_mode & 0o022:
+            return candidate
+    raise RuntimeError('The system runuser command was not found in /usr/sbin or /sbin.')
+
+
 def run(args, *, data=None, cwd=None, user=None, env=None):
     if args[0] in ('psql', 'pg_isready') and user == 'postgres':
         args = [args[0], '-p', str(DB_PORT), *args[1:]]
     if user:
-        args = ['runuser', '-u', user, '--', *args]
+        args = [runuser_path(), '-u', user, '--', *args]
     result = subprocess.run(args, input=data, cwd=cwd, env=env, text=True, capture_output=True)
     if result.returncode:
         raise RuntimeError('A command failed; output suppressed to protect credentials. Inspect services privately.')
@@ -148,12 +157,12 @@ def dump_database(destination):
     # File opened by root; peer-authenticated postgres emits backup over stdout.
     with open(destination / 'database.dump', 'xb') as handle:
         os.chmod(handle.name, 0o600)
-        result = subprocess.run(['runuser', '-u', 'postgres', '--', 'pg_dump', '-p', str(DB_PORT), '-Fc', '-d', 'fieldops'], cwd='/tmp', stdout=handle, stderr=subprocess.PIPE)
+        result = subprocess.run([runuser_path(), '-u', 'postgres', '--', 'pg_dump', '-p', str(DB_PORT), '-Fc', '-d', 'fieldops'], cwd='/tmp', stdout=handle, stderr=subprocess.PIPE)
     if result.returncode:
         raise RuntimeError('Database backup failed; no migrations were run.')
     with open(destination / 'roles.sql', 'xb') as handle:
         os.chmod(handle.name, 0o600)
-        result = subprocess.run(['runuser', '-u', 'postgres', '--', 'pg_dumpall', '-p', str(DB_PORT), '--globals-only'], cwd='/tmp', stdout=handle, stderr=subprocess.PIPE)
+        result = subprocess.run([runuser_path(), '-u', 'postgres', '--', 'pg_dumpall', '-p', str(DB_PORT), '--globals-only'], cwd='/tmp', stdout=handle, stderr=subprocess.PIPE)
     if result.returncode:
         raise RuntimeError('Database role backup failed; no migrations were run.')
     # Verify archive readability; a full restoration rehearsal remains separate.

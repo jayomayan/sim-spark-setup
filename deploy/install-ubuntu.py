@@ -150,11 +150,21 @@ def settings():
                 smtp_port=smtp_port, smtp_user=smtp_user, smtp_password=smtp_password, sender=sender, verified=verified)
 
 
+def runuser_path():
+    # Service commands get a private PATH without /usr/sbin, so never resolve
+    # runuser through the child environment.
+    for candidate in ('/usr/sbin/runuser', '/sbin/runuser'):
+        path = Path(candidate)
+        if path.is_file() and path.stat().st_uid == 0 and not path.stat().st_mode & 0o022:
+            return candidate
+    raise RuntimeError('The system runuser command was not found in /usr/sbin or /sbin.')
+
+
 def run(args, *, data=None, cwd=None, user=None, env=None, quiet=False):
     if args[0] in ('psql', 'pg_isready') and user == 'postgres':
         args = [args[0], '-p', str(PORTS['database']), *args[1:]]
     if user:
-        args = ['runuser', '-u', user, '--', *args]
+        args = [runuser_path(), '-u', user, '--', *args]
     result = subprocess.run(args, input=data, text=True, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode:
         # Upstream output can contain passwords or DB URLs. Never echo it.
@@ -539,13 +549,15 @@ def complete_install(values, shared, db_url):
     # Use a dedicated temporary superuser migration connection; remove it after
     # schema setup so no superuser credentials persist in the app environment.
     migration_password = secrets.token_hex(32)
-    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data=f"CREATE ROLE fieldops_migration LOGIN SUPERUSER PASSWORD '{migration_password}';")
     app_env = {'FIELD_OPS_STANDALONE': '1', 'NODE_ENV': 'production', 'HOST': '127.0.0.1', 'PORT': str(PORTS['web']), 'VITE_SUPABASE_URL': f'https://{values["api"]}', 'VITE_SUPABASE_PUBLISHABLE_KEY': anon, 'SUPABASE_URL': f"http://127.0.0.1:{PORTS['gateway']}", 'SUPABASE_PUBLISHABLE_KEY': anon, 'SUPABASE_SERVICE_ROLE_KEY': service, 'DB_SECRET_KEY': secrets.token_hex(32)}
     environment('/etc/field-ops-console.env', app_env)
     INSTALL_PHASE = 'application dependencies and migrations'
     print('5/8 Installing app dependencies and applying checked-in migrations…')
     run([str(BACKEND / 'bin/bun'), 'install', '--frozen-lockfile'], cwd=APP, user='fieldops-web', env={**os.environ, 'HOME': str(APP), 'PATH': RUNTIME_PATH})
     migration_env = {**os.environ, **app_env, 'PATH': RUNTIME_PATH, 'STANDALONE_DATABASE_URL': f"postgresql://fieldops_migration:{migration_password}@127.0.0.1:{PORTS['database']}/fieldops?sslmode=disable"}
+    # Create the temporary superuser only immediately before migrations, inside the
+    # cleanup block, so any failure still revokes its login.
+    run(['psql', '-v', 'ON_ERROR_STOP=1', '-q'], user='postgres', cwd='/tmp', data=f"CREATE ROLE fieldops_migration LOGIN SUPERUSER PASSWORD '{migration_password}';")
     try:
         run([str(BACKEND / 'bin/bun'), 'run', 'db:migrate:standalone'], cwd=APP, user='fieldops-web', env=migration_env)
         # Reassign app objects to the durable owner before dropping temporary role.

@@ -32,9 +32,10 @@ class UpgradeChecks(unittest.TestCase):
         with patch.object(upgrade, 'DB_PORT', 5544), patch.object(upgrade, 'BUN', '/usr/local/bin/bun'), patch.object(upgrade, 'NODE_BIN', '/usr/local/bin'):
             upgrade.configure_installation({'postgres_mode': 'existing', 'ports': {'database': 5432}, 'runtime_bin': '/opt/field-ops-backend/bin', 'node_bin': '/opt/field-ops-backend/node/bin'})
             self.assertEqual(upgrade.DB_PORT, 5432)
-            with patch.object(upgrade.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as command:
+            with patch.object(upgrade.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as command, \
+                    patch.object(upgrade, 'runuser_path', return_value='/usr/sbin/runuser'):
                 upgrade.run(['psql', '-d', 'fieldops'], user='postgres')
-            self.assertEqual(command.call_args.args[0], ['runuser', '-u', 'postgres', '--', 'psql', '-p', '5432', '-d', 'fieldops'])
+            self.assertEqual(command.call_args.args[0], ['/usr/sbin/runuser', '-u', 'postgres', '--', 'psql', '-p', '5432', '-d', 'fieldops'])
 
     def test_environment_reads_literals_without_shell_evaluation(self):
         env = {'FIELD_OPS_STANDALONE': '1', 'VITE_SUPABASE_URL': 'https://api.example.com', 'VITE_SUPABASE_PUBLISHABLE_KEY': 'public', 'SUPABASE_URL': 'http://127.0.0.1:8000', 'SUPABASE_PUBLISHABLE_KEY': 'public', 'SUPABASE_SERVICE_ROLE_KEY': 'private', 'DB_SECRET_KEY': '$literal`not-command`'}
