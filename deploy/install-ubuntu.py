@@ -288,6 +288,7 @@ def occupied_ports(listeners):
 
 def choose_ports(listeners=None):
     used = occupied_ports(run(['ss', '-H', '-ltn'], quiet=True) if listeners is None else listeners)
+    used.add(5432)
     chosen = {}
     print('Choose private service ports; existing listeners are excluded automatically.')
     for name, preferred in PORTS.items():
