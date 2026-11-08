@@ -4,7 +4,7 @@ Deploy the GitHub source to your existing Ubuntu VM with a **new, independent da
 
 The application needs PostgreSQL **plus compatible authentication and data APIs**. Installing PostgreSQL alone or adding a connection in Admin Settings does not provide those APIs or switch the main database.
 
-All services run directly on Ubuntu using native packages/binaries and systemd. **Interactive installation:** use [INTERACTIVE-INSTALL.md](INTERACTIVE-INSTALL.md) to install the native backend and website together, including beside existing Nginx websites. It isolates runtimes and the database and asks for free ports; existing Field Ops installations are not overwritten. The sections below are the manual installation reference, with example ports that must be adjusted for conflicts.
+All services run directly on Ubuntu using native packages/binaries and systemd. **Interactive installation:** use [INTERACTIVE-INSTALL.md](INTERACTIVE-INSTALL.md) to install the native backend and website together, including beside existing Nginx websites. It uses existing PostgreSQL on 5432 without creating clusters, keeps private runtimes and asks for free HTTP service ports; existing Field Ops installations are not overwritten. The sections below are the manual installation reference, with example ports that must be adjusted for conflicts.
 
 ## 1. Prepare GCP networking
 

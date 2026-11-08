@@ -1,6 +1,6 @@
 # Interactive Ubuntu installation
 
-The installer runs the website, PostgreSQL, Auth, PostgREST and Nginx directly on Ubuntu as native services. It obtains HTTPS certificates, generates private keys on the VM, applies the checked-in application migrations and creates the first administrator through the sign-in service. It does not copy hosted users or data.
+The installer uses your existing PostgreSQL and runs the website, Auth, PostgREST and Nginx directly on Ubuntu as native services. It obtains HTTPS certificates, generates private keys on the VM, applies the checked-in application migrations and creates the first administrator through the sign-in service. It does not copy hosted users or data or create PostgreSQL clusters.
 
 ## Before starting
 
@@ -10,14 +10,15 @@ The installer runs the website, PostgreSQL, Auth, PostgREST and Nginx directly o
 - Have working SMTP hostname, submission port, username, password and sender address. Email confirmation and password recovery require SMTP. SMTP setup does not enable invitation notification emails in the app.
 - Clone a reviewed revision of your repository using your existing GitHub access. Do not embed access tokens in repository URLs or copy hosted `.env` files.
 - Back up existing websites, databases and Nginx settings first. Existing PostgreSQL clusters and global Node/Bun installations are left in place. Existing Field Ops destinations are still refused; this is not an upgrade or restore tool. Dormant, locked, dedicated Field Ops service accounts can be reused with your explicit confirmation; their settings are not changed.
+- PostgreSQL must already be installed and running locally on **5432**, accepting local administrator access as the `postgres` OS user and TCP connections on `127.0.0.1`. The installer checks this before making changes; it does not install server packages, start/restart PostgreSQL or change its configuration. On a new VM, install PostgreSQL separately first.
 
 ### Sharing a server
 
 If installation reports that a service account already exists, use the updated installer from your reviewed checkout and rerun `sudo python3 deploy/install-ubuntu.py`. It checks for a locked password, no-login shell, expected home, dedicated group and no running processes before offering reuse. Interactive accounts, shared groups or active accounts are refused with the account name. Do not delete users or change their permissions to bypass the checks. Existing app files, keys or database state remain protected; partial installation recovery is not automated.
 
 - Supply two **unused hostnames**. The installer checks existing Nginx names/patterns and refuses conflicts.
-- It asks for five private service ports and suggests unused values. Defaults are website `3000`, gateway `8000`, Auth `9999`, REST `3001`, and database `5433`; occupied defaults are skipped and duplicate choices rejected.
-- It creates a **separate PostgreSQL cluster named `fieldops`**, with its own port, roles and database. It does not reuse, migrate, restart or reconfigure another application's cluster.
+- It asks for four private service ports and suggests unused values. Defaults are website `3000`, gateway `8000`, Auth `9999`, and REST `3001`; occupied defaults are skipped and duplicate choices rejected. PostgreSQL uses the existing service on **5432**, without a database-port prompt.
+- It creates only the **`fieldops` database and required backend roles** in existing PostgreSQL. Existing databases and PostgreSQL settings stay unchanged. If `fieldops` or any required role already exists, installation stops without reusing or overwriting it. Other clusters left by earlier attempts are ignored, not deleted or started.
 - Node and Bun stay under `/opt/field-ops-backend`, not global executable paths. Existing runtime versions remain unchanged.
 - Existing Nginx websites stay enabled. Only new Field Ops configuration is added, then Nginx is checked and gracefully reloaded. Certificates use webroot validation rather than a tool that edits existing sites.
 - If Apache, Caddy or another server owns 80/443, installation stops before package changes. Arrange an Nginx reverse proxy with your server administrator first; the installer will not stop that website or take over its ports.
@@ -43,7 +44,7 @@ The installer keeps public signup disabled: admins invite subsequent users. Emai
 
 ## What is installed
 
-- Native Ubuntu PostgreSQL with an isolated `fieldops` cluster, private database and separate Auth/REST roles.
+- A new `fieldops` database and separate Auth/REST roles in your existing local PostgreSQL on 5432; no new clusters.
 - Auth `v2.196.0`, compiled from a pinned upstream commit using verified Go `1.26.5`; PostgREST `v16.5`.
 - Verified private Node `22.22.0` and Bun `1.3.3`; the app's locked dependencies and standalone Node build.
 - Separate `field-ops-auth`, `field-ops-rest`, and `field-ops-console` systemd services, with localhost-only listeners.
@@ -66,7 +67,7 @@ Upstream GitHub binary downloads require a published SHA-256 digest; the install
 
 No automatic rollback deletes database records or keys. Preserve partial state and inspect the services privately:
 
-If an older installer failed creating `fieldops` with a configuration syntax error near `.0`, its `listen_addresses` value was unquoted. The current installer quotes the address correctly. Back up and repair only `/etc/postgresql/<version>/fieldops/postgresql.conf`, replacing the exact malformed line `listen_addresses = 127.0.0.1` with `listen_addresses = '127.0.0.1'`. Never edit the unrelated `main` cluster. Starting the repaired cluster does not resume application installation; preserve partial state for recovery rather than rerunning the fresh installer.
+Older installers may have left a separate `fieldops` cluster and partial application folders. The current installer does not need that cluster and will not modify or remove it. Preserve partial state; do not delete databases or rerun over existing application folders. Recovery requires checking what the earlier attempt created first.
 
 For failure during step 2, first run the updated installer's **read-only** report from your reviewed source checkout:
 
