@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { runInNewContext } from "node:vm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildInstallCommand,
   DEFAULT_FIREWALL_RULES,
@@ -17,6 +17,51 @@ import { pingResultSchema } from "@/lib/site-connectivity";
 
 const helperSource = readFileSync("public/helper/field-ops-helper.mjs", "utf8");
 const installerSource = readFileSync("public/helper/install.sh", "utf8");
+
+describe("busy helper lifecycle", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("checks in without claiming jobs during long work and stops after completion", async () => {
+    vi.useFakeTimers();
+    const api = vi.fn(async (_body: unknown) => ({}));
+    const start = helperSource.indexOf("async function withCheckIns(");
+    const end = helperSource.indexOf("async function loop()", start);
+    const withCheckIns = runInNewContext(`${helperSource.slice(start, end)}; withCheckIns`, {
+      api, VERSION: "1.9.4", hostname: () => "test", setTimeout, clearTimeout, console,
+    });
+    let finish: (value: string) => void = () => {};
+    const result = withCheckIns(() => new Promise<string>((resolve) => { finish = resolve; }));
+    await vi.advanceTimersByTimeAsync(45_000);
+    expect(api).toHaveBeenCalledTimes(3);
+    expect(api.mock.calls[0]).toEqual([{ action: "poll", version: "1.9.4", hostname: "test", claimJobs: false }]);
+    finish("verified");
+    expect(await result).toBe("verified");
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(api).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports claimed work before allowing a self-update to exit", async () => {
+    const events: string[] = [];
+    let polls = 0;
+    const stop = new Error("update exit");
+    const start = helperSource.indexOf("async function loop()");
+    const loop = runInNewContext(`${helperSource.slice(start, helperSource.lastIndexOf("loop();"))}; loop`, {
+      VERSION: "1.9.4", URL_BASE: "https://console.example.com", hostname: () => "test",
+      console: { log: () => {}, error: () => {} }, loadConfig: async () => {}, config: { configVersion: 1 },
+      api: async (body: { action: string }) => {
+        if (body.action === "result") { events.push("result"); return {}; }
+        if (++polls > 2) throw stop;
+        return { job: polls === 1 ? { id: "j", type: "ur35_firewall", payload: {} } : null, latestVersion: "1.9.5", configVersion: 1 };
+      },
+      updateTried: false, selfUpdate: async () => { events.push("update"); throw stop; },
+      handlers: { ur35_firewall: async () => { events.push("work"); return { verified: true }; } },
+      withCheckIns: async (work: () => Promise<unknown>) => work(),
+      setTimeout: () => { throw stop; },
+    });
+    await expect(loop()).rejects.toThrow("update exit");
+    expect(events).toEqual(["work", "result", "update"]);
+  });
+});
 
 describe("live helper ping", () => {
   it("sends four probes even when initial packets are lost and returns displayable statistics", async () => {

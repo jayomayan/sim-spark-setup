@@ -24,7 +24,7 @@ import https from "node:https";
 import { createCipheriv, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.9.3";
+const VERSION = "1.9.4";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -139,6 +139,7 @@ async function api(body) {
     method: "POST",
     headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new Error(`Console replied ${res.status}`);
   return res.json();
@@ -449,6 +450,20 @@ async function selfUpdate(target) {
   process.exit(0);
 }
 
+// A busy helper must still check in, without claiming another job or changing settings.
+async function withCheckIns(work) {
+  let stopped = false;
+  let timer;
+  const checkIn = async () => {
+    try { await api({ action: "poll", version: VERSION, hostname: hostname(), claimJobs: false }); }
+    catch { console.error("Helper check-in failed while processing a task"); }
+    finally { if (!stopped) timer = setTimeout(checkIn, 15_000); }
+  };
+  timer = setTimeout(checkIn, 15_000);
+  try { return await work(); }
+  finally { stopped = true; clearTimeout(timer); }
+}
+
 async function loop() {
   console.log(`Field Ops helper ${VERSION} → ${URL_BASE}`);
   try {
@@ -468,7 +483,8 @@ async function loop() {
           console.error("Couldn't reload settings:", e?.message || e);
         }
       }
-      if (latestVersion && latestVersion !== VERSION && !updateTried) {
+      // Poll already claimed this job: finish/report it before an update can exit.
+      if (!job && latestVersion && latestVersion !== VERSION && !updateTried) {
         updateTried = true;
         try {
           await selfUpdate(latestVersion);
@@ -481,7 +497,7 @@ async function loop() {
       try {
         const fn = handlers[job.type];
         if (!fn) throw new Error(`Unknown job type ${job.type}`);
-        const result = await fn(job.payload || {});
+        const result = await withCheckIns(() => fn(job.payload || {}));
         await api({ action: "result", id: job.id, ok: true, result });
         console.log(`✓ ${job.type}`);
       } catch (e) {

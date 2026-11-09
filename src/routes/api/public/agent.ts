@@ -18,7 +18,7 @@ export const Route = createFileRoute("/api/public/agent")({
       POST: async ({ request }) => {
         if (!(await authorized(request))) return new Response("Unauthorized", { status: 401 });
         const body = (await request.json().catch(() => null)) as
-          | { action: "poll"; version?: string; hostname?: string }
+          | { action: "poll"; version?: string; hostname?: string; claimJobs?: boolean }
           | { action: "result"; id: string; ok: boolean; result?: unknown; error?: string }
           | null;
         if (!body) return new Response("Bad request", { status: 400 });
@@ -36,6 +36,8 @@ export const Route = createFileRoute("/api/public/agent")({
             version: String(body.version ?? "").slice(0, 40),
             hostname: String(body.hostname ?? "").slice(0, 120),
           }).eq("id", 1);
+          // Busy-helper check-ins never claim a second task or expire active work.
+          if (body.claimJobs === false) return Response.json({ job: null, ...release });
           // Fail jobs a helper picked up but never finished.
           await db.from("agent_jobs").update({ status: "failed", error: "Helper stopped before finishing" })
             .eq("status", "running").lt("started_at", new Date(Date.now() - 10 * 60_000).toISOString());
