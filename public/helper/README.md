@@ -50,10 +50,14 @@ generated; **Admin Settings → Network Helper → Reset helper key** retires it
 
 ## Router HTTPS configuration
 
-Firewall and NTP use the Milesight UR-series `https://<router-ip>/cgi` API:
-saved logins are tried in order before any settings write. Incorrect credentials
-(`status: -1`) allow the next login; restrictions, unsupported responses and
-connection failures stop the job. Read-write API permission is required.
+Firewall and NTP use the Milesight UR-series HTTPS `/cgi` API on ports **443 and
+8443**: login tries 443 first and falls back to 8443 on a connection failure or
+timeout. Saved Admin Settings logins are tried in order before any settings write.
+Incorrect credentials (`status: -1`) allow the next login on that port;
+restrictions, rejected HTTP requests and unsupported responses stop the job.
+All reads, writes, Apply and verification stay on the successfully authenticated
+port; failed configuration requests are never replayed on another port.
+Read-write API permission is required.
 
 Paste the original `firewall access-control custom id ... rule ...` commands
 into **Firewall commands applied during SIM activation**, one command per line.
