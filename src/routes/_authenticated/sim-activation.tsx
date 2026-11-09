@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { HelperOfflineNote } from "@/components/HelperStatus";
 import { IP_WAIT_POLL_MS, ipWaitOpen, ipWaitSecondsLeft } from "@/lib/ip-wait";
+import { routerProgressLabel, type RouterProgressEvent } from "@/lib/router-progress";
 
 export const Route = createFileRoute("/_authenticated/sim-activation")({
   head: () => meta("SIM Activation", "Activate an IoT SIM, wait for its assigned IP address, then apply firewall and NTP settings to the router."),
@@ -50,6 +51,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [recordId, setRecordId] = useState<string | null>(null);
   const [firewallStatus, setFirewallStatus] = useState("");
+  const [firewallProgress, setFirewallProgress] = useState<RouterProgressEvent[]>([]);
   const stepRef = useRef(0);
   const ipRef = useRef<string | null>(null);
   const activate = useServerFn(activateSim);
@@ -76,12 +78,18 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     if (equipment === "ur35") {
       for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
         set(step, "running");
-        if (step === 3) setFirewallStatus(sim ? "Applying · test mode" : "Queueing for helper…");
+        if (step === 3) { setFirewallProgress([]); setFirewallStatus(sim ? "Applying · test mode" : "Queueing for helper…"); }
         if (sim) await wait(1200);
         else {
           // Router SSH may need a few minutes after a new cellular IP; the helper retries for up to 3.
           const j = await runJob(type, { ip: got }, {
             timeoutMs: 300_000,
+            onProgress: (events) => {
+              if (step !== 3) return;
+              setFirewallProgress(events);
+              const latest = events.at(-1);
+              if (latest && latest.stage !== "closed") setFirewallStatus(routerProgressLabel(latest));
+            },
             onStatus: (status) => {
               if (step === 3) setFirewallStatus(status === "running" ? "Waiting for router, then applying rules…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…");
             },
@@ -193,6 +201,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   function startOver() {
+    setFirewallProgress([]);
     setFirewallStatus("");
     setWaitingForIp(false);
     setError(null);
@@ -262,6 +271,16 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                   </span>
                   <span className="step-label flex-1 text-muted-foreground">{s}</span>
                   {i === 3 && firewallStatus && <span role="status" aria-live="polite" className={`max-w-full text-xs ${states[3] === "error" ? "text-destructive" : "text-muted-foreground"}`}>{firewallStatus}</span>}
+                  {i === 3 && firewallProgress.length > 0 && (
+                    <ol aria-label="Firewall progress details" className="w-full space-y-1 border-l border-border pl-4 text-xs text-muted-foreground sm:ml-12">
+                      {firewallProgress.map((event, index) => (
+                        <li key={index} className="flex items-start gap-2 break-words">
+                          <span aria-hidden="true" className="shrink-0">{index === firewallProgress.length - 1 && states[3] === "running" && event.stage !== "closed" ? "›" : "·"}</span>
+                          <span>{routerProgressLabel(event)}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
                   {i === 1 && states[1] === "running" && <span className="font-mono text-xs text-muted-foreground">{fmtClock(secondsLeft)} left</span>}
                   {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
                   {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}

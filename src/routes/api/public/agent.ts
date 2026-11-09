@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { JOB_TYPES, isSupportedJobType } from "@/lib/job-types";
+import { routerProgressSchema } from "@/lib/router-progress";
 
 // Endpoint used by the on-network helper. The helper key is created in Admin Settings;
 // an AGENT_TOKEN secret still works as a fallback for machines installed the old way.
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/api/public/agent")({
         const body = (await request.json().catch(() => null)) as
           | { action: "poll"; version?: string; hostname?: string; claimJobs?: boolean }
           | { action: "result"; id: string; ok: boolean; result?: unknown; error?: string }
+          | { action: "progress"; id: string; progress?: unknown }
           | null;
         if (!body) return new Response("Bad request", { status: 400 });
         const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
@@ -50,6 +52,17 @@ export const Route = createFileRoute("/api/public/agent")({
           return Response.json({ job: claimed ? next : null, ...release });
         }
 
+        if (body.action === "progress" && typeof body.id === "string") {
+          const parsed = routerProgressSchema.safeParse(body);
+          if (!parsed.success) return new Response("Invalid progress", { status: 400 });
+          const { data: job } = await db.from("agent_jobs").select("type,status").eq("id", body.id).maybeSingle();
+          if (!job || job.type !== "ur35_firewall" || job.status !== "running") return new Response("Job is not running", { status: 409 });
+          const { error } = await db.from("agent_jobs").update({ result: parsed.data as never })
+            .eq("id", body.id).eq("status", "running");
+          if (error) return new Response("Progress update failed", { status: 500 });
+          return Response.json({ ok: true });
+        }
+
         if (body.action === "result" && typeof body.id === "string") {
           const { data: job } = await db.from("agent_jobs").select("type,payload").eq("id", body.id).maybeSingle();
           if (!job) return new Response("Unknown job", { status: 404 });
@@ -57,7 +70,7 @@ export const Route = createFileRoute("/api/public/agent")({
           const result = body.result ?? null;
           await db.from("agent_jobs").update({
             status: body.ok ? "done" : "failed",
-            result: result as never,
+            ...(body.ok || body.result !== undefined ? { result: result as never } : {}),
             error: body.ok ? null : String(body.error ?? "Failed").slice(0, 2000),
             finished_at: new Date().toISOString(),
           }).eq("id", body.id);

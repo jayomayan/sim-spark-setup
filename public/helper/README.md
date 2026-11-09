@@ -13,6 +13,8 @@ It handles every router job in the app:
 
 ## Install (recommended)
 
+Helper 1.9.5 reports live firewall milestones: connection, secure login, current-settings checks, each pending rule, save and readback verification. Progress contains no credentials or raw router output.
+
 Open **Admin Settings → Network Helper**, press **Create install command**, and
 paste the command on the machine over SSH. It installs the tools the helper
 needs, downloads the program, saves the key, and starts it as a service:
