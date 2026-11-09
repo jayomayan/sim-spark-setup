@@ -1,5 +1,5 @@
 # Tasks
-- [ ] Save Okta users and support existing local accounts safely; clarify the failed-login message and whether both sign-in methods use the same email before changing account linking/access.
+- [x] Save verified Okta users with automatic operational access, preserve same-email local accounts and roles through native Auth linking, and fix late callback navigation via shared session state; SQL and private-settings tests pass. VM upgrade and enable-okta-signup.py are required; real Okta end-to-end remains unverified without VM access.
 - [x] Add inactivity sign-out with a 15-minute default, one-minute warning and shared-tab activity; 11 tests pass and signed-in warning → stay signed in → expiration → sign-in verified with no runtime errors.
 - [x] Correct helper ping count/deadline interaction: remove Linux -w so packet loss cannot cause extra probes; release 1.7.1 with live-handler regression coverage. Target VM verification requires deploying the updated helper.
 - [x] Add interactive app/helper selection and helper-only installation with private runtimes, secure enrollment and safety tests; live Ubuntu enrollment/browser validation requires target VM execution.
