@@ -49,6 +49,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const [waitingForIp, setWaitingForIp] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [recordId, setRecordId] = useState<string | null>(null);
+  const [firewallStatus, setFirewallStatus] = useState("");
   const stepRef = useRef(0);
   const ipRef = useRef<string | null>(null);
   const activate = useServerFn(activateSim);
@@ -75,11 +76,15 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     if (equipment === "ur35") {
       for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
         set(step, "running");
+        if (step === 3) setFirewallStatus(sim ? "Applying · test mode" : "Queueing for helper…");
         if (sim) await wait(1200);
         else {
-          const j = await runJob(type, { ip: got });
+          const j = await runJob(type, { ip: got }, step === 3 ? {
+            onStatus: (status) => setFirewallStatus(status === "running" ? "Helper applying rules…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…"),
+          } : {});
           if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
         }
+        if (step === 3) setFirewallStatus(sim ? "Finished · test mode" : "Applied and verified");
         set(step, "done");
       }
     } else {
@@ -117,6 +122,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   async function failRun(e: unknown, id: string | null, sim: boolean) {
+    if (stepRef.current === 3) setFirewallStatus("Failed · see error below");
     set(stepRef.current, "error");
     const msg = e instanceof Error ? e.message : "Something went wrong";
     setError(msg);
@@ -125,6 +131,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
 
   async function run() {
     setBusy(true);
+    setFirewallStatus("");
     setError(null);
     setWaitingForIp(false);
     setSimulated(false);
@@ -182,6 +189,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   function startOver() {
+    setFirewallStatus("");
     setWaitingForIp(false);
     setError(null);
     showIp(null);
@@ -244,11 +252,12 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
             </div>
             <ol className="stepper space-y-1">
               {visibleSteps.map(({ label: s, i }, n) => (
-                <li key={s} className="flex items-center gap-4 px-3 py-2.5" data-state={states[i]}>
+                <li key={s} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5" data-state={states[i]}>
                   <span className="step-dot">
                     {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : states[i] === "skipped" ? "–" : states[i] === "waiting" ? "↻" : n + 1}
                   </span>
                   <span className="step-label flex-1 text-muted-foreground">{s}</span>
+                  {i === 3 && firewallStatus && <span role="status" aria-live="polite" className={`max-w-full text-xs ${states[3] === "error" ? "text-destructive" : "text-muted-foreground"}`}>{firewallStatus}</span>}
                   {i === 1 && states[1] === "running" && <span className="font-mono text-xs text-muted-foreground">{fmtClock(secondsLeft)} left</span>}
                   {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
                   {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
