@@ -89,7 +89,7 @@ describe("Milesight HTTPS router jobs", () => {
   function harness(options: { reject?: boolean; restricted?: boolean; malformed?: boolean; reboot?: boolean; failReadback?: boolean } = {}) {
     const start = helperSource.indexOf("// Milesight UR-series /cgi API.");
     const end = helperSource.indexOf("// --- Site Connectivity Check:", start);
-    const calls: { body: any; token?: string }[] = [];
+    const calls: { body: any; token: string | undefined }[] = [];
     let list = [{ id: "existing", rule: "-I INPUT -s 192.168.3.240 -j DROP", desc: "keep" }];
     let time: any = { timezone: "UTC Europe/London", timezone_type: 1, update_interval: 60, ntp_master: 0 };
     const routerRequest = async (_ip: string, body: any, token?: string) => {
