@@ -8,9 +8,14 @@ spec.loader.exec_module(module)
 
 
 class OktaLoginCheckTests(unittest.TestCase):
-    def test_existing_unlinked_account_points_to_unverified_okta_email(self):
-        result = ' '.join(module.findings(True, True, 1, True, False, False, 1, True))
-        self.assertIn('NOT verified', result)
+    def test_unlinked_local_account_does_not_establish_okta_claims(self):
+        self.assertEqual(module.linking_status(True, True, 1, True, False, False), 'unlinked_claims_unknown')
+
+    def test_linked_account_is_distinct_from_unknown_claims(self):
+        self.assertEqual(module.linking_status(True, True, 1, True, False, True), 'linked')
+
+    def test_missing_scope_prevents_ready_to_link_classification(self):
+        self.assertEqual(module.linking_status(True, False, 1, True, False, False), 'prerequisite_missing')
 
     def test_missing_email_scope_is_reported(self):
         result = ' '.join(module.findings(True, False, 1, True, False, False, 1, True))
