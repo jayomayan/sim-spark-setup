@@ -1,10 +1,11 @@
 {
   "name": "field-ops-helper",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "description": "On-network helper for the Field Ops Console. Runs router jobs, Site Connectivity Check screenshots, and updates itself from the console.",
   "dependencies": {
-    "playwright": "^1.58.2"
+    "playwright": "^1.58.2",
+    "ssh2": "^1.17.0"
   }
 }
