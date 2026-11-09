@@ -88,6 +88,9 @@ Release 1.9.3 keeps retrying every 10 seconds for up to 3 minutes when port 22
 refuses or gives no answer, because a router that has just received its cellular
 IP often needs a moment before SSH is ready. No login or setting is sent until
 the router answers.
+Release 1.9.4 keeps checking in every 15 seconds while a task runs, without
+claiming other work. Updates wait until a claimed task has finished and its
+result has been reported, so an update cannot abandon that task.
 
 References:
 - https://resource.milesight.com/milesight/iot/document/ur-series-cli-documentation-en.pdf
