@@ -23,13 +23,30 @@ import path from "node:path";
 import https from "node:https";
 import { createCipheriv, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { configureRouter } from "./router-ssh.mjs";
 
 const VERSION = "1.9.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 process.env.FIELD_OPS_HELPER_DIR = SELF_DIR;
+let sshModule;
+async function configureRouter(...args) {
+  if (!sshModule) {
+    const modulePath = path.join(SELF_DIR, "router-ssh.mjs");
+    try { await fs.access(modulePath); } catch {
+      // Pre-1.9 helpers only download the entry file and package during self-update.
+      const response = await fetch(`${URL_BASE}/helper/router-ssh.mjs`, { redirect: "error", signal: AbortSignal.timeout(30_000) });
+      if (!response.ok) throw new Error("Could not download the router SSH module; no settings were sent");
+      const temp = `${modulePath}.${process.pid}.tmp.mjs`;
+      await fs.writeFile(temp, await response.text(), { flag: "wx", mode: 0o600 });
+      const check = await run(process.execPath, ["--check", temp], 20_000);
+      if (check.code !== 0) { await fs.rm(temp, { force: true }); throw new Error("Router SSH module failed syntax check; no settings were sent"); }
+      await fs.rename(temp, modulePath);
+    }
+    sshModule = await import("./router-ssh.mjs");
+  }
+  return sshModule.configureRouter(...args);
+}
 if (!URL_BASE || !TOKEN) {
   console.error("Set CONSOLE_URL and AGENT_TOKEN first.");
   process.exit(1);
