@@ -24,7 +24,7 @@ import https from "node:https";
 import { createCipheriv, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.9.2";
+const VERSION = "1.9.3";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));

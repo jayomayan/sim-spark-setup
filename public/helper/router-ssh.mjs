@@ -32,15 +32,28 @@ function configLines(output) {
   return output.split(/\r?\n/).map((s) => s.trim());
 }
 
-export async function configureRouter(ip, logins, kind, settings, connect = connectRouterSsh) {
+// A router that just got its cellular IP often needs a minute or two before SSH answers.
+// Retry only failures that happen before any login is sent; nothing is written on the router.
+const REACH_RETRY_MS = 180_000, REACH_RETRY_DELAY_MS = 10_000;
+
+export async function configureRouter(ip, logins, kind, settings, connect = connectRouterSsh, timing = {}) {
+  const retryMs = timing.retryMs ?? REACH_RETRY_MS, delayMs = timing.delayMs ?? REACH_RETRY_DELAY_MS;
+  const sleep = timing.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const now = timing.now ?? (() => Date.now());
   // Validate all user input before opening a router connection.
   const firewall = kind === "firewall" ? firewallCommands(settings) : null;
   if (!firewall) ntpCommands(settings, "ntp update-interval 60");
   if (!Array.isArray(logins) || !logins.length || logins.some((l) => !l.username || !l.password)) throw new Error("Enter router logins in Admin Settings");
   let session;
-  for (const login of logins) {
-    try { session = await connect(ip, login); break; }
-    catch (error) { if (!error?.authenticationRejected) throw error; }
+  const startedAt = now();
+  for (let i = 0; i < logins.length; i++) {
+    try { session = await connect(ip, logins[i]); break; }
+    catch (error) {
+      if (error?.authenticationRejected) continue;
+      if (error?.unreachable && now() - startedAt + delayMs <= retryMs) { await sleep(delayMs); i--; continue; }
+      if (error?.unreachable) throw new Error(`${error.message} (kept retrying for ${Math.round(retryMs / 60_000)} minutes)`);
+      throw error;
+    }
   }
   if (!session) throw new Error("Router rejected all saved SSH logins; no settings were sent");
   try {
@@ -87,9 +100,9 @@ export async function connectRouterSsh(ip, login) {
     let stream, buffer = "", pending, fingerprint, ready = false, prompt = "", hostKeyChanged = false, tcpConnected = false;
     // Distinguish an unreachable port 22 from a slow SSH handshake on older firmware.
     client.on("connect", () => { tcpConnected = true; });
-    const fail = (message, auth = false) => {
+    const fail = (message, auth = false, unreachable = false) => {
       if (pending) { const current = pending; pending = undefined; clearTimeout(current.timer); current.reject(new Error(message)); }
-      const error = Object.assign(new Error(message), { authenticationRejected: auth });
+      const error = Object.assign(new Error(message), { authenticationRejected: auth, unreachable });
       client.end();
       if (!ready) reject(error);
     };
@@ -118,7 +131,8 @@ export async function connectRouterSsh(ip, login) {
         : ["EHOSTUNREACH", "ENETUNREACH"].includes(error.code) ? "Helper has no network route to the router; no settings were sent"
         : /no matching|handshake failed/i.test(error.message || "") ? "Router SSH algorithm negotiation failed; no settings were sent"
         : "Router SSH connection failed; no automatic retry";
-      fail(message, auth && !hostKeyChanged);
+      const unreachable = !tcpConnected && !hostKeyChanged && (["ECONNREFUSED", "ETIMEDOUT", "EHOSTUNREACH", "ENETUNREACH"].includes(error.code) || error.level === "client-timeout");
+      fail(message, auth && !hostKeyChanged, unreachable);
     });
     client.on("close", () => { if (pending || !ready) fail("Router SSH connection closed; check the router before retrying"); });
     client.on("ready", async () => {

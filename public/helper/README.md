@@ -84,6 +84,10 @@ ports, timeouts, algorithm negotiation and changed fingerprints.
 Release 1.9.2 allows 30 seconds for the SSH login and reports whether port 22
 gave no answer (SSH disabled or blocked on the cellular connection) or answered
 but the login did not finish in time.
+Release 1.9.3 keeps retrying every 10 seconds for up to 3 minutes when port 22
+refuses or gives no answer, because a router that has just received its cellular
+IP often needs a moment before SSH is ready. No login or setting is sent until
+the router answers.
 
 References:
 - https://resource.milesight.com/milesight/iot/document/ur-series-cli-documentation-en.pdf
