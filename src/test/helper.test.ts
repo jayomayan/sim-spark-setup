@@ -86,14 +86,17 @@ describe("firewall rules", () => {
 });
 
 describe("Milesight HTTPS router jobs", () => {
-  function harness(options: { reject?: boolean; restricted?: boolean; malformed?: boolean; reboot?: boolean; failReadback?: boolean } = {}) {
+  function harness(options: { reject?: boolean; restricted?: boolean; malformed?: boolean; reboot?: boolean; failReadback?: boolean; closed443?: boolean; bothClosed?: boolean; writeFailure?: boolean } = {}) {
     const start = helperSource.indexOf("// Milesight UR-series /cgi API.");
     const end = helperSource.indexOf("// --- Site Connectivity Check:", start);
-    const calls: { body: any; token: string | undefined }[] = [];
+    const calls: { body: any; token: string | undefined; port: number }[] = [];
     let list = [{ id: "existing", rule: "-I INPUT -s 192.168.3.240 -j DROP", desc: "keep" }];
     let time: any = { timezone: "UTC Europe/London", timezone_type: 1, update_interval: 60, ntp_master: 0 };
-    const routerRequest = async (_ip: string, body: any, token?: string) => {
-      calls.push({ body, token });
+    const routerRequest = async (_ip: string, body: any, token?: string, port = 443) => {
+      calls.push({ body, token, port });
+      if (options.bothClosed || (options.closed443 && port === 443) || (options.writeFailure && body.function === "set")) {
+        throw Object.assign(new Error("Connection refused"), { routerConnectionFailure: true });
+      }
       if (body.function === "login") {
         if (options.restricted) return { status: -2 };
         if (options.reject || body.values[0].username === "first") return { status: -1 };
@@ -164,12 +167,42 @@ describe("Milesight HTTPS router jobs", () => {
     const { functions, calls } = harness({ reject: true });
     await expect(functions.applyFirewall("10.0.0.1", [{ rule: "-I OUTPUT -j DROP" }])).rejects.toThrow("Router rejected all saved logins");
     expect(calls.map((call) => call.body.function)).toEqual(["login", "login"]);
+    expect(calls.map((call) => call.port)).toEqual([443, 443]);
+  });
+
+  it("uses saved ordered logins on 8443 when 443 cannot connect and pins firewall requests", async () => {
+    const { functions, calls } = harness({ closed443: true });
+    await functions.applyFirewall("10.194.89.128", [{ rule: "-I OUTPUT -j DROP" }]);
+    expect(calls.map((call) => call.port)).toEqual([443, 8443, 8443, 8443, 8443, 8443, 8443]);
+    expect(calls.slice(0, 3).map((call) => call.body.values[0].username)).toEqual(["first", "first", "second"]);
+    expect(calls[2]?.body.values[0].password).toBe(functions.encryptRouterPassword("two"));
+    expect(calls.slice(3).every((call) => call.token === "test-session")).toBe(true);
+  });
+
+  it("keeps NTP on the authenticated 8443 port", async () => {
+    const { functions, calls } = harness({ closed443: true });
+    await functions.applyNtp("10.194.89.128", { enabled: true, servers: ["pool.ntp.org"], timezone: "Asia/Manila" });
+    expect(calls.map((call) => call.port)).toEqual([443, 8443, 8443, 8443, 8443, 8443, 8443]);
+  });
+
+  it("stops without writes when both HTTPS ports are unreachable", async () => {
+    const { functions, calls } = harness({ bothClosed: true });
+    await expect(functions.applyFirewall("10.194.89.128", [{ rule: "-I OUTPUT -j DROP" }])).rejects.toThrow("both ports 443 and 8443");
+    expect(calls.map((call) => [call.port, call.body.function])).toEqual([[443, "login"], [8443, "login"]]);
+  });
+
+  it("does not replay failed writes on the alternate port", async () => {
+    const { functions, calls } = harness({ writeFailure: true });
+    await expect(functions.applyFirewall("10.194.89.128", [{ rule: "-I OUTPUT -j DROP" }])).rejects.toThrow("Connection refused");
+    expect(calls.map((call) => call.port)).toEqual([443, 443, 443, 443]);
+    expect(calls.filter((call) => call.body.function === "set")).toHaveLength(1);
   });
 
   it("stops on restricted login rather than trying another password", async () => {
     const { functions, calls } = harness({ restricted: true });
     await expect(functions.applyFirewall("10.0.0.1", [{ rule: "-I OUTPUT -j DROP" }])).rejects.toThrow("restricted");
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.port).toBe(443);
   });
 
   it("refuses unsupported firmware responses before writes", async () => {
@@ -222,8 +255,24 @@ describe("Milesight HTTPS router jobs", () => {
     });
     await expect(transport("10.0.0.1", { function: "get" }, "session")).rejects.toThrow("302");
     expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({ host: "10.0.0.1", path: "/cgi", method: "POST", headers: { "x-session-id": "session" } });
+    expect(requests[0]).toMatchObject({ host: "10.0.0.1", port: 443, path: "/cgi", method: "POST", headers: { "x-session-id": "session" } });
     expect(requests[0].headers.Authorization).toBeUndefined();
+  });
+
+  it("marks refused transport as eligible for fallback and sends an explicit 8443 port", async () => {
+    const start = helperSource.indexOf("function routerRequest(");
+    const end = helperSource.indexOf("async function routerLogin(", start);
+    const requests: any[] = [];
+    const transport = runInNewContext(`${helperSource.slice(start, end)}; routerRequest`, {
+      Buffer, https: { request: (options: any) => {
+        requests.push(options);
+        const handlers: Record<string, (error: any) => void> = {};
+        return { on: (event: string, fn: (error: any) => void) => { handlers[event] = fn; },
+          end: () => handlers.error?.({ code: "ECONNREFUSED" }) };
+      } },
+    });
+    await expect(transport("10.194.89.128", { function: "login" }, undefined, 8443)).rejects.toMatchObject({ routerConnectionFailure: true });
+    expect(requests[0]).toMatchObject({ host: "10.194.89.128", port: 8443, path: "/cgi", method: "POST" });
   });
 });
 
