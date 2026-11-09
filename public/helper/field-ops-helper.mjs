@@ -24,7 +24,7 @@ import https from "node:https";
 import { createCipheriv, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.9.4";
+const VERSION = "1.9.5";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -347,8 +347,8 @@ const handlers = {
     }
     return { results, errors };
   },
-  async ur35_firewall({ ip }) {
-    return configureRouter(checkIp(ip), config.routerLogins ?? [{ username: config.ur35Username, password: config.ur35Password }], "firewall", config.firewallRules);
+  async ur35_firewall({ ip }, onProgress) {
+    return configureRouter(checkIp(ip), config.routerLogins ?? [{ username: config.ur35Username, password: config.ur35Password }], "firewall", config.firewallRules, undefined, { onProgress });
   },
   async ur35_ntp({ ip }) {
     return configureRouter(checkIp(ip), config.routerLogins ?? [{ username: config.ur35Username, password: config.ur35Password }], "ntp", config.ntp);
@@ -494,13 +494,36 @@ async function loop() {
       }
       if (!job) { await new Promise((r) => setTimeout(r, 3000)); continue; }
       console.log(`→ ${job.type}`, job.payload);
+      const progress = [];
+      let reporting = Promise.resolve();
+      let pendingProgress, reportBusy = false;
+      // Serialize bounded, credential-free events; reporting failure must never replay router writes.
+      const onProgress = (event) => {
+        progress.push(event);
+        if (progress.length > 100) progress.shift();
+        pendingProgress = progress.slice();
+        if (reportBusy) return;
+        reportBusy = true;
+        reporting = (async () => {
+          try {
+            while (pendingProgress) {
+              const snapshot = pendingProgress;
+              pendingProgress = undefined;
+              try { await api({ action: "progress", id: job.id, progress: snapshot }); }
+              catch { console.error("Router progress check-in failed"); }
+            }
+          } finally { reportBusy = false; }
+        })();
+      };
       try {
         const fn = handlers[job.type];
         if (!fn) throw new Error(`Unknown job type ${job.type}`);
-        const result = await withCheckIns(() => fn(job.payload || {}));
-        await api({ action: "result", id: job.id, ok: true, result });
+        const result = await withCheckIns(() => fn(job.payload || {}, onProgress));
+        await reporting;
+        await api({ action: "result", id: job.id, ok: true, result: progress.length ? { ...result, progress } : result });
         console.log(`✓ ${job.type}`);
       } catch (e) {
+        await reporting;
         await api({ action: "result", id: job.id, ok: false, error: String(e?.message || e) });
         console.log(`✗ ${job.type}: ${e?.message || e}`);
       }

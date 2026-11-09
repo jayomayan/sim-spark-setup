@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { isSupportedJobType, type JobType } from "@/lib/job-types";
+import { routerProgressSchema, type RouterProgressEvent } from "@/lib/router-progress";
 export type { JobType } from "@/lib/job-types";
 
 export type JobResult = { status: string; result: unknown; error: string | null };
@@ -9,7 +10,7 @@ export type JobResult = { status: string; result: unknown; error: string | null 
 export async function runJob(
   type: JobType,
   payload: Record<string, unknown>,
-  opts: { timeoutMs?: number; onQueued?: (id: string) => void; onStatus?: (status: string) => void } = {},
+  opts: { timeoutMs?: number; onQueued?: (id: string) => void; onStatus?: (status: string) => void; onProgress?: (events: RouterProgressEvent[]) => void } = {},
 ): Promise<JobResult> {
   if (!isSupportedJobType(type)) throw new Error("Unsupported router job");
   const { data: u } = await supabase.auth.getUser();
@@ -23,6 +24,7 @@ export async function runJob(
   opts.onQueued?.(data.id);
   opts.onStatus?.("pending");
   let lastStatus = "pending";
+  let lastProgress = "";
   const deadline = Date.now() + (opts.timeoutMs ?? 120_000);
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 1500));
@@ -34,6 +36,11 @@ export async function runJob(
     if (j && j.status !== lastStatus) {
       lastStatus = j.status;
       opts.onStatus?.(j.status);
+    }
+    const progress = routerProgressSchema.safeParse(j?.result);
+    if (progress.success && JSON.stringify(progress.data.progress) !== lastProgress) {
+      lastProgress = JSON.stringify(progress.data.progress);
+      opts.onProgress?.(progress.data.progress);
     }
     if (j && (j.status === "done" || j.status === "failed")) return j as JobResult;
   }

@@ -40,6 +40,7 @@ export async function configureRouter(ip, logins, kind, settings, connect = conn
   const retryMs = timing.retryMs ?? REACH_RETRY_MS, delayMs = timing.delayMs ?? REACH_RETRY_DELAY_MS;
   const sleep = timing.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = timing.now ?? (() => Date.now());
+  const progress = timing.onProgress ?? (() => {});
   // Validate all user input before opening a router connection.
   const firewall = kind === "firewall" ? firewallCommands(settings) : null;
   if (!firewall) ntpCommands(settings, "ntp update-interval 60");
@@ -47,24 +48,32 @@ export async function configureRouter(ip, logins, kind, settings, connect = conn
   let session;
   const startedAt = now();
   for (let i = 0; i < logins.length; i++) {
-    try { session = await connect(ip, logins[i]); break; }
+    try {
+      await progress({ stage: "connecting" });
+      session = await connect(ip, logins[i], progress);
+      await progress({ stage: "authenticated" });
+      break;
+    }
     catch (error) {
-      if (error?.authenticationRejected) continue;
-      if (error?.unreachable && now() - startedAt + delayMs <= retryMs) { await sleep(delayMs); i--; continue; }
+      if (error?.authenticationRejected) { await progress({ stage: "login_rejected" }); continue; }
+      if (error?.unreachable && now() - startedAt + delayMs <= retryMs) { await progress({ stage: "retrying" }); await sleep(delayMs); i--; continue; }
       if (error?.unreachable) throw new Error(`${error.message} (kept retrying for ${Math.round(retryMs / 60_000)} minutes)`);
       throw error;
     }
   }
   if (!session) throw new Error("Router rejected all saved SSH logins; no settings were sent");
   try {
+    await progress({ stage: "privileged" });
     if (session.prompt.endsWith(">")) await session.command("en");
     if (!session.prompt.endsWith("#") || session.prompt.includes("(")) throw new Error("Unsupported router SSH command prompt; no settings were sent");
     // Probe readback before any write. Firmware that lacks this command stops safely.
+    await progress({ stage: "reading" });
     const before = await session.command("show running-config");
     if (!/^(?:\s*(?:hostname|ntp |clock |firewall |interface |!|version )).+/m.test(before)) throw new Error("Router SSH configuration readback unsupported; no settings were sent");
     const commands = firewall ?? ntpCommands(settings, before);
     const lines = configLines(before);
     if (firewall) {
+      await progress({ stage: "checking" });
       for (const command of commands) {
         const prefix = command.split(" rule ")[0] + " rule ";
         if (lines.some((line) => line.startsWith(prefix) && line !== command)) throw new Error("A custom firewall ID already has a different rule; no settings were sent");
@@ -72,12 +81,22 @@ export async function configureRouter(ip, logins, kind, settings, connect = conn
     }
     const pending = commands.filter((c) => !lines.includes(c));
     if (pending.length) {
+      await progress({ stage: "configuring" });
       await session.command("configure terminal");
       if (!session.prompt.includes("(config)")) throw new Error("Router refused configuration mode; no settings were sent");
-      for (const command of pending) await session.command(command);
+      for (let i = 0; i < pending.length; i++) {
+        if (firewall) await progress({ stage: "rule", index: i + 1, total: pending.length });
+        await session.command(pending[i]);
+        if (firewall) await progress({ stage: "rule_applied", index: i + 1, total: pending.length });
+      }
       await session.command("end");
+      await progress({ stage: "saving" });
       await session.command("write");
+      await progress({ stage: "saved" });
+    } else {
+      await progress({ stage: "unchanged" });
     }
+    await progress({ stage: "verifying" });
     const after = configLines(await session.command("show running-config"));
     const expected = commands.filter((c) => c !== "no ntp secondary-server");
     if (expected.some((c) => !after.includes(c)) || (commands.includes("no ntp secondary-server") && after.some((c) => c.startsWith("ntp secondary-server ")))) throw new Error("Router SSH settings verification failed; check the router before retrying");
@@ -86,11 +105,12 @@ export async function configureRouter(ip, logins, kind, settings, connect = conn
       await session.command("ntp sync");
       await session.command("end");
     }
+    await progress({ stage: "verified" });
     return { status: 200, verified: true, transport: "ssh", ...(firewall ? { rules: commands.length } : {}) };
-  } finally { session.close(); }
+  } finally { session.close(); await progress({ stage: "closed" }); }
 }
 
-export async function connectRouterSsh(ip, login) {
+export async function connectRouterSsh(ip, login, progress = () => {}) {
   const { Client } = await import("ssh2");
   const knownFile = path.join(process.env.FIELD_OPS_HELPER_DIR || path.dirname(fileURLToPath(import.meta.url)), "router-host-keys.json");
   let known = {};
@@ -99,7 +119,8 @@ export async function connectRouterSsh(ip, login) {
     const client = new Client();
     let stream, buffer = "", pending, fingerprint, ready = false, prompt = "", hostKeyChanged = false, tcpConnected = false;
     // Distinguish an unreachable port 22 from a slow SSH handshake on older firmware.
-    client.on("connect", () => { tcpConnected = true; });
+    client.on("connect", () => { tcpConnected = true; progress({ stage: "connected" }); });
+    client.on("handshake", () => { progress({ stage: "authenticating" }); });
     const fail = (message, auth = false, unreachable = false) => {
       if (pending) { const current = pending; pending = undefined; clearTimeout(current.timer); current.reject(new Error(message)); }
       const error = Object.assign(new Error(message), { authenticationRejected: auth, unreachable });
@@ -145,6 +166,7 @@ export async function connectRouterSsh(ip, login) {
           await fs.rename(temp, knownFile);
         }
       } catch { fail("Could not save router SSH host key; no settings were sent"); return; }
+      progress({ stage: "cli" });
       client.shell({ term: "vt100", cols: 200, rows: 1000 }, (error, shell) => {
         if (error) { fail("Router SSH interactive CLI unavailable; no settings were sent"); return; }
         stream = shell;
