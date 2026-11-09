@@ -84,7 +84,9 @@ export async function connectRouterSsh(ip, login) {
   try { known = JSON.parse(await fs.readFile(knownFile, "utf8")); } catch (error) { if (error.code !== "ENOENT") throw new Error("Cannot read saved router SSH host keys"); }
   return new Promise((resolve, reject) => {
     const client = new Client();
-    let stream, buffer = "", pending, fingerprint, ready = false, prompt = "", hostKeyChanged = false;
+    let stream, buffer = "", pending, fingerprint, ready = false, prompt = "", hostKeyChanged = false, tcpConnected = false;
+    // Distinguish an unreachable port 22 from a slow SSH handshake on older firmware.
+    client.on("connect", () => { tcpConnected = true; });
     const fail = (message, auth = false) => {
       if (pending) { const current = pending; pending = undefined; clearTimeout(current.timer); current.reject(new Error(message)); }
       const error = Object.assign(new Error(message), { authenticationRejected: auth });
@@ -111,7 +113,9 @@ export async function connectRouterSsh(ip, login) {
       const message = hostKeyChanged ? "Router SSH fingerprint changed; administrator verification required; no settings were sent"
         : auth ? "Router rejected SSH login"
         : error.code === "ECONNREFUSED" ? "Router SSH port 22 refused the connection; no settings were sent"
-        : error.level === "client-timeout" || error.code === "ETIMEDOUT" ? "Router SSH connection timed out; no settings were sent"
+        : (error.level === "client-timeout" || error.code === "ETIMEDOUT") && !tcpConnected ? "Router SSH port 22 is not reachable from the helper (no answer); check that SSH is enabled on the router and allowed on the cellular connection; no settings were sent"
+        : error.level === "client-timeout" || error.code === "ETIMEDOUT" ? "Router answered on port 22 but the SSH login did not finish in time; no settings were sent"
+        : ["EHOSTUNREACH", "ENETUNREACH"].includes(error.code) ? "Helper has no network route to the router; no settings were sent"
         : /no matching|handshake failed/i.test(error.message || "") ? "Router SSH algorithm negotiation failed; no settings were sent"
         : "Router SSH connection failed; no automatic retry";
       fail(message, auth && !hostKeyChanged);
@@ -146,7 +150,7 @@ export async function connectRouterSsh(ip, login) {
         stream.on("error", () => fail("Router SSH response interrupted; check router before retrying"));
       });
     });
-    client.connect({ host: ip, port: 22, username: login.username, password: login.password, readyTimeout: 15_000,
+    client.connect({ host: ip, port: 22, username: login.username, password: login.password, readyTimeout: 30_000,
       // Append only the legacy host signature required by UR35 35.3.0.8-r2;
       // keep modern key exchange, encryption and MAC preferences unchanged.
       algorithms: { serverHostKey: { append: ["ssh-rsa"] } },
