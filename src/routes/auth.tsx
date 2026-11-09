@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginEmail, strongPassword } from "@/lib/invitations";
+import { useSignedIn } from "@/lib/session-context";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -26,19 +27,23 @@ type Mode = "signin" | "signup" | "forgot";
 
 function AuthPage() {
   const navigate = useNavigate();
+  const signedIn = useSignedIn();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // OAuth/email confirmation return to this public page; wait for session hydration.
+  // The root listener updates this when OAuth finishes exchanging the callback.
   useEffect(() => {
-    let active = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (active && data.session) void navigate({ to: "/dashboard", replace: true });
-    });
-    return () => { active = false; };
-  }, [navigate]);
+    if (signedIn) void navigate({ to: "/dashboard", replace: true });
+  }, [signedIn, navigate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const error = params.get("error_description") ?? hash.get("error_description");
+    if (error) toast.error(error);
+  }, []);
 
   async function okta() {
     const { error } = await supabase.auth.signInWithOAuth({

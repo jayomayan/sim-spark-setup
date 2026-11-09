@@ -16,6 +16,10 @@ export const Route = createFileRoute("/_authenticated")({
     const security = await supabase.from("account_security").select("must_change_password").eq("user_id", data.user.id).maybeSingle();
     if (security.error) throw new Error("Couldn't check account security. Please try again.");
     if (security.data?.must_change_password) throw redirect({ to: "/change-password" });
+    if (data.user.identities?.some((identity) => identity.provider === "custom:app-oidc")) {
+      const access = await supabase.rpc("ensure_okta_access");
+      if (access.error) throw new Error("Couldn't prepare your Okta account. Please try again.");
+    }
     const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
     const list = (roles ?? []).map((r) => r.role);
     return { user: data.user, isAdmin: canAccessAdminSettings(list), isMember: canAccessOperationalTools(list) };
