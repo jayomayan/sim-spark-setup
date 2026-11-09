@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouteContext, 
 import logo from "@/assets/fta-logo.png.asset.json";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Cpu, Gauge, Globe, ListTree, LogOut, Menu, Radio, Server, Settings, X } from "lucide-react";
+import { Gauge, Globe, ListTree, LogOut, Menu, Radio, Server, Settings, X } from "lucide-react";
 import { canAccessAdminSettings, canAccessOperationalTools } from "@/lib/admin-access";
 import { supabase } from "@/integrations/supabase/client";
 import { HelperStatus } from "@/components/HelperStatus";
@@ -27,7 +27,6 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: Gauge },
   { to: "/sim-activation", label: "SIM Activation", icon: Radio },
   { to: "/site-connectivity-check", label: "Site Connectivity Check", icon: Globe },
-  { to: "/devices", label: "Devices", icon: Cpu },
   { to: "/snmp-walk", label: "SNMP Walk", icon: ListTree },
 ] as const;
 

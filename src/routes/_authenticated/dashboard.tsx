@@ -5,24 +5,23 @@ import { PageHeader, meta } from "@/components/PageHeader";
 import { HelperStatus } from "@/components/HelperStatus";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => meta("Dashboard", "Overview of devices, SIM activations and router jobs."),
+  head: () => meta("Dashboard", "Overview of SIM activations and router jobs."),
   component: Dashboard,
 });
 
-const count = async (table: "devices" | "sim_activations") =>
+const count = async (table: "sim_activations") =>
   (await supabase.from(table).select("*", { count: "exact", head: true })).count ?? 0;
 
 function Dashboard() {
   const { data } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
-      const [devices, sims] = await Promise.all([count("devices"), count("sim_activations")]);
+      const sims = await count("sim_activations");
       const { data: jobs } = await supabase.from("agent_jobs").select("id,type,status,created_at,error").in("type", ["ping", "snmp_walk", "ur35_firewall", "ur35_ntp"]).order("created_at", { ascending: false }).limit(8);
-      return { devices, sims, jobs: jobs ?? [] };
+      return { sims, jobs: jobs ?? [] };
     },
   });
   const stats = [
-    { label: "Devices", value: data?.devices, to: "/devices" as const },
     { label: "SIM activations", value: data?.sims, to: "/sim-activation" as const },
   ];
   return (
