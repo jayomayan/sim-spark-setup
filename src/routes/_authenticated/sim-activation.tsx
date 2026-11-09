@@ -254,11 +254,11 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     setSecondsLeft(0);
   }
 
-  const complete = states[5] === "done";
-  const routerFailed = states[3] === "error" || states[4] === "error";
+  const complete = states[4] === "done";
+  const routerFailed = states[3] === "error";
   const locked = busy || waitingForIp || routerFailed;
   const visibleSteps = STEPS.map((label, i) => ({ label, i })).filter(({ i }) =>
-    equipment === "ur35" || (i !== 3 && i !== 4 && (equipment !== "other" || i !== 1)),
+    equipment === "ur35" || (i !== 3 && (equipment !== "other" || i !== 1)),
   );
   const doneCount = visibleSteps.filter(({ i }) => states[i] === "done" || states[i] === "skipped").length;
   const options = EQUIPMENT.filter((e) => isAdmin || !ADMIN_ONLY_EQUIPMENT.has(e.key));
@@ -319,9 +319,9 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                     {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : states[i] === "skipped" ? "–" : states[i] === "waiting" ? "↻" : n + 1}
                   </span>
                   <span className="step-label flex-1 text-muted-foreground">{s}</span>
-                  {(i === 3 || i === 4) && states[i] === "error" && ip && (
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => retryRouterStep(i)}>
-                      <RotateCcw aria-hidden="true" />{i === 3 ? "Retry firewall rules" : "Retry NTP settings"}
+                  {i === 3 && states[i] === "error" && ip && (
+                    <Button size="sm" variant="outline" disabled={busy} onClick={retryFirewall}>
+                      <RotateCcw aria-hidden="true" />Retry firewall rules
                     </Button>
                   )}
                   {i === 3 && firewallStatus && <span role="status" aria-live="polite" className={`max-w-full text-xs ${states[3] === "error" ? "text-destructive" : "text-muted-foreground"}`}>{firewallStatus}</span>}
