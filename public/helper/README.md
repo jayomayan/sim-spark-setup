@@ -33,7 +33,7 @@ To remove everything: `curl -fsSL https://your-console/helper/uninstall.sh | sud
 
 1. Install **Node.js 18+** and the `snmpwalk` and `ping` tools
    (`sudo apt install snmp iputils-ping` on Debian/Ubuntu).
-2. Copy `field-ops-helper.mjs` and `package.json` to the machine.
+2. Copy `field-ops-helper.mjs`, `router-ssh.mjs` and `package.json` to the machine.
 3. `npm install`, then `npx playwright install chromium` for the screenshot browser.
 4. Start it with the console address and the helper key:
 
@@ -48,43 +48,39 @@ generated; **Admin Settings → Network Helper → Reset helper key** retires it
 
 ## Safety
 
-## Router HTTPS configuration
+## Router SSH configuration
 
-Firewall and NTP use the Milesight UR-series HTTPS `/cgi` API on ports **443 and
-8443**: login tries 443 first and falls back to 8443 on a connection failure or
-timeout. Saved Admin Settings logins are tried in order before any settings write.
-Incorrect credentials (`status: -1`) allow the next login on that port;
-restrictions, rejected HTTP requests and unsupported responses stop the job.
-All reads, writes, Apply and verification stay on the successfully authenticated
-port; failed configuration requests are never replayed on another port.
-Read-write API permission is required.
+Firewall and NTP jobs use SSH port **22** through the on-network helper and the
+ordered logins saved in Admin Settings. Only authentication rejection tries
+another login; connection failures, changed host keys and command errors stop.
+Enable SSH and remote SSH access on the router. The helper uses an interactive
+UR-series CLI, not a Linux shell. No HTTPS or shell fallback is performed.
 
 Paste the original `firewall access-control custom id ... rule ...` commands
 into **Firewall commands applied during SIM activation**, one command per line.
-The helper removes the CLI prefix, retains the IDs and order, and adds `-t nat`
-to POSTROUTING/PREROUTING commands that omit a table. Bare iptables rule arguments
-are also accepted; JSON is not the editor format. Existing router rules are
-preserved, conflicting IDs stop the job, and the full merged list is read back.
+Commands are sent as entered, preserving IDs and order. Bare iptables arguments
+and arbitrary shell commands are not accepted. Existing rules are not cleared;
+conflicting IDs stop before writes. Unsupported CLI commands stop the job.
 
 NTP keeps the existing JSON editor format (`enabled`, `servers`, `timezone`).
-The documented API supports one primary and one secondary server; more than two
-servers or disabled mode stop safely rather than guessing firmware behavior.
-Asia/Manila maps to `UTC+8 Asia/Manila`; other zones must already match the router.
-Existing synchronization interval and NTP server-mode values are preserved.
+The helper converts it to `clock timezone UTC+8`, `clock zonename Asia/Manila`,
+`ntp server <primary>` and `ntp secondary-server <backup>` (or removes the backup).
+It preserves the readable nonzero `ntp update-interval`, saves with `end` → `write`,
+and requests `ntp sync`. It refuses disabled/unreadable NTP rather than inventing
+an enable command. Only Asia/Manila and one or two servers are supported.
 
-Compatibility is based on the published UR-series API (UR35 `35.3.0.12-a1`
-examples) and router-family AES login parameters. Unsupported firmware stops
-without falling back to SSH or the old assumed Basic-auth endpoints. No live
-router has been tested. Read-back verifies saved configuration, not packet flow
-or actual clock synchronization. Required reboot/reconnect is reported as
-unfinished; the helper never automatically reboots the router. Global Apply can
-also apply unrelated changes staged in the router GUI, so avoid concurrent edits.
+Firmware compatibility remains unverified: `show running-config` is probed
+before any write; unsupported readback stops safely. Custom firewall syntax is
+user-provided, not established by the official CLI guide. Errors after the first
+write may leave partial changes; inspect the router before retrying. Readback
+checks running settings, not restart persistence, packet flow or clock sync.
+The first authenticated SSH host key is saved privately beside the helper;
+subsequent changes require administrator inspection. Avoid concurrent GUI edits.
 
 References:
-- https://resource.milesight.com/milesight/iot/document/ur-series-http-api-documentation-en.pdf
-- https://resource.milesight.com/milesight/iot/document/ur35-user-guide-en.pdf
-- https://support.milesight-iot.com/support/solutions/articles/73000664027-how-to-use-milesight-router-opencpu-system-http-api
-- https://cuberk.com/blog/inside-the-router-how-i-accessed-industrial-routers-and-reported-the-flaws/
+- https://resource.milesight.com/milesight/iot/document/ur-series-cli-documentation-en.pdf
+- https://resource.milesight-iot.com/document/CLI%20Commands-all.xlsx
+- https://support.milesight-iot.com/support/solutions/articles/73000607107-how-to-access-the-command-line-interface-cli-
 
 ## Safety details
 

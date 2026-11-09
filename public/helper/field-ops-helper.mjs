@@ -24,10 +24,29 @@ import https from "node:https";
 import { createCipheriv, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.8.1";
+const VERSION = "1.9.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
+process.env.FIELD_OPS_HELPER_DIR = SELF_DIR;
+let sshModule;
+async function configureRouter(...args) {
+  if (!sshModule) {
+    const modulePath = path.join(SELF_DIR, "router-ssh.mjs");
+    try { await fs.access(modulePath); } catch {
+      // Pre-1.9 helpers only download the entry file and package during self-update.
+      const response = await fetch(`${URL_BASE}/helper/router-ssh.mjs`, { redirect: "error", signal: AbortSignal.timeout(30_000) });
+      if (!response.ok) throw new Error("Could not download the router SSH module; no settings were sent");
+      const temp = `${modulePath}.${process.pid}.tmp.mjs`;
+      await fs.writeFile(temp, await response.text(), { flag: "wx", mode: 0o600 });
+      const check = await run(process.execPath, ["--check", temp], 20_000);
+      if (check.code !== 0) { await fs.rm(temp, { force: true }); throw new Error("Router SSH module failed syntax check; no settings were sent"); }
+      await fs.rename(temp, modulePath);
+    }
+    sshModule = await import("./router-ssh.mjs");
+  }
+  return sshModule.configureRouter(...args);
+}
 if (!URL_BASE || !TOKEN) {
   console.error("Set CONSOLE_URL and AGENT_TOKEN first.");
   process.exit(1);
@@ -328,10 +347,10 @@ const handlers = {
     return { results, errors };
   },
   async ur35_firewall({ ip }) {
-    return applyFirewall(checkIp(ip), config.firewallRules);
+    return configureRouter(checkIp(ip), config.routerLogins ?? [{ username: config.ur35Username, password: config.ur35Password }], "firewall", config.firewallRules);
   },
   async ur35_ntp({ ip }) {
-    return applyNtp(checkIp(ip), config.ntp);
+    return configureRouter(checkIp(ip), config.routerLogins ?? [{ username: config.ur35Username, password: config.ur35Password }], "ntp", config.ntp);
   },
   async site_ping({ ip }) {
     // With both -c and -w, Linux ping may keep sending until four replies arrive.
@@ -392,7 +411,7 @@ let updateTried = false;
 async function selfUpdate(target) {
   console.log(`Updating helper ${VERSION} → ${target}`);
   const downloaded = new Map();
-  for (const name of ["field-ops-helper.mjs", "package.json"]) {
+  for (const name of ["field-ops-helper.mjs", "router-ssh.mjs", "package.json"]) {
     const res = await fetch(`${URL_BASE}/helper/${name}`, { signal: AbortSignal.timeout(60_000) });
     if (!res.ok) throw new Error(`Couldn't download ${name} (${res.status})`);
     downloaded.set(name, await res.text());
@@ -418,6 +437,12 @@ async function selfUpdate(target) {
     await run("npx", ["--prefix", SELF_DIR, "playwright", "install", "chromium"], 600_000);
   }
 
+  const sshSource = downloaded.get("router-ssh.mjs");
+  const sshTemp = path.join(SELF_DIR, `.router-ssh-${target}.mjs`);
+  await fs.writeFile(sshTemp, sshSource, "utf8");
+  const sshCheck = await run(process.execPath, ["--check", sshTemp], 20_000);
+  if (sshCheck.code !== 0) { await fs.rm(sshTemp, { force: true }); throw new Error("SSH module failed a syntax check"); }
+  await fs.rename(sshTemp, path.join(SELF_DIR, "router-ssh.mjs"));
   await fs.rename(temp, path.join(SELF_DIR, "field-ops-helper.mjs"));
   console.log(`Updated to ${target}; the service will restart it.`);
   // systemd (Restart=always) or pm2 starts the new file; nothing else to do.

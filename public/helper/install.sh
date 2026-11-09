@@ -71,7 +71,7 @@ id -u "$RUN_USER" >/dev/null 2>&1 || useradd --system --home "$PREFIX" --shell /
 
 echo "→ downloading helper from $CONSOLE_URL"
 mkdir -p "$PREFIX"
-for f in field-ops-helper.mjs package.json README.md; do
+for f in field-ops-helper.mjs router-ssh.mjs package.json README.md; do
   curl -fsSL "$CONSOLE_URL/helper/$f" -o "$PREFIX/$f" || die "could not download $f"
 done
 chown -R "$RUN_USER:$RUN_USER" "$PREFIX"
