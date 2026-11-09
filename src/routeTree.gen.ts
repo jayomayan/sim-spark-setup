@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ChangePasswordRouteImport } from './routes/change-password'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthenticatedActivationReportsRouteImport } from './routes/_authenticated/activation-reports'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin-settings'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedHelperRouteImport } from './routes/_authenticated/helper'
@@ -51,6 +52,12 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedActivationReportsRoute =
+  AuthenticatedActivationReportsRouteImport.update({
+    id: '/activation-reports',
+    path: '/activation-reports',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/admin-settings',
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/change-password': typeof ChangePasswordRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/activation-reports': typeof AuthenticatedActivationReportsRoute
   '/admin-settings': typeof AuthenticatedAdminSettingsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/helper': typeof AuthenticatedHelperRoute
@@ -139,6 +147,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/change-password': typeof ChangePasswordRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/activation-reports': typeof AuthenticatedActivationReportsRoute
   '/admin-settings': typeof AuthenticatedAdminSettingsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/helper': typeof AuthenticatedHelperRoute
@@ -159,6 +168,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/change-password': typeof ChangePasswordRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/activation-reports': typeof AuthenticatedActivationReportsRoute
   '/_authenticated/admin-settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/helper': typeof AuthenticatedHelperRoute
@@ -179,6 +189,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/change-password'
     | '/reset-password'
+    | '/activation-reports'
     | '/admin-settings'
     | '/dashboard'
     | '/helper'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/change-password'
     | '/reset-password'
+    | '/activation-reports'
     | '/admin-settings'
     | '/dashboard'
     | '/helper'
@@ -216,6 +228,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/change-password'
     | '/reset-password'
+    | '/_authenticated/activation-reports'
     | '/_authenticated/admin-settings'
     | '/_authenticated/dashboard'
     | '/_authenticated/helper'
@@ -278,6 +291,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/activation-reports': {
+      id: '/_authenticated/activation-reports'
+      path: '/activation-reports'
+      fullPath: '/activation-reports'
+      preLoaderRoute: typeof AuthenticatedActivationReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin-settings': {
       id: '/_authenticated/admin-settings'
@@ -367,6 +387,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedActivationReportsRoute: typeof AuthenticatedActivationReportsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHelperRoute: typeof AuthenticatedHelperRoute
@@ -378,6 +399,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedActivationReportsRoute: AuthenticatedActivationReportsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHelperRoute: AuthenticatedHelperRoute,
