@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Copy, KeyRound, Loader2, Plus, RefreshCw, Save, Terminal, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, Copy, Eye, EyeOff, KeyRound, Loader2, Plus, RefreshCw, Save, Terminal, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { createHelperInstallCode, getHelperSettings, rotateHelperKey, saveHelperSettings } from "@/lib/helper.functions";
 import { buildInstallCommand, ENROLLMENT_TTL_MINUTES, type RouterLogin } from "@/lib/helper-settings";
@@ -111,12 +111,16 @@ export function HelperSettings() {
   const settings = useQuery({ queryKey: ["admin", "helper"], queryFn: () => load(), retry: false });
   const [form, setForm] = useState<Form | null>(null);
   const [saving, setSaving] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
 
   const current = settings.data;
   // Re-fill the form whenever the stored revision changes (a save, or an explicit reload),
   // so the password box goes back to "leave blank to keep the saved one".
   useEffect(() => {
-    if (current) setForm(toForm(current));
+    if (current) {
+      setForm(toForm(current));
+      setVisiblePasswords({});
+    }
   }, [current?.configVersion]);
   if (!form) {
     return (
@@ -199,9 +203,16 @@ export function HelperSettings() {
               </div>
               <div className="min-w-[200px] flex-1 space-y-1">
                 <Label htmlFor={`router-pass-${login.id}`}>Router password</Label>
-                <Input id={`router-pass-${login.id}`} type="password" autoComplete="new-password" value={login.password}
-                  placeholder={current?.routerLogins.find((item) => item.id === login.id)?.hasPassword ? "Leave blank to keep saved password" : "Set a password"}
-                  onChange={(e) => setField("routerLogins", form.routerLogins.map((item) => item.id === login.id ? { ...item, password: e.target.value } : item))} />
+                <div className="relative">
+                  <Input id={`router-pass-${login.id}`} type={visiblePasswords[login.id] ? "text" : "password"} autoComplete="new-password" value={login.password} className="pr-11"
+                    placeholder={current?.routerLogins.find((item) => item.id === login.id)?.hasPassword ? "Leave blank to keep saved password" : "Set a password"}
+                    onChange={(e) => setField("routerLogins", form.routerLogins.map((item) => item.id === login.id ? { ...item, password: e.target.value } : item))} />
+                  <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-9 w-10 text-muted-foreground"
+                    aria-label={visiblePasswords[login.id] ? "Hide password" : "Show password"} title={visiblePasswords[login.id] ? "Hide password" : "Show password"} aria-pressed={Boolean(visiblePasswords[login.id])}
+                    onClick={() => setVisiblePasswords((visible) => ({ ...visible, [login.id]: !visible[login.id] }))}>
+                    {visiblePasswords[login.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <Button variant="ghost" size="icon" aria-label={`Remove login ${index + 1}`}
                 onClick={() => setField("routerLogins", form.routerLogins.filter((item) => item.id !== login.id))}>
