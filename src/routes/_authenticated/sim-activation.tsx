@@ -144,6 +144,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       set(0, "running");
       // Site ID goes to Console Connect's Label# field; equipment is not sent to Console Connect.
       const a = await activate({ data: { iccid, label: siteId.trim() } });
+      if (a.alreadyActive) throw new Error(`SIM with ICCID ${iccid} is already Active.`);
       sim = a.simulated;
       setSimulated(sim);
       set(0, "done");
