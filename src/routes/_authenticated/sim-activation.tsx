@@ -78,39 +78,35 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const finishRecord = (id: string | null, patch: { status: string; ip?: string | null; error?: string | null; simulated?: boolean }) =>
     id ? supabase.from("sim_activations").update({ ...patch, finished_at: new Date().toISOString() }).eq("id", id) : Promise.resolve();
 
-  async function applyRouterSettings(got: string, sim: boolean, id: string | null, fromStep: 3 | 4 = 3) {
+  async function applyRouterSettings(got: string, sim: boolean, id: string | null) {
     if (equipment === "ur35") {
-      for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
-        if (step < fromStep) continue;
-        set(step, "running");
-        if (step === 3) { setFirewallProgress([]); setFirewallStatus(sim ? "Applying · test mode" : "Queueing for helper…"); }
-        if (sim) await wait(1200);
-        else {
-          // Router SSH may need a few minutes after a new cellular IP; the helper retries for up to 3.
-          const j = await runJob(type, { ip: got }, {
-            timeoutMs: 300_000,
-            onQueued: (jobId) => { routerJobRef.current = jobId; },
-            onProgress: (events) => {
-              if (step !== 3) return;
-              setFirewallProgress(events);
-              const latest = events.at(-1);
-              if (latest && latest.stage !== "closed") setFirewallStatus(routerProgressLabel(latest));
-            },
-            onStatus: (status) => {
-              if (step === 3) setFirewallStatus(status === "running" ? "Waiting for router, then applying rules…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…");
-            },
-          });
-          routerJobRef.current = null;
-          if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
-        }
-        if (step === 3) setFirewallStatus(sim ? "Finished · test mode" : "Applied and verified");
-        set(step, "done");
+      set(3, "running");
+      setFirewallProgress([]);
+      setFirewallStatus(sim ? "Applying · test mode" : "Queueing for helper…");
+      if (sim) await wait(1200);
+      else {
+        // Router SSH may need a few minutes after a new cellular IP; the helper retries for up to 3.
+        const j = await runJob("ur35_firewall", { ip: got }, {
+          timeoutMs: 300_000,
+          onQueued: (jobId) => { routerJobRef.current = jobId; },
+          onProgress: (events) => {
+            setFirewallProgress(events);
+            const latest = events.at(-1);
+            if (latest && latest.stage !== "closed") setFirewallStatus(routerProgressLabel(latest));
+          },
+          onStatus: (status) => {
+            setFirewallStatus(status === "running" ? "Waiting for router, then applying rules…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…");
+          },
+        });
+        routerJobRef.current = null;
+        if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
       }
+      setFirewallStatus(sim ? "Finished · test mode" : "Applied and verified");
+      set(3, "done");
     } else {
       set(3, "skipped");
-      set(4, "skipped");
     }
-    set(5, "done");
+    set(4, "done");
     await finishRecord(id, { status: "complete", ip: got, simulated: sim, error: null });
   }
 
@@ -181,9 +177,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
         set(1, "skipped");
         set(2, "done");
         set(3, "skipped");
-        set(4, "skipped");
         await finishRecord(id, { status: "complete", ip: null, simulated: sim });
-        set(5, "done");
+        set(4, "done");
       } else {
         await waitForIp(sim, id);
       }
@@ -213,9 +208,9 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     }
   }
 
-  async function retryRouterStep(step: 3 | 4) {
+  async function retryFirewall() {
     const target = ipRef.current;
-    if (runningRef.current || !target || equipment !== "ur35" || states[step] !== "error") return;
+    if (runningRef.current || !target || equipment !== "ur35" || states[3] !== "error") return;
     runningRef.current = true;
     setBusy(true);
     setError(null);
@@ -230,18 +225,14 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
         }
         routerJobRef.current = null;
         if (job.status === "done") {
-          set(step, "done");
-          if (step === 3) setFirewallStatus("Applied and verified");
-          if (step === 4) {
-            set(5, "done");
-            await finishRecord(recordId, { status: "complete", ip: target, simulated, error: null });
-            return;
-          }
-          await applyRouterSettings(target, simulated, recordId, 4);
+          set(3, "done");
+          setFirewallStatus("Applied and verified");
+          set(4, "done");
+          await finishRecord(recordId, { status: "complete", ip: target, simulated, error: null });
           return;
         }
       }
-      await applyRouterSettings(target, simulated, recordId, step);
+      await applyRouterSettings(target, simulated, recordId);
     } catch (e) {
       await failRun(e, recordId, simulated);
     } finally {
