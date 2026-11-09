@@ -18,10 +18,13 @@ export const activateSim = createServerFn({ method: "POST" })
     const cfg = config.apiUrl && config.username && config.password;
     if (!cfg) {
       await wait(1200);
-      return { ok: true, simulated: true, labelWarning: null as string | null };
+      return { ok: true, simulated: true, alreadyActive: false, labelWarning: null as string | null };
     }
     const sub = await findSubscription(consoleApiRequest, config, data.iccid);
-    if (sub.state !== "ACTIVE") {
+    if (sub.state === "ACTIVE") {
+      return { ok: true, simulated: false, alreadyActive: true, labelWarning: null as string | null };
+    }
+    {
       const res = await consoleApiRequest(config, "/sica/subscriptions/requests/state-changes", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -61,7 +64,7 @@ export const activateSim = createServerFn({ method: "POST" })
         labelWarning = "Site ID label not updated in Console Connect (connection error)";
       }
     }
-    return { ok: true, simulated: false, labelWarning };
+    return { ok: true, simulated: false, alreadyActive: false, labelWarning };
   });
 
 export const getSimIp = createServerFn({ method: "POST" })
