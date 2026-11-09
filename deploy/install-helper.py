@@ -77,7 +77,7 @@ def enroll(url, code):
 def install(api, values):
     preflight(api)
     source = Path(api.__file__).resolve().parent.parent / 'public/helper'
-    for name in ('field-ops-helper.mjs', 'package.json', 'README.md'):
+    for name in ('field-ops-helper.mjs', 'router-ssh.mjs', 'package.json', 'README.md'):
         if not (source / name).is_file() or (source / name).is_symlink():
             raise RuntimeError('Reviewed helper source files are missing.')
     name = f'node-v{api.NODE_VERSION}-linux-x64.tar.xz'
@@ -97,7 +97,7 @@ def install(api, values):
         archive.extractall(PREFIX, filter='data')
     runtime = PREFIX / f'node-v{api.NODE_VERSION}-linux-x64'
     api.run(['useradd', '--system', '--home', str(PREFIX), '--shell', '/usr/sbin/nologin', USER], quiet=True)
-    for name in ('field-ops-helper.mjs', 'package.json', 'README.md'):
+    for name in ('field-ops-helper.mjs', 'router-ssh.mjs', 'package.json', 'README.md'):
         shutil.copyfile(source / name, PREFIX / name)
     api.run(['chown', '-R', USER + ':' + USER, str(PREFIX)], quiet=True)
     path = str(runtime / 'bin') + ':/usr/bin:/bin'
