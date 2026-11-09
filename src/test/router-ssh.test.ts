@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
+import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
+import path from "node:path";
 import { expect, it, vi } from "vitest";
 
 const source = readFileSync("public/helper/router-ssh.mjs", "utf8");
@@ -65,4 +68,51 @@ it("rejects shell injection before login", async () => {
   const h = harness();
   await expect(functions.configureRouter("10.194.89.128", h.logins, "firewall", [{ rule: rule + "; reboot" }], h.connect)).rejects.toThrow("shell commands");
   expect(h.connect).not.toHaveBeenCalled();
+});
+
+function transportHarness(savedKey?: string) {
+  let options: any;
+  const writeFile = vi.fn(async () => {});
+  const rename = vi.fn(async () => {});
+  class Client extends EventEmitter {
+    connect(config: any) {
+      options = config;
+      queueMicrotask(() => {
+        if (!config.hostVerifier(Buffer.from("router-key"))) {
+          this.emit("error", { level: "handshake", message: "Host denied" });
+          return;
+        }
+        this.emit("ready");
+      });
+    }
+    shell(_options: any, callback: (err: unknown, stream: any) => void) {
+      const stream = Object.assign(new EventEmitter(), { stderr: new EventEmitter(), end: () => {} });
+      callback(null, stream);
+      queueMicrotask(() => stream.emit("data", Buffer.from("ROUTER> ")));
+    }
+    end() {}
+  }
+  const connect = runInNewContext(source.slice(end).replace("export ", "").replace('await import("ssh2")', "({ Client })") + "; connectRouterSsh", {
+    Client, createHash, Buffer, path, process: { env: { FIELD_OPS_HELPER_DIR: "/private-helper" } },
+    fs: { readFile: async () => JSON.stringify(savedKey ? { "10.194.89.128": savedKey } : {}), writeFile, rename },
+    setTimeout, clearTimeout,
+  });
+  return { connect, writeFile, rename, options: () => options };
+}
+
+it("appends ssh-rsa for the UR35 and accepts/saves the first fingerprint without prompting", async () => {
+  const h = transportHarness();
+  const session = await h.connect("10.194.89.128", { username: "admin", password: "test-password" });
+  expect(h.options()).toMatchObject({ port: 22, username: "admin", password: "test-password", algorithms: { serverHostKey: { append: ["ssh-rsa"] } } });
+  expect(h.options().algorithms.kex).toBeUndefined();
+  expect(h.writeFile).toHaveBeenCalledWith(expect.any(String), JSON.stringify({ "10.194.89.128": createHash("sha256").update("router-key").digest("hex") }), { mode: 0o600, flag: "wx" });
+  expect(h.rename).toHaveBeenCalledOnce();
+  expect(session.prompt).toBe("ROUTER>");
+  session.close();
+});
+
+it("rejects changed fingerprints without replacing the saved key or retrying authentication", async () => {
+  const h = transportHarness("different-key");
+  await expect(h.connect("10.194.89.128", { username: "admin", password: "test-password" })).rejects.toMatchObject({ message: expect.stringContaining("fingerprint changed"), authenticationRejected: false });
+  expect(h.writeFile).not.toHaveBeenCalled();
 });
