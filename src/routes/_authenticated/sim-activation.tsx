@@ -276,23 +276,29 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   return (
     <>
       <PageHeader kicker="UR35 · Provisioning" title="SIM Activation" />
-      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-6">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="min-w-0 space-y-4">
           {equipment === "ur35" && <HelperOfflineNote />}
-          <section className="panel p-5">
+          <section className="panel p-4">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+            <div className="min-w-0">
             <label htmlFor="iccid" className="text-sm text-muted-foreground">ICCID</label>
             <input id="iccid" inputMode="numeric" value={iccid} disabled={locked}
               onChange={(e) => setIccid(e.target.value.replace(/\D/g, ""))} placeholder="8963…"
-              className="mt-2 w-full rounded-md border border-input bg-input/30 px-4 py-3 font-mono text-lg tracking-wider outline-none focus:border-primary" />
-            <label htmlFor="site-id" className="mt-4 block text-sm text-muted-foreground">Site ID</label>
+              className="mt-1 h-10 w-full rounded-md border border-input bg-input/30 px-3 font-mono text-base outline-none focus:border-primary" />
+            </div>
+            <div className="min-w-0">
+            <label htmlFor="site-id" className="block text-sm text-muted-foreground">Site ID</label>
             <input id="site-id" value={siteId} disabled={locked}
               onChange={(e) => setSiteId(e.target.value)} placeholder="e.g. PH010065"
-              className="mt-2 w-full rounded-md border border-input bg-input/30 px-4 py-3 font-mono text-lg tracking-wider outline-none focus:border-primary" />
-            <fieldset className="mt-4">
+              className="mt-1 h-10 w-full rounded-md border border-input bg-input/30 px-3 font-mono text-base outline-none focus:border-primary" />
+            </div>
+            </div>
+            <fieldset className="mt-3">
               <legend className="text-sm text-muted-foreground">EdgeSim to be used for</legend>
-              <div className="mt-2 flex flex-wrap gap-3">
+              <div className="mt-1.5 flex flex-wrap gap-2">
                 {options.map((e) => (
-                  <label key={e.key} className="flex cursor-pointer items-center gap-2 rounded-md border border-input bg-input/30 px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:text-primary">
+                  <label key={e.key} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md border border-input bg-input/30 px-2.5 py-1.5 text-sm has-[:checked]:border-primary has-[:checked]:text-primary">
                     <input type="radio" name="equipment" checked={equipment === e.key} disabled={locked}
                       onChange={() => setEquipment(e.key)}
                       className="accent-primary" />
@@ -301,23 +307,23 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                 ))}
               </div>
             </fieldset>
-            <button onClick={run} disabled={!valid || locked} className="btn-primary mt-4 w-full">
+            <Button onClick={run} disabled={!valid || locked} className="mt-3 h-10 w-full font-semibold">
               {busy ? "Working…" : complete ? "Activate another" : "Activate SIM"}
-            </button>
+            </Button>
             {iccid && !/^\d{18,22}$/.test(iccid) && <p className="mt-2 text-xs text-muted-foreground">ICCID must be 18–22 digits.</p>}
             {!siteId.trim() && <p className="mt-1 text-xs text-muted-foreground">Site ID is required.</p>}
           </section>
-          <section className="panel p-5">
-            <div className="mb-3 flex items-center justify-between text-sm">
+          <section className="panel p-4">
+            <div className="mb-2 flex items-center justify-between text-sm">
               <span className="font-semibold">Activation progress</span>
               <span className="font-mono text-muted-foreground">{doneCount} / {visibleSteps.length}</span>
             </div>
-            <div className="mb-5 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${(doneCount / visibleSteps.length) * 100}%` }} />
             </div>
-            <ol className="stepper space-y-1">
+            <ol className="stepper space-y-0.5 text-sm">
               {visibleSteps.map(({ label: s, i }, n) => (
-                <li key={s} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5" data-state={states[i]}>
+                <li key={s} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5" data-state={states[i]}>
                   <span className="step-dot">
                     {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : states[i] === "skipped" ? "–" : states[i] === "waiting" ? "↻" : n + 1}
                   </span>
@@ -329,7 +335,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                   )}
                   {i === 3 && firewallStatus && <span role="status" aria-live="polite" className={`max-w-full text-xs ${states[3] === "error" ? "text-destructive" : "text-muted-foreground"}`}>{firewallStatus}</span>}
                   {i === 3 && firewallProgress.length > 0 && (
-                    <ol aria-label="Firewall progress details" className="w-full space-y-1 border-l border-border pl-4 text-xs text-muted-foreground sm:ml-12">
+                    <ol aria-label="Firewall progress details" className="max-h-48 w-full space-y-1 overflow-y-auto border-l border-border pl-3 text-xs text-muted-foreground sm:ml-10">
                       {firewallProgress.map((event, index) => (
                         <li key={index} className="flex items-start gap-2 break-words">
                           <span aria-hidden="true" className="shrink-0">{index === firewallProgress.length - 1 && states[3] === "running" && event.stage !== "closed" ? "›" : "·"}</span>
@@ -349,7 +355,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
             </ol>
             {routerFailed && <Button variant="link" size="sm" disabled={busy} onClick={startOver} className="mt-3">Start over with a different SIM</Button>}
             {waitingForIp && (
-              <div className="mt-4 rounded-md border border-input bg-accent p-4">
+              <div className="mt-3 rounded-md border border-input bg-accent p-3">
                 <p className="text-sm font-semibold text-accent-foreground">No IP address yet after 2 minutes</p>
                 <p className="mt-1 text-sm text-accent-foreground/80">
                   The SIM is active in Console Connect, but the device hasn't come online yet, so no IP address was assigned.
@@ -363,18 +369,18 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
           </section>
           {error && <p className="rounded-md border border-destructive p-3 text-sm text-destructive">{error}</p>}
           {complete && (
-            <div className="panel p-5 text-center">
-              <p className="text-2xl font-bold text-primary">Process complete</p>
-              <p className="mt-1 font-mono text-sm text-muted-foreground">{iccid}{ip ? ` → ${ip}` : ""} · {siteId.trim()}</p>
+            <div className="panel p-4 text-center">
+              <p className="text-xl font-bold text-primary">Process complete</p>
+              <p className="mt-1 break-words font-mono text-sm text-muted-foreground">{iccid}{ip ? ` → ${ip}` : ""} · {siteId.trim()}</p>
             </div>
           )}
           {simulated && <p className="text-center text-xs text-muted-foreground">Test mode: IoT Console Connect isn't connected yet, so these results are simulated.</p>}
         </div>
-        <aside>
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Recent activations</h2>
+        <aside className="min-w-0">
+          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Recent activations</h2>
           <div className="panel divide-y text-sm">
             {history.data?.length ? history.data.map((h) => (
-              <div key={h.id} className="px-4 py-3">
+              <div key={h.id} className="break-words px-3 py-2">
                 <p className="font-mono text-xs">{h.iccid}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {h.site_id ?? "—"}{h.equipment?.length ? ` · ${h.equipment.map((k) => EQUIPMENT.find((e) => e.key === k)?.label ?? k).join(", ")}` : ""}
@@ -386,7 +392,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                   </span>
                 </p>
               </div>
-            )) : <p className="px-4 py-6 text-muted-foreground">None yet.</p>}
+            )) : <p className="px-3 py-4 text-muted-foreground">None yet.</p>}
           </div>
         </aside>
       </div>
