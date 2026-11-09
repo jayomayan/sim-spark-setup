@@ -268,7 +268,7 @@ describe("Milesight HTTPS router jobs", () => {
         requests.push(options);
         const handlers: Record<string, (error: any) => void> = {};
         return { on: (event: string, fn: (error: any) => void) => { handlers[event] = fn; },
-          end: () => handlers.error?.({ code: "ECONNREFUSED" }) };
+          end: () => handlers["error"]?.({ code: "ECONNREFUSED" }) };
       } },
     });
     await expect(transport("10.194.89.128", { function: "login" }, undefined, 8443)).rejects.toMatchObject({ routerConnectionFailure: true });

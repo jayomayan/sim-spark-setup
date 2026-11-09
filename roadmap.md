@@ -1,5 +1,5 @@
 # Tasks
-- [ ] Support router HTTPS ports 443 and 8443 with saved Admin Settings logins; pin configuration to the authenticated port and test fallback safely.
+- [x] Support router HTTPS ports 443 and 8443 with saved Admin Settings logins; pin configuration to the authenticated port. Helper 1.8.1 regression tests pass; live router verification requires VM deployment.
 - [x] Replace assumed router endpoints with guarded Milesight HTTPS login, CLI conversion, preserved/read-back firewall settings and documented NTP; 24 helper checks pass. Real login, rule effects and NTP synchronization remain unverified without the on-network router.
 - [x] Correct Okta diagnostic: missing linking no longer establishes unverified claims; five regression tests pass. Next check is the exact sign-in rejection after VM upgrade; live Okta claims remain unverified without VM access.
 - [x] Save verified Okta users with automatic operational access, preserve same-email local accounts and roles through native Auth linking, and fix late callback navigation via shared session state; SQL and private-settings tests pass. VM upgrade and enable-okta-signup.py are required; real Okta end-to-end remains unverified without VM access.
