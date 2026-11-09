@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Add an admin-only all-user Activation Reports page with paginated results and verified access checks.
 - [x] Add inline firewall/NTP retries preserving activation/IP and completed steps; timed-out active jobs cannot be duplicated. Thirteen selected tests pass; signed-in desktop/mobile page verified. Real router retry requires VM access and the app upgrade.
 - [x] Add live credential-free firewall connection/login/rule/save/verification details; release helper 1.9.5. All 54 selected regressions pass; signed-in desktop/mobile page loads cleanly. Real router progress needs the VM app/helper upgrade and cannot be verified from this sandbox.
 - [x] Correct busy-helper check-ins, bound console calls and defer updates until claimed work is reported; helper 1.9.4 archive refreshed and 44 regression checks pass. Firewall/NTP wait budgets aligned. Actual stalled VM task diagnosis requires VM status/log output.
