@@ -24,7 +24,7 @@ import https from "node:https";
 import { createCipheriv, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.8.0";
+const VERSION = "1.8.1";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -132,12 +132,12 @@ function encryptRouterPassword(password) {
   return Buffer.concat([cipher.update(Buffer.from(password, "utf8")), cipher.final()]).toString("base64");
 }
 
-function routerRequest(ip, body, token) {
+function routerRequest(ip, body, token, port = 443) {
   const data = JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const headers = { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) };
     if (token) headers["x-session-id"] = token;
-    const req = https.request({ host: ip, path: "/cgi", method: "POST", rejectUnauthorized: false, timeout: 30_000, headers }, (res) => {
+    const req = https.request({ host: ip, port, path: "/cgi", method: "POST", rejectUnauthorized: false, timeout: 30_000, headers }, (res) => {
       let txt = "";
       res.on("data", (chunk) => {
         txt += chunk;
@@ -150,7 +150,12 @@ function routerRequest(ip, body, token) {
       res.on("error", () => reject(new Error("Router response interrupted")));
     });
     req.on("timeout", () => req.destroy(new Error("Router timed out")));
-    req.on("error", () => reject(new Error("Router HTTPS connection failed or timed out")));
+    req.on("error", (cause) => {
+      const error = new Error(`Router HTTPS connection failed or timed out on port ${port}`);
+      // Only transport failures before an HTTP response permit login on another port.
+      error.routerConnectionFailure = ["ECONNREFUSED", "ETIMEDOUT", "ECONNRESET", "EHOSTUNREACH", "ENETUNREACH", "EPROTO"].includes(cause?.code) || cause?.message === "Router timed out";
+      reject(error);
+    });
     req.end(data);
   });
 }
@@ -163,22 +168,30 @@ async function routerLogin(ip) {
   if (!logins.length || logins.some((login) => !login.username || !login.password)) {
     throw new Error("Router login isn't set — enter it in Admin Settings → Network Helper.");
   }
-  for (const login of logins) {
-    const result = await routerRequest(ip, { id: "1", execute: 1, core: "user", function: "login",
-      values: [{ username: login.username, password: encryptRouterPassword(login.password) }] });
-    if (result.status === 0) {
-      const session = result.result?.[0];
-      if (typeof session?.td !== "string" || !session.td || session.ysrole !== 1) throw new Error("Router login needs a supported read-write API account");
-      return session.td;
+  for (const port of [443, 8443]) {
+    try {
+      for (const login of logins) {
+        const result = await routerRequest(ip, { id: "1", execute: 1, core: "user", function: "login",
+          values: [{ username: login.username, password: encryptRouterPassword(login.password) }] }, undefined, port);
+        if (result.status === 0) {
+          const session = result.result?.[0];
+          if (typeof session?.td !== "string" || !session.td || session.ysrole !== 1) throw new Error("Router login needs a supported read-write API account");
+          return { token: session.td, port };
+        }
+        // Only documented incorrect credentials justify another login, never restricted accounts.
+        if (result.status !== -1) throw new Error("Router login restricted or unsupported; no settings were sent");
+      }
+      throw new Error("Router rejected all saved logins.");
+    } catch (error) {
+      if (!error?.routerConnectionFailure) throw error;
+      if (port === 8443) throw new Error("Router HTTPS connection failed or timed out on both ports 443 and 8443; no settings were sent");
     }
-    // Only documented incorrect credentials justify another login, never restricted accounts.
-    if (result.status !== -1) throw new Error("Router login restricted or unsupported; no settings were sent");
   }
-  throw new Error("Router rejected all saved logins.");
 }
 
 async function routerCall(ip, token, body) {
-  const result = await routerRequest(ip, body, token);
+  // Pin every read/write/apply to the port that issued the session. Never replay writes.
+  const result = await routerRequest(ip, body, token.token, token.port);
   if (result.status !== 0 || result.result?.some((entry) => entry.templet_code || entry.error ||
       (entry.code && entry.code !== 10000000))) throw new Error("Router rejected configuration or session expired; check the router before retrying");
   return result;
