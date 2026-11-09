@@ -14,7 +14,9 @@ describe("Okta connection check", () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(discovery));
     expect((await checkOktaDiscovery("company.okta.com", request)).ok).toBe(true);
     expect(request).toHaveBeenCalledTimes(1);
-    const [url, options] = request.mock.calls[0];
+    const call = request.mock.calls[0];
+    if (!call) throw new Error("Expected a discovery request");
+    const [url, options] = call;
     expect(url).toBe("https://company.okta.com/.well-known/openid-configuration");
     expect(options?.redirect).toBe("manual");
     expect(options?.body).toBeUndefined();
