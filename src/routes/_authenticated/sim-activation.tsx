@@ -14,7 +14,7 @@ import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/sim-activation")({
-  head: () => meta("SIM Activation", "Activate an IoT SIM, wait for its assigned IP address, then apply firewall and NTP settings to the router."),
+  head: () => meta("SIM Activation", "Activate an IoT SIM, wait for its assigned IP address, then apply firewall rules to the router."),
   component: SimActivationPage,
 });
 
@@ -23,7 +23,7 @@ function SimActivationPage() {
   return <SimActivation isAdmin={isAdmin} />;
 }
 
-const STEPS = ["Activate SIM", "Wait for IP address", "SIM active", "Apply firewall rules", "Apply NTP settings", "Complete"];
+const STEPS = ["Activate SIM", "Wait for IP address", "SIM active", "Apply firewall rules", "Complete"];
 type State = "idle" | "running" | "done" | "error" | "skipped" | "waiting";
 
 const EQUIPMENT = [
@@ -33,7 +33,7 @@ const EQUIPMENT = [
   { key: "other", label: "Other" },
 ] as const;
 
-// "Other" is an admin-only choice: it skips the IP wait, firewall rules and NTP settings.
+// "Other" is an admin-only choice: it skips the IP wait and firewall rules.
 const ADMIN_ONLY_EQUIPMENT = new Set<string>(["other"]);
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
