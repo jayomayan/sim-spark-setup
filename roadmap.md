@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Replace assumed router endpoints with guarded Milesight HTTPS login, command conversion, preserve/read-back firewall settings and documented NTP requests; hardware verification requires access to the on-network router.
 - [x] Correct Okta diagnostic: missing linking no longer establishes unverified claims; five regression tests pass. Next check is the exact sign-in rejection after VM upgrade; live Okta claims remain unverified without VM access.
 - [x] Save verified Okta users with automatic operational access, preserve same-email local accounts and roles through native Auth linking, and fix late callback navigation via shared session state; SQL and private-settings tests pass. VM upgrade and enable-okta-signup.py are required; real Okta end-to-end remains unverified without VM access.
 - [x] Add inactivity sign-out with a 15-minute default, one-minute warning and shared-tab activity; 11 tests pass and signed-in warning → stay signed in → expiration → sign-in verified with no runtime errors.
