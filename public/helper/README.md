@@ -48,6 +48,42 @@ generated; **Admin Settings → Network Helper → Reset helper key** retires it
 
 ## Safety
 
+## Router HTTPS configuration
+
+Firewall and NTP use the Milesight UR-series `https://<router-ip>/cgi` API:
+saved logins are tried in order before any settings write. Incorrect credentials
+(`status: -1`) allow the next login; restrictions, unsupported responses and
+connection failures stop the job. Read-write API permission is required.
+
+Paste the original `firewall access-control custom id ... rule ...` commands
+into **Firewall commands applied during SIM activation**, one command per line.
+The helper removes the CLI prefix, retains the IDs and order, and adds `-t nat`
+to POSTROUTING/PREROUTING commands that omit a table. Bare iptables rule arguments
+are also accepted; JSON is not the editor format. Existing router rules are
+preserved, conflicting IDs stop the job, and the full merged list is read back.
+
+NTP keeps the existing JSON editor format (`enabled`, `servers`, `timezone`).
+The documented API supports one primary and one secondary server; more than two
+servers or disabled mode stop safely rather than guessing firmware behavior.
+Asia/Manila maps to `UTC+8 Asia/Manila`; other zones must already match the router.
+Existing synchronization interval and NTP server-mode values are preserved.
+
+Compatibility is based on the published UR-series API (UR35 `35.3.0.12-a1`
+examples) and router-family AES login parameters. Unsupported firmware stops
+without falling back to SSH or the old assumed Basic-auth endpoints. No live
+router has been tested. Read-back verifies saved configuration, not packet flow
+or actual clock synchronization. Required reboot/reconnect is reported as
+unfinished; the helper never automatically reboots the router. Global Apply can
+also apply unrelated changes staged in the router GUI, so avoid concurrent edits.
+
+References:
+- https://resource.milesight.com/milesight/iot/document/ur-series-http-api-documentation-en.pdf
+- https://resource.milesight.com/milesight/iot/document/ur35-user-guide-en.pdf
+- https://support.milesight-iot.com/support/solutions/articles/73000664027-how-to-use-milesight-router-opencpu-system-http-api
+- https://cuberk.com/blog/inside-the-router-how-i-accessed-industrial-routers-and-reported-the-flaws/
+
+## Safety details
+
 - Only private RFC1918 IPs are touched, and screenshots are limited to ports
   80, 443, 8443 and 8080 on the exact IP requested — the browser cannot follow
   redirects or load anything from another address.
