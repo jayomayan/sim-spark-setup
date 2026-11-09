@@ -2,6 +2,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 const CLI_ERROR = /(?:^|\n)\s*(?:%|error\b|invalid\b|unknown command|unrecognized|permission denied|not permitted|command not found|incomplete command|ambiguous command|failed\b)/i;
 const PROMPT = /(?:^|\n)([\w.-]+(?:\([^\r\n]*\))?[>#])\s*$/;
@@ -78,14 +79,14 @@ export async function configureRouter(ip, logins, kind, settings, connect = conn
 
 export async function connectRouterSsh(ip, login) {
   const { Client } = await import("ssh2");
-  const knownFile = path.join(process.env.FIELD_OPS_HELPER_DIR || path.dirname(new URL(import.meta.url).pathname), "router-host-keys.json");
+  const knownFile = path.join(process.env.FIELD_OPS_HELPER_DIR || path.dirname(fileURLToPath(import.meta.url)), "router-host-keys.json");
   let known = {};
   try { known = JSON.parse(await fs.readFile(knownFile, "utf8")); } catch (error) { if (error.code !== "ENOENT") throw new Error("Cannot read saved router SSH host keys"); }
   return new Promise((resolve, reject) => {
     const client = new Client();
     let stream, buffer = "", pending, fingerprint, ready = false, prompt = "";
     const fail = (message, auth = false) => {
-      if (pending) { clearTimeout(pending.timer); pending.reject(new Error(message)); pending = undefined; }
+      if (pending) { const current = pending; pending = undefined; clearTimeout(current.timer); current.reject(new Error(message)); }
       const error = Object.assign(new Error(message), { authenticationRejected: auth });
       client.end();
       if (!ready) reject(error);
