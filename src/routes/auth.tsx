@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loginEmail, strongPassword } from "@/lib/invitations";
+import { loginEmail } from "@/lib/invitations";
 import { useSignedIn } from "@/lib/session-context";
 
 export const Route = createFileRoute("/auth")({
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-type Mode = "signin" | "signup" | "forgot";
+type Mode = "signin" | "forgot";
 
 function AuthPage() {
   const navigate = useNavigate();
@@ -61,12 +61,6 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email: loginEmail(email), password });
         if (error) throw error;
         navigate({ to: "/dashboard" });
-      } else if (mode === "signup") {
-        strongPassword.parse(password);
-        const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/auth` } });
-        if (error) throw error;
-        toast.success("Check your email to confirm your account.");
-        setMode("signin");
       } else {
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
         if (error) throw error;
@@ -86,7 +80,7 @@ function AuthPage() {
         <img src={logo.url} alt="Frontier Tower Associates Philippines" className="mb-6 w-52" />
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary">Field Ops Console</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight">
-          {mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Reset password"}
+          {mode === "signin" ? "Sign in" : "Reset password"}
         </h1>
 
         {mode === "signin" && (
@@ -110,18 +104,15 @@ function AuthPage() {
             </div>
           )}
           <Button type="submit" variant="secondary" className="w-full" disabled={busy}>
-            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
+            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Send reset link"}
           </Button>
         </form>
 
         <div className="mt-6 flex justify-between text-sm text-muted-foreground">
           {mode === "signin" ? (
-            <>
-              <button className="hover:text-foreground" onClick={() => setMode("signup")}>Create account</button>
-              <button className="hover:text-foreground" onClick={() => setMode("forgot")}>Forgot password?</button>
-            </>
+            <Button variant="link" className="h-auto p-0 text-muted-foreground" onClick={() => setMode("forgot")}>Forgot password?</Button>
           ) : (
-            <button className="hover:text-foreground" onClick={() => setMode("signin")}>← Back to sign in</button>
+            <Button variant="link" className="h-auto p-0 text-muted-foreground" onClick={() => setMode("signin")}>← Back to sign in</Button>
           )}
         </div>
         <p className="mt-8 text-xs text-muted-foreground">
