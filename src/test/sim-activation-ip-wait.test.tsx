@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   const finished: string[] = [];
   const from = vi.fn(() => ({
     select: vi.fn(() => ({
+      eq: vi.fn(() => ({ single: async () => ({ data: { status: "running" }, error: null }) })),
       order: vi.fn(() => ({
         limit: vi.fn(async () => ({ data: [] })),
       })),
@@ -174,14 +175,9 @@ describe("SIM activation IP wait", () => {
     renderPage();
     startActivation();
     await tick(0);
-    const previousFrom = mocks.from.getMockImplementation();
-    mocks.from.mockImplementationOnce(() => ({
-      select: () => ({ eq: () => ({ single: async () => ({ data: { status: "running" }, error: null }) }) }),
-    }) as ReturnType<typeof mocks.from>);
     fireEvent.click(screen.getByRole("button", { name: "Retry firewall rules" }));
     await tick(0);
     expect(mocks.runJob).toHaveBeenCalledTimes(1);
     expect(mocks.finished).not.toContain("complete");
-    if (previousFrom) mocks.from.mockImplementation(previousFrom);
   });
 });
