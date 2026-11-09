@@ -80,6 +80,14 @@ Sign in to your new website as Admin and save Console Connect settings. Site ID 
 
 Use a compatible native Auth release **v2.196.0 or later** supporting custom OIDC providers, and verify that support in your selected release. Register **`custom:app-oidc`** using the backend's trusted Auth admin API (not merely the app's saved Okta form). Supply your exact Okta issuer, client ID/secret and scopes `openid`, `profile`, `email`. The backend Auth external URL must end in `/auth/v1`; register `https://YOUR-BACKEND/auth/v1/callback` in Okta. Do this using the official self-hosted custom-provider instructions; secrets must remain server-side. App-side Okta settings do not automatically create the provider.
 
+After upgrading the app to include `0011_okta_account_access`, run from your source checkout:
+
+```bash
+sudo python3 deploy/enable-okta-signup.py
+```
+
+This backs up private Auth settings, checks that the registration hook exists, and enables new verified Okta registrations while rejecting public password registrations through that hook. Existing admin invitations continue through the trusted admin API. It refuses to replace a different hook. It does not register the Okta provider or change its secret. Keep email auto-confirm disabled. Okta must issue `email_verified: true`; do not fabricate this claim in attribute mappings. Verified matching emails link through Auth's native identity handling; existing account IDs, history and roles remain unchanged. No merging by editable profile email occurs. New verified Okta accounts receive the operator role on their first protected-page visit, never admin; pending invited-password requirements remain enforced. Test on the VM: existing local account → Okta → same account/history, new staff → operational tools, denied Admin Settings, public password signup rejected. The VM flow cannot be verified from this checkout.
+
 ## 6. Required acceptance checks
 
 Run `bun run check:standalone` with the private environment loaded as above. Complete **all** of these on the actual VM before cutover:
