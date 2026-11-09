@@ -174,7 +174,7 @@ export function HelperSettings() {
           <h3 className="font-semibold">Router login and templates</h3>
           <span className={`flex items-center gap-2 text-sm ${helper?.online ? "text-primary" : "text-muted-foreground"}`}>
             {helper?.online ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-            {helper?.online ? `Helper online · v${helper.version ?? "?"}` : "Helper offline"}
+            {helper?.online ? "Helper Online" : "Helper Offline"}
           </span>
         </div>
         <p className="text-sm text-muted-foreground">
