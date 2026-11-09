@@ -8,9 +8,9 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Field Ops Console — Routers & SIM Activation" },
-      { name: "description", content: "Activate IoT SIMs, provision UR35 routers and manage field devices in one place." },
+      { name: "description", content: "Activate IoT SIMs and provision UR35 routers in one place." },
       { property: "og:title", content: "Field Ops Console — Routers & SIM Activation" },
-      { property: "og:description", content: "Activate SIMs, provision UR35 routers and manage field devices." },
+      { property: "og:description", content: "Activate SIMs and provision UR35 routers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -35,7 +35,7 @@ function Landing() {
           Every site router,<br />one console.
         </h1>
         <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-          Activate SIMs, push firewall and time settings to UR35 routers, and manage field devices.
+          Activate SIMs and push firewall and time settings to UR35 routers.
         </p>
         <div className="mt-10 flex gap-3">
           {signedIn === false && <Button asChild size="lg"><Link to="/auth">Sign in</Link></Button>}

@@ -16,7 +16,6 @@ import { Route as ChangePasswordRouteImport } from './routes/change-password'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin-settings'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedDevicesRouteImport } from './routes/_authenticated/devices'
 import { Route as AuthenticatedHelperRouteImport } from './routes/_authenticated/helper'
 import { Route as AuthenticatedPrivateBrowserRouteImport } from './routes/_authenticated/private-browser'
 import { Route as AuthenticatedSimActivationRouteImport } from './routes/_authenticated/sim-activation'
@@ -61,11 +60,6 @@ const AuthenticatedAdminSettingsRoute =
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedDevicesRoute = AuthenticatedDevicesRouteImport.update({
-  id: '/devices',
-  path: '/devices',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedHelperRoute = AuthenticatedHelperRouteImport.update({
@@ -129,7 +123,6 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/admin-settings': typeof AuthenticatedAdminSettingsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/devices': typeof AuthenticatedDevicesRoute
   '/helper': typeof AuthenticatedHelperRoute
   '/private-browser': typeof AuthenticatedPrivateBrowserRoute
   '/sim-activation': typeof AuthenticatedSimActivationRoute
@@ -148,7 +141,6 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/admin-settings': typeof AuthenticatedAdminSettingsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/devices': typeof AuthenticatedDevicesRoute
   '/helper': typeof AuthenticatedHelperRoute
   '/private-browser': typeof AuthenticatedPrivateBrowserRoute
   '/sim-activation': typeof AuthenticatedSimActivationRoute
@@ -169,7 +161,6 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin-settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/devices': typeof AuthenticatedDevicesRoute
   '/_authenticated/helper': typeof AuthenticatedHelperRoute
   '/_authenticated/private-browser': typeof AuthenticatedPrivateBrowserRoute
   '/_authenticated/sim-activation': typeof AuthenticatedSimActivationRoute
@@ -190,7 +181,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/admin-settings'
     | '/dashboard'
-    | '/devices'
     | '/helper'
     | '/private-browser'
     | '/sim-activation'
@@ -209,7 +199,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/admin-settings'
     | '/dashboard'
-    | '/devices'
     | '/helper'
     | '/private-browser'
     | '/sim-activation'
@@ -229,7 +218,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/admin-settings'
     | '/_authenticated/dashboard'
-    | '/_authenticated/devices'
     | '/_authenticated/helper'
     | '/_authenticated/private-browser'
     | '/_authenticated/sim-activation'
@@ -303,13 +291,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/devices': {
-      id: '/_authenticated/devices'
-      path: '/devices'
-      fullPath: '/devices'
-      preLoaderRoute: typeof AuthenticatedDevicesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/helper': {
@@ -388,7 +369,6 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedDevicesRoute: typeof AuthenticatedDevicesRoute
   AuthenticatedHelperRoute: typeof AuthenticatedHelperRoute
   AuthenticatedPrivateBrowserRoute: typeof AuthenticatedPrivateBrowserRoute
   AuthenticatedSimActivationRoute: typeof AuthenticatedSimActivationRoute
@@ -400,7 +380,6 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedDevicesRoute: AuthenticatedDevicesRoute,
   AuthenticatedHelperRoute: AuthenticatedHelperRoute,
   AuthenticatedPrivateBrowserRoute: AuthenticatedPrivateBrowserRoute,
   AuthenticatedSimActivationRoute: AuthenticatedSimActivationRoute,
