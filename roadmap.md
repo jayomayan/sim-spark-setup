@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Switch firewall and NTP configuration to helper SSH using saved ordered logins and documented UR35 CLI conversion; verify authentication, command errors and persistence with regression tests.
 - [x] Show firewall queueing, waiting, helper-running, verified completion and failure status beside its activation step using actual job status callbacks; nine related tests pass. Live router flow requires target VM access.
 - [x] Support router HTTPS ports 443 and 8443 with saved Admin Settings logins; pin configuration to the authenticated port. Helper 1.8.1 regression tests pass; live router verification requires VM deployment.
 - [x] Replace assumed router endpoints with guarded Milesight HTTPS login, CLI conversion, preserved/read-back firewall settings and documented NTP; 24 helper checks pass. Real login, rule effects and NTP synchronization remain unverified without the on-network router.
