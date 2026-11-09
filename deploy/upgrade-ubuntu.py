@@ -30,6 +30,8 @@ DB_PORT = 5432
 BUN = '/usr/local/bin/bun'
 NODE_BIN = '/usr/local/bin'
 
+UPGRADE_MIN_FREE = 6 * 1024**3
+
 EXCLUDED = {'.git', '.env', 'node_modules', '.output', 'dist', '.tanstack', '.workspace', '__pycache__'}
 
 
@@ -146,8 +148,11 @@ def preflight(source):
     for path in (CONFIG, ENV):
         if path.stat().st_uid != 0 or path.stat().st_mode & 0o077:
             raise RuntimeError('Existing secret settings must be root-owned and private.')
-    if shutil.disk_usage('/opt').free < 12 * 1024**3:
-        raise RuntimeError('At least 12 GB free in /opt is required for a staged build.')
+    # A staged copy, its dependencies, build output and a database backup need
+    # a few GB; build tools are already installed, unlike a fresh install.
+    free = shutil.disk_usage('/opt').free
+    if free < UPGRADE_MIN_FREE:
+        raise RuntimeError(f'At least {UPGRADE_MIN_FREE // 1024**3} GB free in /opt is required for a staged build; {free / 1024**3:.1f} GB is free.')
     run(['pg_isready', '-d', 'fieldops'], user='postgres', cwd='/tmp')
     applied = json.loads(run(['psql', '-d', 'fieldops', '-tAc', "SELECT coalesce(json_object_agg(tag,checksum),'{}'::json) FROM field_ops_deploy.migrations;"], user='postgres', cwd='/tmp'))
     return state, read_environment(ENV), applied
@@ -352,6 +357,10 @@ if __name__ == '__main__':
     except (EOFError, KeyboardInterrupt):
         print('Upgrade interrupted. Preserve backups and consult recovery instructions.', file=sys.stderr)
         sys.exit(1)
-    except Exception:
-        print('Upgrade stopped. No credentials printed; preserve partial state and inspect services privately.', file=sys.stderr)
+    except RuntimeError as error:
+        # RuntimeError messages in this script are fixed, credential-free text.
+        print(f'Upgrade stopped: {error}', file=sys.stderr)
+        sys.exit(1)
+    except Exception as error:
+        print(f'Upgrade stopped ({type(error).__name__}). No credentials printed; preserve partial state and inspect services privately.', file=sys.stderr)
         sys.exit(1)
