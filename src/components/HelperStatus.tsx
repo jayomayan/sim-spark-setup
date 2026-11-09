@@ -20,7 +20,7 @@ export function HelperStatus({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-2 font-mono text-xs", className)}>
       <span className={cn("h-2 w-2 rounded-full", online ? "bg-primary shadow-[0_0_8px_var(--primary)]" : "bg-destructive")} />
-      <span className="text-muted-foreground">Helper {online ? `online${data?.hostname ? ` · ${data.hostname}` : ""}` : "offline"}</span>
+      <span className="text-muted-foreground">{online ? "Helper Online" : "Helper Offline"}</span>
     </div>
   );
 }
