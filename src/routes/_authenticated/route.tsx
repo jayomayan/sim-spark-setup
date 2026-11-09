@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouteContext, 
 import logo from "@/assets/fta-logo.png.asset.json";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Gauge, Globe, ListTree, LogOut, Menu, Radio, Server, Settings, X } from "lucide-react";
+import { ClipboardList, Gauge, Globe, ListTree, LogOut, Menu, Radio, Server, Settings, X } from "lucide-react";
 import { canAccessAdminSettings, canAccessOperationalTools } from "@/lib/admin-access";
 import { supabase } from "@/integrations/supabase/client";
 import { HelperStatus } from "@/components/HelperStatus";
@@ -66,7 +66,7 @@ function Layout() {
     );
   }
 
-  const items = isAdmin ? [...NAV, { to: "/helper", label: "Helper", icon: Server } as const, { to: "/admin-settings", label: "Admin Settings", icon: Settings } as const] : NAV;
+  const items = isAdmin ? [...NAV, { to: "/activation-reports", label: "Activation Reports", icon: ClipboardList } as const, { to: "/helper", label: "Helper", icon: Server } as const, { to: "/admin-settings", label: "Admin Settings", icon: Settings } as const] : NAV;
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">

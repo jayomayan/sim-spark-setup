@@ -1,0 +1,9 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { readActivationReports } from "@/lib/activation-reports";
+
+export const listActivationReports = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { page: number }) => z.object({ page: z.number().int().min(0).max(1000000) }).parse(input))
+  .handler(({ data, context }) => readActivationReports(context.supabase, context.userId, data.page));
