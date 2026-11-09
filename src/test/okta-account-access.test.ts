@@ -17,6 +17,7 @@ beforeAll(async () => {
     CREATE TABLE public.account_security (user_id uuid, must_change_password boolean);
   `);
   await db.exec(readFileSync('drizzle/migrations/0011_okta_account_access.sql', 'utf8'));
+  await db.exec(readFileSync('drizzle/migrations/0012_okta_signup_reasons.sql', 'utf8'));
   await db.query(`SELECT set_config('request.jwt.claim.sub', $1, false)`, [id]);
 });
 afterAll(async () => { await db.close(); });
@@ -65,5 +66,11 @@ describe('verified Okta accounts', () => {
     expect(await call('custom:app-oidc', true)).toEqual({});
     expect((await call('email', true))?.error?.http_code).toBe(403);
     expect((await call('custom:app-oidc', false))?.error?.http_code).toBe(403);
+  });
+  it('explains why an Okta sign-in could not be matched', async () => {
+    const reason = async (user: object) => (await db.query<{ result: { error?: { message: string } } }>('SELECT public.before_staff_user_created($1::jsonb) AS result', [JSON.stringify({ user })])).rows[0]?.result.error?.message;
+    expect(await reason({ email: 'staff@example.invalid', app_metadata: { provider: 'custom:app-oidc' }, user_metadata: {} })).toContain('not verified');
+    expect(await reason({ email: '', app_metadata: { provider: 'custom:app-oidc' }, user_metadata: { email_verified: true } })).toContain('did not share an email');
+    expect(await reason({ email: 'x@example.invalid', app_metadata: { provider: 'email' }, user_metadata: { email_verified: true } })).toContain('registration is disabled');
   });
 });
