@@ -23,7 +23,7 @@ describe("busy helper lifecycle", () => {
 
   it("checks in without claiming jobs during long work and stops after completion", async () => {
     vi.useFakeTimers();
-    const api = vi.fn(async () => ({}));
+    const api = vi.fn(async (_body: unknown) => ({}));
     const start = helperSource.indexOf("async function withCheckIns(");
     const end = helperSource.indexOf("async function loop()", start);
     const withCheckIns = runInNewContext(`${helperSource.slice(start, end)}; withCheckIns`, {

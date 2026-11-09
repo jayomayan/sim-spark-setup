@@ -139,6 +139,7 @@ async function api(body) {
     method: "POST",
     headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new Error(`Console replied ${res.status}`);
   return res.json();
