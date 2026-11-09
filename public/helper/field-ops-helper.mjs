@@ -125,7 +125,37 @@ async function api(body) {
   return res.json();
 }
 
-async function routerPost(ip, p, body) {
+// Milesight UR-series /cgi API. Never log response bodies, passwords or session tokens.
+// AES constants match the published router-family login.js; unsupported firmware stops here.
+function encryptRouterPassword(password) {
+  const cipher = createCipheriv("aes-128-cbc", Buffer.from("1111111111111111"), Buffer.from("2222222222222222"));
+  return Buffer.concat([cipher.update(Buffer.from(password, "utf8")), cipher.final()]).toString("base64");
+}
+
+function routerRequest(ip, body, token) {
+  const data = JSON.stringify(body);
+  return new Promise((resolve, reject) => {
+    const headers = { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) };
+    if (token) headers["x-session-id"] = token;
+    const req = https.request({ host: ip, path: "/cgi", method: "POST", rejectUnauthorized: false, timeout: 30_000, headers }, (res) => {
+      let txt = "";
+      res.on("data", (chunk) => {
+        txt += chunk;
+        if (txt.length > 1024 * 1024) req.destroy(new Error("Router response too large"));
+      });
+      res.on("end", () => {
+        if (res.statusCode !== 200) { reject(new Error(`Router HTTPS request rejected (${res.statusCode})`)); return; }
+        try { resolve(JSON.parse(txt)); } catch { reject(new Error("Router does not support the expected Milesight HTTPS API")); }
+      });
+      res.on("error", () => reject(new Error("Router response interrupted")));
+    });
+    req.on("timeout", () => req.destroy(new Error("Router timed out")));
+    req.on("error", () => reject(new Error("Router HTTPS connection failed or timed out")));
+    req.end(data);
+  });
+}
+
+async function routerLogin(ip) {
   const logins = config.routerLogins ?? [{
     username: config.ur35Username || process.env.UR35_USERNAME || "",
     password: config.ur35Password || process.env.UR35_PASSWORD || "",
@@ -134,28 +164,108 @@ async function routerPost(ip, p, body) {
     throw new Error("Router login isn't set — enter it in Admin Settings → Network Helper.");
   }
   for (const login of logins) {
-    const result = await routerPostWithLogin(ip, p, body, login);
-    if (result.status >= 200 && result.status < 300) return result;
-    // Only authentication failures justify retrying a potentially mutating request.
-    if (result.status !== 401 && result.status !== 403) throw new Error(`Router rejected settings (${result.status})`);
+    const result = await routerRequest(ip, { id: "1", execute: 1, core: "user", function: "login",
+      values: [{ username: login.username, password: encryptRouterPassword(login.password) }] });
+    if (result.status === 0) {
+      const session = result.result?.[0];
+      if (typeof session?.td !== "string" || !session.td || session.ysrole !== 1) throw new Error("Router login needs a supported read-write API account");
+      return session.td;
+    }
+    // Only documented incorrect credentials justify another login, never restricted accounts.
+    if (result.status !== -1) throw new Error("Router login restricted or unsupported; no settings were sent");
   }
   throw new Error("Router rejected all saved logins.");
 }
 
-function routerPostWithLogin(ip, p, body, { username, password }) {
-  const data = JSON.stringify(body);
-  return new Promise((resolve, reject) => {
-    const req = https.request({
-      host: ip, path: p, method: "POST", rejectUnauthorized: false, timeout: 30_000,
-      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data), Authorization: "Basic " + Buffer.from(`${username}:${password}`).toString("base64") },
-    }, (res) => {
-      let txt = ""; res.on("data", (c) => (txt += c));
-      res.on("end", () => resolve({ status: res.statusCode }));
-    });
-    req.on("timeout", () => req.destroy(new Error("Router timed out")));
-    req.on("error", reject);
-    req.end(data);
+async function routerCall(ip, token, body) {
+  const result = await routerRequest(ip, body, token);
+  if (result.status !== 0 || result.result?.some((entry) => entry.templet_code || entry.error ||
+      (entry.code && entry.code !== 10000000))) throw new Error("Router rejected configuration or session expired; check the router before retrying");
+  return result;
+}
+
+function routerConfig(result, type) {
+  const entries = result.result?.flatMap((entry) => entry.get ?? []);
+  const found = entries?.filter((entry) => entry.type === type);
+  if (found?.length !== 1 || found[0].index === undefined || !found[0].value || typeof found[0].value !== "object") {
+    throw new Error("Unsupported router configuration response; no changes were sent");
+  }
+  return found[0];
+}
+
+function convertFirewallRules(rules) {
+  if (!Array.isArray(rules) || !rules.length) throw new Error("Enter custom firewall commands in Admin Settings first");
+  const ids = new Set();
+  return rules.map(({ rule, description }) => {
+    const match = String(rule).trim().match(/^firewall\s+access-control\s+custom\s+id\s+(\S+)\s+rule\s+(.+)$/);
+    const id = match?.[1] ?? randomUUID().replaceAll("-", "");
+    let command = match?.[2] ?? String(rule).trim();
+    if (!/^(-t\s+(filter|nat|mangle|raw)\s+)?-(I|A)\s+(INPUT|OUTPUT|FORWARD|POSTROUTING|PREROUTING)\b/.test(command) || /[\r\n\x00]/.test(command)) {
+      throw new Error("Use a Milesight custom firewall CLI command or an iptables rule starting with -I, -A or -t");
+    }
+    // iptables defaults to filter; POSTROUTING/PREROUTING MASQUERADE needs the NAT table.
+    if (!command.startsWith("-t ") && /-(I|A)\s+(POSTROUTING|PREROUTING)\b/.test(command)) command = `-t nat ${command}`;
+    if (command.length > 255 || String(description ?? "").length > 63 || ids.has(id)) throw new Error("Firewall rules exceed router limits or contain duplicate IDs");
+    ids.add(id);
+    return { id, rule: command, desc: description ?? "" };
   });
+}
+
+function mergeFirewallRules(existing, requested) {
+  if (!Array.isArray(existing) || existing.some((entry) => typeof entry.id !== "string" || typeof entry.rule !== "string")) throw new Error("Unsupported existing firewall rules; no changes were sent");
+  // Never overwrite an unrelated rule using the same identifier.
+  const merged = [...existing];
+  for (const rule of requested) {
+    const same = merged.find((entry) => entry.id === rule.id);
+    if (same && same.rule !== rule.rule) throw new Error("A firewall rule ID conflicts with an existing rule; review the router before changing it");
+    if (!merged.some((entry) => entry.rule === rule.rule)) merged.push(rule);
+  }
+  if (merged.length > 64) throw new Error("Router supports at most 64 custom firewall rules");
+  return merged;
+}
+
+async function applyRouter(ip, token) {
+  const applied = await routerCall(ip, token, { core: "yruo_apply", function: "apply", values: [] });
+  const state = applied.result?.[0];
+  if (!state || ![0, 1].includes(state.reboot) || ![0, 1].includes(state.reconnect)) throw new Error("Router apply result is unsupported; verify settings on the router");
+  if (state.reboot === 1) throw new Error("Router settings saved; a manual router reboot is required before completion");
+  if (state.reconnect === 1) throw new Error("Router settings applied; reconnect and verify the router before completion");
+}
+
+async function applyFirewall(ip, rules) {
+  const requested = convertFirewallRules(rules);
+  const token = await routerLogin(ip);
+  const query = { id: 2, function: "get", core: "yruo_firewall_custom", values: [{ base: "yruo_firewall_custom" }] };
+  const current = routerConfig(await routerCall(ip, token, query), "yruo_firewall_custom");
+  const list = mergeFirewallRules(current.value.list, requested);
+  if (list.length !== current.value.list.length) {
+    await routerCall(ip, token, { id: 3, function: "set", core: "yruo_firewall_custom", values: [{
+      base: "yruo_firewall_custom", type: current.type, index: current.index, value: { ...current.value, list },
+    }] });
+    await applyRouter(ip, token);
+  }
+  const saved = routerConfig(await routerCall(ip, token, query), "yruo_firewall_custom");
+  if (!Array.isArray(saved.value.list) || list.some((rule) => !saved.value.list.some((entry) => entry.id === rule.id && entry.rule === rule.rule))) throw new Error("Firewall configuration verification failed; check the router before retrying");
+  return { status: 200, verified: true, rules: requested.length };
+}
+
+async function applyNtp(ip, ntp) {
+  if (!ntp?.enabled || !Array.isArray(ntp.servers) || ntp.servers.length < 1 || ntp.servers.length > 2 || ntp.servers.some((server) => typeof server !== "string" || !/^[a-zA-Z0-9._:-]+$/.test(server) || server.length > 256)) throw new Error("NTP requires enabled mode and one or two server addresses");
+  const token = await routerLogin(ip);
+  const query = { id: 4, function: "get", core: "yruo_system", values: [{ base: "time" }] };
+  const current = routerConfig(await routerCall(ip, token, query), "time");
+  // Preserve firmware-specific timezone formatting unless the supported Manila mapping is selected.
+  const timezone = ntp.timezone === "Asia/Manila" ? "UTC+8 Asia/Manila" : current.value.timezone;
+  if (ntp.timezone !== "Asia/Manila" && typeof timezone === "string" && !timezone.endsWith(` ${ntp.timezone}`)) throw new Error("Set the requested timezone on the router first; its firmware-specific timezone mapping is unknown");
+  const value = { timezone, timezone_type: ntp.timezone === "Asia/Manila" ? 0 : current.value.timezone_type,
+    set_type: 0, ntp_enable: 1, ntp_address: ntp.servers[0], ntp_address_secondary: ntp.servers[1] ?? "",
+    update_interval: current.value.update_interval, ntp_master: current.value.ntp_master };
+  if (typeof value.timezone !== "string" || ![0, 1].includes(value.timezone_type) || !Number.isInteger(value.update_interval) || ![0, 1].includes(value.ntp_master)) throw new Error("Unsupported router NTP settings; no changes were sent");
+  await routerCall(ip, token, { id: 5, function: "set", core: "yruo_system", values: [{ base: "time", type: "time", index: current.index, value }] });
+  await applyRouter(ip, token);
+  const saved = routerConfig(await routerCall(ip, token, query), "time");
+  if (Object.entries(value).some(([key, expected]) => saved.value[key] !== expected)) throw new Error("NTP configuration verification failed; check the router before retrying");
+  return { status: 200, verified: true };
 }
 
 // --- Site Connectivity Check: port screenshots + ping, run on this machine ---
@@ -205,12 +315,10 @@ const handlers = {
     return { results, errors };
   },
   async ur35_firewall({ ip }) {
-    const p = config.ur35FirewallPath || process.env.UR35_FIREWALL_PATH || "/api/firewall/rules";
-    return routerPost(checkIp(ip), p, { rules: config.firewallRules });
+    return applyFirewall(checkIp(ip), config.firewallRules);
   },
   async ur35_ntp({ ip }) {
-    const p = config.ur35NtpPath || process.env.UR35_NTP_PATH || "/api/system/ntp";
-    return routerPost(checkIp(ip), p, config.ntp);
+    return applyNtp(checkIp(ip), config.ntp);
   },
   async site_ping({ ip }) {
     // With both -c and -w, Linux ping may keep sending until four replies arrive.
