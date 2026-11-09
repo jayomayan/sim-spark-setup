@@ -9,7 +9,7 @@ export type JobResult = { status: string; result: unknown; error: string | null 
 export async function runJob(
   type: JobType,
   payload: Record<string, unknown>,
-  opts: { timeoutMs?: number; onQueued?: (id: string) => void } = {},
+  opts: { timeoutMs?: number; onQueued?: (id: string) => void; onStatus?: (status: string) => void } = {},
 ): Promise<JobResult> {
   if (!isSupportedJobType(type)) throw new Error("Unsupported router job");
   const { data: u } = await supabase.auth.getUser();
@@ -21,6 +21,8 @@ export async function runJob(
     .single();
   if (error) throw new Error(error.message);
   opts.onQueued?.(data.id);
+  opts.onStatus?.("pending");
+  let lastStatus = "pending";
   const deadline = Date.now() + (opts.timeoutMs ?? 120_000);
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 1500));
@@ -29,6 +31,10 @@ export async function runJob(
       .select("status,result,error")
       .eq("id", data.id)
       .single();
+    if (j && j.status !== lastStatus) {
+      lastStatus = j.status;
+      opts.onStatus?.(j.status);
+    }
     if (j && (j.status === "done" || j.status === "failed")) return j as JobResult;
   }
   throw new Error("The helper didn't respond in time. Check it's running on your network.");
