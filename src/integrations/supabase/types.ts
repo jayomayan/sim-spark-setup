@@ -516,6 +516,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      before_staff_user_created: { Args: { event: Json }; Returns: Json }
+      ensure_okta_access: { Args: never; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
