@@ -111,7 +111,9 @@ describe("router HTTPS firewall delivery", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({ host: "10.0.0.1", path: "/api/firewall/rules", method: "POST",
       headers: { Authorization: `Basic ${Buffer.from("saved-router:saved-password").toString("base64")}` } });
-    expect(JSON.parse(payloads[0])).toEqual({ rules });
+    const payload = payloads[0];
+    if (payload === undefined) throw new Error("Firewall payload was not sent");
+    expect(JSON.parse(payload)).toEqual({ rules });
   });
 
   it("does not report firewall success when every saved login is rejected", async () => {
