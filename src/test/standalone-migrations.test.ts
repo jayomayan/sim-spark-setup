@@ -27,16 +27,17 @@ async function run() {
   await import("../../deploy/migrate.mjs");
 }
 describe("standalone migration runner", () => {
-  it("applies all twelve checked-in migrations in order and grants device sequence access", async () => {
+  it("applies all thirteen checked-in migrations in order and grants device sequence access", async () => {
     await run();
     const sources = mock.statements.slice(1, -1);
-    expect(sources).toHaveLength(12);
+    expect(sources).toHaveLength(13);
     expect(sources[0]).toContain("create type public.app_role");
     expect(sources[7]).toContain("ADD COLUMN router_logins_cipher");
     expect(sources[8]).toContain("ADD COLUMN IF NOT EXISTS site_id");
     expect(sources[9]).toContain("create table public.account_security");
     expect(sources[10]).toContain("create table public.invitation_history");
     expect(sources[11]).toContain("public.ensure_okta_access");
+    expect(sources[12]).toContain("Okta reports your email address as not verified");
     expect(mock.statements.at(-1)).toContain("GRANT USAGE, SELECT ON SEQUENCE public.devices_id_seq TO authenticated");
   });
   it("skips already applied migrations without replaying table creation", async () => {
