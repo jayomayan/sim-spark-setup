@@ -17,7 +17,7 @@ describe('Okta callback session return', () => {
     const { getByLabelText, getByRole, unmount } = render(<SignedInContext.Provider value={false}><Page /></SignedInContext.Provider>);
     fireEvent.change(getByLabelText('Username or email'), { target: { value: 'partner@example.invalid' } });
     fireEvent.change(getByLabelText('Password'), { target: { value: 'Test-only-password1!' } });
-    fireEvent.click(getByRole('button', { name: 'Sign in', exact: true }));
+    fireEvent.click(getByRole('button', { name: /^Sign in$/ }));
     await waitFor(() => expect(mocks.signin).toHaveBeenCalledWith({ email: 'partner@example.invalid', password: 'Test-only-password1!' }));
     expect(mocks.signup).not.toHaveBeenCalled();
     mocks.navigate.mockClear();
