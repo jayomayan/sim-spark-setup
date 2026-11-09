@@ -21,9 +21,10 @@ import fs from "node:fs/promises";
 import { hostname } from "node:os";
 import path from "node:path";
 import https from "node:https";
+import { createCipheriv, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.7.1";
+const VERSION = "1.8.0";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
