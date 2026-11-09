@@ -76,6 +76,11 @@ write may leave partial changes; inspect the router before retrying. Readback
 checks running settings, not restart persistence, packet flow or clock sync.
 The first authenticated SSH host key is saved privately beside the helper;
 subsequent changes require administrator inspection. Avoid concurrent GUI edits.
+Release 1.9.1 appends the legacy `ssh-rsa` host signature for older UR35 firmware,
+without changing modern key-exchange, cipher or MAC preferences. First-time
+fingerprints are accepted automatically and saved only after successful login;
+changed fingerprints remain blocked. Connection errors distinguish refused
+ports, timeouts, algorithm negotiation and changed fingerprints.
 
 References:
 - https://resource.milesight.com/milesight/iot/document/ur-series-cli-documentation-en.pdf
