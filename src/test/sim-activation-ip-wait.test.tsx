@@ -134,6 +134,25 @@ describe("SIM activation IP wait", () => {
     expect(screen.getByRole("radio", { name: "GPS-Genset" })).toBeInTheDocument();
   });
 
+  it("offers to retry when fetching the IP address fails, without activating again", async () => {
+    mocks.getSimIp.mockRejectedValueOnce(new Error("Console Connect unreachable"));
+    renderPage();
+    startActivation();
+    await tick(0);
+
+    expect(screen.getByRole("button", { name: "Retry IP address check" })).toBeInTheDocument();
+    expect(mocks.finished).toContain("failed");
+
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    fireEvent.click(screen.getByRole("button", { name: "Retry IP address check" }));
+    await tick(0);
+
+    expect(screen.getByText("10.20.30.40")).toBeInTheDocument();
+    expect(mocks.activateSim).toHaveBeenCalledTimes(1);
+    expect(mocks.getSimIp).toHaveBeenCalledTimes(2);
+    expect(mocks.finished).toContain("complete");
+  });
+
   it("retries failed firewall settings on the same IP without activating or polling again, then applies NTP", async () => {
     mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
     mocks.runJob.mockResolvedValueOnce({ status: "failed", result: null, error: "Connection refused" });
