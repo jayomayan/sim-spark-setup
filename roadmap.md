@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Correct Okta diagnostic: distinguish missing linking from unverified claims; verify regression tests and provide a safe next check.
 - [x] Save verified Okta users with automatic operational access, preserve same-email local accounts and roles through native Auth linking, and fix late callback navigation via shared session state; SQL and private-settings tests pass. VM upgrade and enable-okta-signup.py are required; real Okta end-to-end remains unverified without VM access.
 - [x] Add inactivity sign-out with a 15-minute default, one-minute warning and shared-tab activity; 11 tests pass and signed-in warning → stay signed in → expiration → sign-in verified with no runtime errors.
 - [x] Correct helper ping count/deadline interaction: remove Linux -w so packet loss cannot cause extra probes; release 1.7.1 with live-handler regression coverage. Target VM verification requires deploying the updated helper.

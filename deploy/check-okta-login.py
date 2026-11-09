@@ -16,6 +16,15 @@ SELECT
 """
 
 
+def linking_status(provider_on, email_scope, accounts, confirmed, sso, linked):
+    """Classify stored account state; no counts establish the live Okta claims."""
+    if linked:
+        return 'linked'
+    if provider_on and email_scope and accounts and confirmed and not sso:
+        return 'unlinked_claims_unknown'
+    return 'prerequisite_missing'
+
+
 def findings(provider_on, email_scope, accounts, confirmed, sso, linked, roles, hook_on):
     """Turn counts into plain-language findings, most likely blocker first."""
     out = []
@@ -32,8 +41,8 @@ def findings(provider_on, email_scope, accounts, confirmed, sso, linked, roles, 
             out.append('The local account is marked as a single sign-on account and is skipped for automatic linking.')
         if linked:
             out.append('Okta is already linked to this account. If sign-in still fails, the problem is after linking (check roles).')
-        elif confirmed and not sso and email_scope and provider_on:
-            out.append('Not linked yet: Okta is sending this email as NOT verified. Ask the Okta administrator to verify the user email in Okta (email_verified must be true), then sign in again.')
+        elif linking_status(provider_on, email_scope, accounts, confirmed, sso, linked) == 'unlinked_claims_unknown':
+            out.append('The confirmed local account is not linked to Okta yet. This database check cannot read the current Okta email or email_verified claim and does NOT establish that your email is unverified. Retry Okta sign-in after upgrading and use the exact on-screen rejection reason to identify the blocker. Verify that Okta sends the same email and a genuine email_verified: true claim; do not force this claim to true or bypass ownership checks.')
         if linked and roles == 0:
             out.append('The account has no app role yet; it gets Non-Staff access on its next protected-page visit.')
     if not hook_on:
