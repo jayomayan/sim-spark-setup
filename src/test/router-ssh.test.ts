@@ -133,3 +133,25 @@ it("rejects changed fingerprints without replacing the saved key or retrying aut
   await expect(h.connect("10.194.89.128", { username: "admin", password: "test-password" })).rejects.toMatchObject({ message: expect.stringContaining("fingerprint changed"), authenticationRejected: false });
   expect(h.writeFile).not.toHaveBeenCalled();
 });
+it("retries an unreachable router before login, then applies settings once it answers", async () => {
+  const h = harness();
+  let attempts = 0;
+  const connect = vi.fn(async (ip: string, login: { username: string }) => {
+    if (++attempts <= 3) throw Object.assign(new Error("Router SSH port 22 refused the connection; no settings were sent"), { unreachable: true });
+    return h.connect(ip, login);
+  });
+  let clock = 0;
+  const sleep = vi.fn(async (ms: number) => { clock += ms; });
+  const result = await functions.configureRouter("10.194.89.128", h.logins, "firewall", [{ rule }], connect, { retryMs: 180_000, delayMs: 10_000, sleep, now: () => clock });
+  expect(result).toMatchObject({ verified: true });
+  expect(sleep).toHaveBeenCalledTimes(3);
+  expect(h.commands.filter((c) => c === rule)).toHaveLength(1);
+});
+
+it("stops retrying an unreachable router after 3 minutes without sending settings", async () => {
+  let clock = 0;
+  const connect = vi.fn(async () => { throw Object.assign(new Error("Router SSH port 22 is not reachable"), { unreachable: true }); });
+  const sleep = vi.fn(async (ms: number) => { clock += ms; });
+  await expect(functions.configureRouter("10.194.89.128", [{ username: "a", password: "b" }], "firewall", [{ rule }], connect, { retryMs: 180_000, delayMs: 10_000, sleep, now: () => clock })).rejects.toThrow("kept retrying for 3 minutes");
+  expect(clock).toBe(180_000);
+});
