@@ -102,14 +102,13 @@ describe("SIM activation IP wait", () => {
 
     expect(screen.queryAllByRole("button", { name: /check for ip address again/i })).toHaveLength(0);
     expect(screen.getByText("10.20.30.40")).toBeInTheDocument();
-    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_ntp"]);
+    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall"]);
     expect(mocks.finished).toContain("complete");
   });
 
   it.each([
     ["IP address checks", () => expect(mocks.getSimIp).not.toHaveBeenCalled()],
     ["firewall deployment", () => expect(mocks.runJob.mock.calls.map((c) => c[0])).not.toContain("ur35_firewall")],
-    ["NTP deployment", () => expect(mocks.runJob.mock.calls.map((c) => c[0])).not.toContain("ur35_ntp")],
   ] as const)("completes Other activation without %s", async (_rule, assertSkipped) => {
     renderPage();
     fireEvent.click(screen.getByRole("radio", { name: "Other" }));
@@ -153,7 +152,7 @@ describe("SIM activation IP wait", () => {
     expect(mocks.finished).toContain("complete");
   });
 
-  it("retries failed firewall settings on the same IP without activating or polling again, then applies NTP", async () => {
+  it("retries failed firewall settings on the same IP without activating or polling again", async () => {
     mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
     mocks.runJob.mockResolvedValueOnce({ status: "failed", result: null, error: "Connection refused" });
     renderPage();
@@ -162,24 +161,8 @@ describe("SIM activation IP wait", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry firewall rules" }));
     await tick(0);
 
-    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_firewall", "ur35_ntp"]);
+    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_firewall"]);
     expect(mocks.runJob.mock.calls.every((c) => c[1]?.["ip"] === "10.20.30.40")).toBe(true);
-    expect(mocks.activateSim).toHaveBeenCalledTimes(1);
-    expect(mocks.getSimIp).toHaveBeenCalledTimes(1);
-    expect(mocks.finished).toEqual(["failed", "complete"]);
-  });
-
-  it("retries only NTP after its failure, preserving the completed firewall step", async () => {
-    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
-    mocks.runJob.mockResolvedValueOnce({ status: "done", result: null, error: null });
-    mocks.runJob.mockResolvedValueOnce({ status: "failed", result: null, error: "NTP failed" });
-    renderPage();
-    startActivation();
-    await tick(0);
-    fireEvent.click(screen.getByRole("button", { name: "Retry NTP settings" }));
-    await tick(0);
-
-    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_ntp", "ur35_ntp"]);
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
     expect(mocks.getSimIp).toHaveBeenCalledTimes(1);
     expect(mocks.finished).toEqual(["failed", "complete"]);
