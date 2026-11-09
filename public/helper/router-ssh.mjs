@@ -84,7 +84,7 @@ export async function connectRouterSsh(ip, login) {
   try { known = JSON.parse(await fs.readFile(knownFile, "utf8")); } catch (error) { if (error.code !== "ENOENT") throw new Error("Cannot read saved router SSH host keys"); }
   return new Promise((resolve, reject) => {
     const client = new Client();
-    let stream, buffer = "", pending, fingerprint, ready = false, prompt = "";
+    let stream, buffer = "", pending, fingerprint, ready = false, prompt = "", hostKeyChanged = false;
     const fail = (message, auth = false) => {
       if (pending) { const current = pending; pending = undefined; clearTimeout(current.timer); current.reject(new Error(message)); }
       const error = Object.assign(new Error(message), { authenticationRejected: auth });
@@ -106,7 +106,16 @@ export async function connectRouterSsh(ip, login) {
       },
       close() { if (pending) clearTimeout(pending.timer); stream?.end(); client.end(); },
     };
-    client.on("error", (error) => fail(error.level === "client-authentication" ? "Router rejected SSH login" : "Router SSH connection failed or host key changed; no automatic retry", error.level === "client-authentication"));
+    client.on("error", (error) => {
+      const auth = error.level === "client-authentication";
+      const message = hostKeyChanged ? "Router SSH fingerprint changed; administrator verification required; no settings were sent"
+        : auth ? "Router rejected SSH login"
+        : error.code === "ECONNREFUSED" ? "Router SSH port 22 refused the connection; no settings were sent"
+        : error.level === "client-timeout" || error.code === "ETIMEDOUT" ? "Router SSH connection timed out; no settings were sent"
+        : /no matching|handshake failed/i.test(error.message || "") ? "Router SSH algorithm negotiation failed; no settings were sent"
+        : "Router SSH connection failed; no automatic retry";
+      fail(message, auth && !hostKeyChanged);
+    });
     client.on("close", () => { if (pending || !ready) fail("Router SSH connection closed; check the router before retrying"); });
     client.on("ready", async () => {
       // Trust on first successful authenticated connection; refuse later key changes.
@@ -138,6 +147,13 @@ export async function connectRouterSsh(ip, login) {
       });
     });
     client.connect({ host: ip, port: 22, username: login.username, password: login.password, readyTimeout: 15_000,
-      hostVerifier: (key) => { fingerprint = createHash("sha256").update(key).digest("hex"); return !known[ip] || known[ip] === fingerprint; } });
+      // Append only the legacy host signature required by UR35 35.3.0.8-r2;
+      // keep modern key exchange, encryption and MAC preferences unchanged.
+      algorithms: { serverHostKey: { append: ["ssh-rsa"] } },
+      hostVerifier: (key) => {
+        fingerprint = createHash("sha256").update(key).digest("hex");
+        hostKeyChanged = Boolean(known[ip] && known[ip] !== fingerprint);
+        return !hostKeyChanged;
+      } });
   });
 }
