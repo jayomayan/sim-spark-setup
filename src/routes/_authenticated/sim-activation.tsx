@@ -10,6 +10,8 @@ import { PageHeader, meta } from "@/components/PageHeader";
 import { HelperOfflineNote } from "@/components/HelperStatus";
 import { IP_WAIT_POLL_MS, ipWaitOpen, ipWaitSecondsLeft } from "@/lib/ip-wait";
 import { routerProgressLabel, type RouterProgressEvent } from "@/lib/router-progress";
+import { RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/sim-activation")({
   head: () => meta("SIM Activation", "Activate an IoT SIM, wait for its assigned IP address, then apply firewall and NTP settings to the router."),
@@ -53,6 +55,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const [firewallStatus, setFirewallStatus] = useState("");
   const [firewallProgress, setFirewallProgress] = useState<RouterProgressEvent[]>([]);
   const stepRef = useRef(0);
+  const runningRef = useRef(false);
+  const routerJobRef = useRef<string | null>(null);
   const ipRef = useRef<string | null>(null);
   const activate = useServerFn(activateSim);
   const poll = useServerFn(getSimIp);
@@ -74,9 +78,10 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const finishRecord = (id: string | null, patch: { status: string; ip?: string | null; error?: string | null; simulated?: boolean }) =>
     id ? supabase.from("sim_activations").update({ ...patch, finished_at: new Date().toISOString() }).eq("id", id) : Promise.resolve();
 
-  async function applyRouterSettings(got: string, sim: boolean, id: string | null) {
+  async function applyRouterSettings(got: string, sim: boolean, id: string | null, fromStep: 3 | 4 = 3) {
     if (equipment === "ur35") {
       for (const [step, type] of [[3, "ur35_firewall"], [4, "ur35_ntp"]] as const) {
+        if (step < fromStep) continue;
         set(step, "running");
         if (step === 3) { setFirewallProgress([]); setFirewallStatus(sim ? "Applying · test mode" : "Queueing for helper…"); }
         if (sim) await wait(1200);
@@ -84,6 +89,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
           // Router SSH may need a few minutes after a new cellular IP; the helper retries for up to 3.
           const j = await runJob(type, { ip: got }, {
             timeoutMs: 300_000,
+            onQueued: (jobId) => { routerJobRef.current = jobId; },
             onProgress: (events) => {
               if (step !== 3) return;
               setFirewallProgress(events);
@@ -94,6 +100,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
               if (step === 3) setFirewallStatus(status === "running" ? "Waiting for router, then applying rules…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…");
             },
           });
+          routerJobRef.current = null;
           if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
         }
         if (step === 3) setFirewallStatus(sim ? "Finished · test mode" : "Applied and verified");
@@ -104,7 +111,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       set(4, "skipped");
     }
     set(5, "done");
-    await finishRecord(id, { status: "complete", ip: got, simulated: sim });
+    await finishRecord(id, { status: "complete", ip: got, simulated: sim, error: null });
   }
 
   /** Check Console Connect for up to two minutes, then let the user decide whether to wait again. */
@@ -142,6 +149,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   async function run() {
+    if (runningRef.current) return;
+    runningRef.current = true;
     setBusy(true);
     setFirewallStatus("");
     setError(null);
@@ -181,12 +190,15 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     } catch (e) {
       await failRun(e, id, sim);
     } finally {
+      runningRef.current = false;
       setBusy(false);
       qc.invalidateQueries({ queryKey: ["sim_activations"] });
     }
   }
 
   async function checkAgain() {
+    if (runningRef.current) return;
+    runningRef.current = true;
     setBusy(true);
     setError(null);
     setWaitingForIp(false);
@@ -195,6 +207,45 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     } catch (e) {
       await failRun(e, recordId, simulated);
     } finally {
+      runningRef.current = false;
+      setBusy(false);
+      qc.invalidateQueries({ queryKey: ["sim_activations"] });
+    }
+  }
+
+  async function retryRouterStep(step: 3 | 4) {
+    const target = ipRef.current;
+    if (runningRef.current || !target || equipment !== "ur35" || states[step] !== "error") return;
+    runningRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      // A browser wait can time out while the helper is still working. Never queue a duplicate.
+      if (routerJobRef.current) {
+        const { data: job, error: readError } = await supabase.from("agent_jobs")
+          .select("status").eq("id", routerJobRef.current).single();
+        if (readError || !job) throw new Error("Unable to check the previous router task. Try again shortly.");
+        if (job.status !== "done" && job.status !== "failed") {
+          throw new Error("The previous router task is still waiting or running. Retry once it finishes.");
+        }
+        routerJobRef.current = null;
+        if (job.status === "done") {
+          set(step, "done");
+          if (step === 3) setFirewallStatus("Applied and verified");
+          if (step === 4) {
+            set(5, "done");
+            await finishRecord(recordId, { status: "complete", ip: target, simulated, error: null });
+            return;
+          }
+          await applyRouterSettings(target, simulated, recordId, 4);
+          return;
+        }
+      }
+      await applyRouterSettings(target, simulated, recordId, step);
+    } catch (e) {
+      await failRun(e, recordId, simulated);
+    } finally {
+      runningRef.current = false;
       setBusy(false);
       qc.invalidateQueries({ queryKey: ["sim_activations"] });
     }
@@ -213,7 +264,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   const complete = states[5] === "done";
-  const locked = busy || waitingForIp;
+  const routerFailed = states[3] === "error" || states[4] === "error";
+  const locked = busy || waitingForIp || routerFailed;
   const visibleSteps = STEPS.map((label, i) => ({ label, i })).filter(({ i }) =>
     equipment === "ur35" || (i !== 3 && i !== 4 && (equipment !== "other" || i !== 1)),
   );
@@ -270,6 +322,11 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                     {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : states[i] === "skipped" ? "–" : states[i] === "waiting" ? "↻" : n + 1}
                   </span>
                   <span className="step-label flex-1 text-muted-foreground">{s}</span>
+                  {(i === 3 || i === 4) && states[i] === "error" && ip && (
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => retryRouterStep(i)}>
+                      <RotateCcw aria-hidden="true" />{i === 3 ? "Retry firewall rules" : "Retry NTP settings"}
+                    </Button>
+                  )}
                   {i === 3 && firewallStatus && <span role="status" aria-live="polite" className={`max-w-full text-xs ${states[3] === "error" ? "text-destructive" : "text-muted-foreground"}`}>{firewallStatus}</span>}
                   {i === 3 && firewallProgress.length > 0 && (
                     <ol aria-label="Firewall progress details" className="w-full space-y-1 border-l border-border pl-4 text-xs text-muted-foreground sm:ml-12">
@@ -290,6 +347,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                 </li>
               ))}
             </ol>
+            {routerFailed && <Button variant="link" size="sm" disabled={busy} onClick={startOver} className="mt-3">Start over with a different SIM</Button>}
             {waitingForIp && (
               <div className="mt-4 rounded-md border border-input bg-accent p-4">
                 <p className="text-sm font-semibold text-accent-foreground">No IP address yet after 2 minutes</p>

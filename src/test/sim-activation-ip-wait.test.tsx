@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const activateSim = vi.fn(async () => ({ ok: true, simulated: false, labelWarning: null as string | null }));
   const getSimIp = vi.fn(async () => ({ ip: null as string | null, status: "PENDING", simulated: false }));
-  const runJob = vi.fn(async (type: string, _payload?: Record<string, unknown>) => ({ status: "done", result: null, error: null }));
+  const runJob = vi.fn(async (type: string, _payload?: Record<string, unknown>, _opts?: { onQueued?: (id: string) => void }) => ({ status: "done", result: null, error: null as string | null }));
   const finished: string[] = [];
   const from = vi.fn(() => ({
     select: vi.fn(() => ({
@@ -131,5 +131,57 @@ describe("SIM activation IP wait", () => {
     expect(screen.getByRole("radio", { name: "Router" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "GPS-Battery" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "GPS-Genset" })).toBeInTheDocument();
+  });
+
+  it("retries failed firewall settings on the same IP without activating or polling again, then applies NTP", async () => {
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    mocks.runJob.mockResolvedValueOnce({ status: "failed", result: null, error: "Connection refused" });
+    renderPage();
+    startActivation();
+    await tick(0);
+    fireEvent.click(screen.getByRole("button", { name: "Retry firewall rules" }));
+    await tick(0);
+
+    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_firewall", "ur35_ntp"]);
+    expect(mocks.runJob.mock.calls.every((c) => c[1]?.["ip"] === "10.20.30.40")).toBe(true);
+    expect(mocks.activateSim).toHaveBeenCalledTimes(1);
+    expect(mocks.getSimIp).toHaveBeenCalledTimes(1);
+    expect(mocks.finished).toEqual(["failed", "complete"]);
+  });
+
+  it("retries only NTP after its failure, preserving the completed firewall step", async () => {
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    mocks.runJob.mockResolvedValueOnce({ status: "done", result: null, error: null });
+    mocks.runJob.mockResolvedValueOnce({ status: "failed", result: null, error: "NTP failed" });
+    renderPage();
+    startActivation();
+    await tick(0);
+    fireEvent.click(screen.getByRole("button", { name: "Retry NTP settings" }));
+    await tick(0);
+
+    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_ntp", "ur35_ntp"]);
+    expect(mocks.activateSim).toHaveBeenCalledTimes(1);
+    expect(mocks.getSimIp).toHaveBeenCalledTimes(1);
+    expect(mocks.finished).toEqual(["failed", "complete"]);
+  });
+
+  it("does not queue a second router job when the browser timed out but the helper is still running", async () => {
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    mocks.runJob.mockImplementationOnce(async (_type, _payload, opts) => {
+      opts?.onQueued?.("job-running");
+      throw new Error("The helper didn't respond in time");
+    });
+    renderPage();
+    startActivation();
+    await tick(0);
+    const previousFrom = mocks.from.getMockImplementation();
+    mocks.from.mockImplementationOnce(() => ({
+      select: () => ({ eq: () => ({ single: async () => ({ data: { status: "running" }, error: null }) }) }),
+    }) as ReturnType<typeof mocks.from>);
+    fireEvent.click(screen.getByRole("button", { name: "Retry firewall rules" }));
+    await tick(0);
+    expect(mocks.runJob).toHaveBeenCalledTimes(1);
+    expect(mocks.finished).not.toContain("complete");
+    if (previousFrom) mocks.from.mockImplementation(previousFrom);
   });
 });
