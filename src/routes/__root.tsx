@@ -8,7 +8,10 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { IdleSession } from "@/components/IdleSession";
+import { saveActivity } from "@/lib/idle-session";
+import { toast } from "sonner";
 import { SignedInContext } from "@/lib/session-context";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -117,11 +120,24 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const currentUser = useRef<string | null>(null);
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  const expireSession = useCallback(async () => {
+    await supabase.auth.signOut({ scope: "local" });
+    queryClient.clear();
+    await router.navigate({ to: "/auth", replace: true });
+    toast.info("You were signed out after 15 minutes of inactivity. Please sign in again.");
+  }, [queryClient, router]);
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextUser = session?.user.id ?? null;
+      if (event === "SIGNED_IN" && nextUser && currentUser.current !== nextUser) saveActivity(nextUser);
+      currentUser.current = nextUser;
+      setUserId(nextUser);
       setSignedIn(Boolean(session?.user));
+      if (event === "SIGNED_OUT") queryClient.clear();
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
@@ -134,6 +150,7 @@ function RootComponent() {
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <SignedInContext.Provider value={signedIn}>
         <Outlet />
+        {userId && <IdleSession key={userId} userId={userId} onExpire={expireSession} />}
       </SignedInContext.Provider>
       <Toaster />
     </QueryClientProvider>
