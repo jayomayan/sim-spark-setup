@@ -81,6 +81,9 @@ without changing modern key-exchange, cipher or MAC preferences. First-time
 fingerprints are accepted automatically and saved only after successful login;
 changed fingerprints remain blocked. Connection errors distinguish refused
 ports, timeouts, algorithm negotiation and changed fingerprints.
+Release 1.9.2 allows 30 seconds for the SSH login and reports whether port 22
+gave no answer (SSH disabled or blocked on the cellular connection) or answered
+but the login did not finish in time.
 
 References:
 - https://resource.milesight.com/milesight/iot/document/ur-series-cli-documentation-en.pdf

@@ -70,7 +70,7 @@ it("rejects shell injection before login", async () => {
   expect(h.connect).not.toHaveBeenCalled();
 });
 
-function transportHarness(savedKey?: string) {
+function transportHarness(savedKey?: string, timeout?: "tcp" | "handshake") {
   let options: any;
   const writeFile = vi.fn(async () => {});
   const rename = vi.fn(async () => {});
@@ -78,6 +78,11 @@ function transportHarness(savedKey?: string) {
     connect(config: any) {
       options = config;
       queueMicrotask(() => {
+        if (timeout) {
+          if (timeout === "handshake") this.emit("connect");
+          this.emit("error", { level: "client-timeout", message: "Timed out while waiting for handshake" });
+          return;
+        }
         if (!config.hostVerifier(Buffer.from("router-key"))) {
           this.emit("error", { level: "handshake", message: "Host denied" });
           return;
@@ -109,6 +114,18 @@ it("appends ssh-rsa for the UR35 and accepts/saves the first fingerprint without
   expect(h.rename).toHaveBeenCalledOnce();
   expect(session.prompt).toBe("ROUTER>");
   session.close();
+});
+
+it("allows 30 seconds for older routers to finish the SSH login", async () => {
+  const h = transportHarness();
+  (await h.connect("10.194.89.128", { username: "admin", password: "test-password" })).close();
+  expect(h.options().readyTimeout).toBe(30_000);
+});
+
+it("reports an unreachable port 22 separately from a slow SSH login", async () => {
+  const login = { username: "admin", password: "test-password" };
+  await expect(transportHarness(undefined, "tcp").connect("10.194.89.128", login)).rejects.toMatchObject({ message: expect.stringContaining("port 22 is not reachable"), authenticationRejected: false });
+  await expect(transportHarness(undefined, "handshake").connect("10.194.89.128", login)).rejects.toMatchObject({ message: expect.stringContaining("SSH login did not finish in time"), authenticationRejected: false });
 });
 
 it("rejects changed fingerprints without replacing the saved key or retrying authentication", async () => {
