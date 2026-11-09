@@ -40,6 +40,26 @@ it("uses saved ordered SSH logins and saves original firewall commands after rea
   expect(h.session.close).toHaveBeenCalledOnce();
 });
 
+it("reports firewall milestones in execution order without exposing credentials or raw commands", async () => {
+  const h = harness();
+  const events: { stage: string; index?: number; total?: number }[] = [];
+  await functions.configureRouter("10.194.89.128", h.logins, "firewall", [{ rule }], h.connect, { onProgress: (event: any) => events.push(event) });
+  expect(events.map((event) => event.stage)).toEqual(["connecting", "login_rejected", "connecting", "authenticated", "privileged", "reading", "checking", "configuring", "rule", "rule_applied", "saving", "saved", "verifying", "verified", "closed"]);
+  expect(events.find((event) => event.stage === "rule")).toEqual({ stage: "rule", index: 1, total: 1 });
+  expect(events.every((event) => Object.keys(event).every((key) => ["stage", "index", "total"].includes(key)))).toBe(true);
+});
+
+it("does not report saved or verified milestones after a rule fails", async () => {
+  const h = harness(undefined, rule);
+  const stages: string[] = [];
+  await expect(functions.configureRouter("10.194.89.128", h.logins, "firewall", [{ rule }], h.connect, { onProgress: (event: any) => stages.push(event.stage) })).rejects.toThrow("rejected");
+  expect(stages).toContain("rule");
+  expect(stages).not.toContain("rule_applied");
+  expect(stages).not.toContain("saved");
+  expect(stages).not.toContain("verified");
+  expect(stages.at(-1)).toBe("closed");
+});
+
 it("converts the existing NTP JSON to server and Manila CLI commands preserving interval", async () => {
   const h = harness();
   await functions.configureRouter("10.194.89.128", h.logins, "ntp", ntp, h.connect);
