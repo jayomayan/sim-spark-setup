@@ -1,5 +1,5 @@
 # Tasks
-- [ ] Add live, credential-free firewall connection/login/rule/save/verification steps and release helper 1.9.5; verify progress transport and regressions.
+- [x] Add live credential-free firewall connection/login/rule/save/verification details; release helper 1.9.5. All 54 selected regressions pass; signed-in desktop/mobile page loads cleanly. Real router progress needs the VM app/helper upgrade and cannot be verified from this sandbox.
 - [x] Correct busy-helper check-ins, bound console calls and defer updates until claimed work is reported; helper 1.9.4 archive refreshed and 44 regression checks pass. Firewall/NTP wait budgets aligned. Actual stalled VM task diagnosis requires VM status/log output.
 - [x] Release helper 1.9.1 with legacy UR35 ssh-rsa host-signature support, automatic first-authenticated fingerprint saving and changed-key rejection; regression tests cover negotiation options and pinning. Actual VM/router connection remains unverified without target access.
 - [x] Switch firewall/NTP jobs to helper SSH 1.9.0 with ordered saved logins, guarded original firewall commands and NTP JSON conversion. Regression checks pass; firmware readback, actual SSH login and reboot persistence remain unverified without VM/router access. Disabled NTP stops safely because its enable command is undocumented.

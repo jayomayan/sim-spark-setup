@@ -496,14 +496,24 @@ async function loop() {
       console.log(`→ ${job.type}`, job.payload);
       const progress = [];
       let reporting = Promise.resolve();
+      let pendingProgress, reportBusy = false;
       // Serialize bounded, credential-free events; reporting failure must never replay router writes.
       const onProgress = (event) => {
         progress.push(event);
         if (progress.length > 100) progress.shift();
-        const snapshot = progress.slice();
-        reporting = reporting.then(() => api({ action: "progress", id: job.id, progress: snapshot }))
-          .catch(() => console.error("Router progress check-in failed"));
-        return reporting;
+        pendingProgress = progress.slice();
+        if (reportBusy) return;
+        reportBusy = true;
+        reporting = (async () => {
+          try {
+            while (pendingProgress) {
+              const snapshot = pendingProgress;
+              pendingProgress = undefined;
+              try { await api({ action: "progress", id: job.id, progress: snapshot }); }
+              catch { console.error("Router progress check-in failed"); }
+            }
+          } finally { reportBusy = false; }
+        })();
       };
       try {
         const fn = handlers[job.type];
