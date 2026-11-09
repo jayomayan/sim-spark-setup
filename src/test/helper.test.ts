@@ -84,6 +84,54 @@ describe("firewall rules", () => {
   });
 });
 
+describe("router HTTPS firewall delivery", () => {
+  it("sends custom firewall rules over HTTPS with the saved router credentials", async () => {
+    const requests: Record<string, any>[] = [];
+    const payloads: string[] = [];
+    const start = helperSource.indexOf("async function routerPost(");
+    const end = helperSource.indexOf("// --- Site Connectivity Check:", start);
+    const handlerStart = helperSource.indexOf("  async ur35_firewall(");
+    const handlerEnd = helperSource.indexOf("  async ur35_ntp(", handlerStart);
+    const rules = [{ rule: "allow tcp/443", description: "Custom firewall rule" }];
+    const firewall = runInNewContext(`${helperSource.slice(start, end)}; ({${helperSource.slice(handlerStart, handlerEnd)}}).ur35_firewall`, {
+      config: { routerLogins: [{ username: "saved-router", password: "saved-password" }], firewallRules: rules },
+      process: { env: {} }, Buffer,
+      checkIp: (ip: string) => ip,
+      https: { request: (options: Record<string, any>, callback: (response: unknown) => void) => {
+        requests.push(options);
+        return { on: () => {}, end: (data: string) => {
+          payloads.push(data);
+          callback({ statusCode: 200, on: (event: string, listener: () => void) => {
+            if (event === "end") listener();
+          } });
+        } };
+      } },
+    });
+    expect(await firewall({ ip: "10.0.0.1" })).toEqual({ status: 200 });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({ host: "10.0.0.1", path: "/api/firewall/rules", method: "POST",
+      headers: { Authorization: `Basic ${Buffer.from("saved-router:saved-password").toString("base64")}` } });
+    const payload = payloads[0];
+    if (payload === undefined) throw new Error("Firewall payload was not sent");
+    expect(JSON.parse(payload)).toEqual({ rules });
+  });
+
+  it("does not report firewall success when every saved login is rejected", async () => {
+    const attempts: string[] = [];
+    const start = helperSource.indexOf("async function routerPost(");
+    const end = helperSource.indexOf("function routerPostWithLogin(");
+    const post = runInNewContext(`${helperSource.slice(start, end)}; routerPost`, {
+      config: { routerLogins: [{ username: "one", password: "a" }, { username: "two", password: "b" }] },
+      routerPostWithLogin: async (_ip: string, _path: string, _body: unknown, login: { username: string }) => {
+        attempts.push(login.username);
+        return { status: login.username === "one" ? 401 : 403 };
+      },
+    });
+    await expect(post("10.0.0.1", "/api/firewall/rules", {})).rejects.toThrow("Router rejected all saved logins.");
+    expect(attempts).toEqual(["one", "two"]);
+  });
+});
+
 describe("multiple router logins", () => {
   it("accepts two independent username/password pairs", () => {
     const routerLogins = [
