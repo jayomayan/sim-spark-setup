@@ -79,8 +79,10 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
         if (step === 3) setFirewallStatus(sim ? "Applying · test mode" : "Queueing for helper…");
         if (sim) await wait(1200);
         else {
+          // Router SSH may need a few minutes after a new cellular IP; the helper retries for up to 3.
           const j = await runJob(type, { ip: got }, step === 3 ? {
-            onStatus: (status) => setFirewallStatus(status === "running" ? "Helper applying rules…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…"),
+            timeoutMs: 300_000,
+            onStatus: (status) => setFirewallStatus(status === "running" ? "Waiting for router, then applying rules…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…"),
           } : {});
           if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
         }
