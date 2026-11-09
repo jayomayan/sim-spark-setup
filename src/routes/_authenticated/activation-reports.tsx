@@ -14,7 +14,7 @@ const reportsQuery = (userId: string, page: number) => queryOptions({
 
 export const Route = createFileRoute("/_authenticated/activation-reports")({
   validateSearch: (search: Record<string, unknown>) => {
-    const page = Number(search.page ?? 0);
+    const page = Number(search['page'] ?? 0);
     return { page: Number.isInteger(page) && page >= 0 && page <= 1000000 ? page : 0 };
   },
   loaderDeps: ({ search }) => ({ page: search.page }),
