@@ -92,8 +92,8 @@ function transportHarness(savedKey?: string) {
     }
     end() {}
   }
-  const connect = runInNewContext(source.slice(end).replace("export ", "").replace('await import("ssh2")', "({ Client })").replace("import.meta.url", '"file:///private-helper/router-ssh.mjs"') + "; connectRouterSsh", {
-    Client, createHash, Buffer, path, process: { env: { FIELD_OPS_HELPER_DIR: "/private-helper" } },
+  const connect = runInNewContext(source.slice(end).replace("export ", "").replace('await import("ssh2")', "({ Client: MockClient })").replace("import.meta.url", '"file:///private-helper/router-ssh.mjs"') + "; connectRouterSsh", {
+    MockClient: Client, createHash, Buffer, path, process: { env: { FIELD_OPS_HELPER_DIR: "/private-helper" } },
     fs: { readFile: async () => JSON.stringify(savedKey ? { "10.194.89.128": savedKey } : {}), writeFile, rename },
     setTimeout, clearTimeout, PROMPT: /(?:^|\n)([\w.-]+(?:\([^\r\n]*\))?[>#])\s*$/, CLI_ERROR: /error/i,
   });
