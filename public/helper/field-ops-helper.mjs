@@ -24,7 +24,7 @@ import https from "node:https";
 import { createCipheriv, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.9.5";
+const VERSION = "1.9.6";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -59,9 +59,7 @@ const FALLBACK_RULES = [
   { rule: "drop tcp/80", description: "Drop WAN HTTP" },
   { rule: "drop any/0", description: "Drop all other inbound" },
 ];
-const FALLBACK_NTP = { enabled: true, servers: ["pool.ntp.org", "time.google.com"], timezone: "Asia/Manila" };
-
-// Router login, firewall template and NTP template are stored in Admin Settings and
+// Router login, firewall commands and miscellaneous commands are stored in Admin Settings and
 // pulled over the same authenticated link the helper already uses.
 let config = {
   configVersion: 0,
@@ -69,9 +67,8 @@ let config = {
   ur35Password: "",
   routerLogins: null,
   ur35FirewallPath: "",
-  ur35NtpPath: "",
   firewallRules: FALLBACK_RULES,
-  ntp: FALLBACK_NTP,
+  misc: { enabled: false, commands: [] },
 };
 
 async function writeRouterCredentials(logins) {
@@ -113,9 +110,11 @@ async function loadConfig() {
     ur35Password: String(body.ur35Password || ""),
     routerLogins: Array.isArray(body.routerLogins) ? body.routerLogins : null,
     ur35FirewallPath: String(body.ur35FirewallPath || ""),
-    ur35NtpPath: String(body.ur35NtpPath || ""),
     firewallRules: Array.isArray(body.firewallRules) && body.firewallRules.length ? body.firewallRules : FALLBACK_RULES,
-    ntp: body.ntp && typeof body.ntp === "object" ? body.ntp : FALLBACK_NTP,
+    misc: {
+      enabled: body.misc?.enabled === true,
+      commands: Array.isArray(body.misc?.commands) ? body.misc.commands : [],
+    },
   };
   await writeRouterCredentials(next.routerLogins ?? (next.ur35Username ? [{ username: next.ur35Username, password: next.ur35Password }] : []));
   config = next;
@@ -350,8 +349,8 @@ const handlers = {
   async ur35_firewall({ ip }, onProgress) {
     return configureRouter(checkIp(ip), config.routerLogins ?? [{ username: config.ur35Username, password: config.ur35Password }], "firewall", config.firewallRules, undefined, { onProgress });
   },
-  async ur35_ntp({ ip }) {
-    return configureRouter(checkIp(ip), config.routerLogins ?? [{ username: config.ur35Username, password: config.ur35Password }], "ntp", config.ntp);
+  async ur35_misc({ ip }, onProgress) {
+    return configureRouter(checkIp(ip), config.routerLogins ?? [{ username: config.ur35Username, password: config.ur35Password }], "misc", config.misc.commands, undefined, { onProgress });
   },
   async site_ping({ ip }) {
     // With both -c and -w, Linux ping may keep sending until four replies arrive.
