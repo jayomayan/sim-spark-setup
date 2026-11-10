@@ -1,3 +1,5 @@
+import { checkConsoleRateLimit } from "@/lib/console-rate-limit";
+
 /** Shared XDR lookup: non-data events can be newer than the event containing the IP. */
 type Event = { id?: string; occurred_at?: string; terminal_ip?: string; visited_nw?: string };
 type Request = (path: string) => Promise<Response>;
@@ -9,6 +11,7 @@ function validIp(value: unknown): value is string {
 
 export async function findSimIp(request: Request, imsi: string) {
   const response = await request(`/xdr/events?imsi=${encodeURIComponent(imsi)}`);
+  checkConsoleRateLimit(response);
   if (!response.ok) throw new Error(`Console Connect IP event lookup failed (HTTP ${response.status}). Try the IP address check again.`);
   const body = await response.json() as { items?: Event[] };
   const items = [...(body.items ?? [])].sort((a, b) =>
@@ -18,6 +21,7 @@ export async function findSimIp(request: Request, imsi: string) {
     if (validIp(event.terminal_ip)) return { ip: event.terminal_ip, network: event.visited_nw ?? null };
     if (!event.id) continue;
     const detail = await request(`/xdr/events/${encodeURIComponent(event.id)}`);
+    checkConsoleRateLimit(detail);
     if (detail.status === 404) continue;
     if (!detail.ok) throw new Error(`Console Connect IP event details failed (HTTP ${detail.status}). Try the IP address check again.`);
     const data = await detail.json() as Event;

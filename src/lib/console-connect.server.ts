@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { CONSOLE_DEFAULTS, type ConsoleIntegration } from "@/lib/console-connect";
 import { decryptPassword } from "@/lib/db-connection.server";
+import { checkConsoleRateLimit } from "@/lib/console-rate-limit";
 
 export async function readConsoleConfig(client: SupabaseClient<Database>, integration: ConsoleIntegration): Promise<{
   integration: ConsoleIntegration; tokenUrl: string; apiUrl: string; clientId: string;
@@ -75,10 +76,10 @@ export async function consoleToken(config: Awaited<ReturnType<typeof readConsole
     console.error("Console Connect transport failure", { reference, category, elapsedMs: Date.now() - startedAt });
     throw new Error(`${message} Diagnostic reference: ${reference}.`);
   }
+  checkConsoleRateLimit(response);
   if (!response.ok) {
     if (response.status === 401) throw new Error("Console Connect rejected sign-in (HTTP 401). Check the saved username, password and client ID.");
     if (response.status === 403) throw new Error("Console Connect denied access (HTTP 403). The account or hosted website may need permission from Console Connect.");
-    if (response.status === 429) throw new Error("Console Connect is limiting sign-in requests (HTTP 429). Wait a few minutes and try again.");
     throw new Error(`Console Connect sign-in failed (HTTP ${response.status}). Check the sign-in address or contact your Console Connect administrator.`);
   }
   const body = await response.json() as { access_token?: string };

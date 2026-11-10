@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { matchCustomFields } from "@/lib/sim-custom-fields";
+import { checkConsoleRateLimit, ConsoleRateLimitError } from "@/lib/console-rate-limit";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const validIccid = (s: string) => /^\d{18,22}$/.test(s);
@@ -85,6 +86,7 @@ export const getSimIp = createServerFn({ method: "POST" })
       return { ip: `10.${(n >> 8) % 255}.${n % 255}.${((data.attempt * 7) % 250) + 2}`, status: "ACTIVE", simulated: true };
     }
     // One token per complete check, not a new sign-in for every event request.
+    try {
     const token = await consoleToken(config);
     const request = async (_config: unknown, path: string, init: RequestInit = {}) => {
       const headers = new Headers(init.headers);
@@ -96,6 +98,12 @@ export const getSimIp = createServerFn({ method: "POST" })
     if (sub.state !== "ACTIVE") return { ip: null as string | null, status: sub.state ?? "PENDING", simulated: false };
     const result = await findSimIp((path) => request(config, path), sub.imsi);
     return { ip: result.ip, status: "ACTIVE", simulated: false };
+    } catch (error) {
+      if (error instanceof ConsoleRateLimitError) {
+        return { ip: null, status: "RATE_LIMITED", simulated: false, retryAfterMs: error.retryAfterMs };
+      }
+      throw error;
+    }
   });
 
 type ConsoleRequest = (config: never, path: string, init?: RequestInit) => Promise<Response>;
@@ -108,6 +116,7 @@ async function findSubscription(request: unknown, config: unknown, iccid: string
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ identifierType: "ICC", identifierValues: [iccid] }),
   });
+  checkConsoleRateLimit(res);
   if (!res.ok) throw new Error(`SIM lookup failed (${res.status})`);
   const j = (await res.json()) as { subscriptions?: { imsi?: string; state?: string }[] };
   const sub = j.subscriptions?.[0];
