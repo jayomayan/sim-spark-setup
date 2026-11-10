@@ -9,11 +9,11 @@ It handles every router job in the app:
 
 - **Site Connectivity Check** — screenshots of ports 80, 443, 8443 and 8080
   (8080 is tried over HTTP then HTTPS) plus the four-probe ping test.
-- **Ping, SNMP walk, UR35 firewall and NTP** for the other tools.
+- **Ping, SNMP walk, UR35 firewall and miscellaneous commands** for the other tools.
 
 ## Install (recommended)
 
-Helper 1.9.5 reports live firewall milestones: connection, secure login, current-settings checks, each pending rule, save and readback verification. Progress contains no credentials or raw router output.
+Helper 1.9.6 reports live firewall and miscellaneous-command milestones: connection, secure login, current-settings checks, each pending command, save and readback verification. Progress contains no credentials or raw router output.
 
 Open **Admin Settings → Network Helper**, press **Create install command**, and
 paste the command on the machine over SSH. It installs the tools the helper
@@ -25,7 +25,7 @@ curl -fsSL https://your-console/helper/install.sh \
 ```
 
 The install code works once and expires after 30 minutes. The helper then pulls
-the router login and the firewall/NTP templates from the console, and downloads
+the router login, firewall commands and miscellaneous commands from the console, and downloads
 newer releases on its own — there is nothing to reinstall later.
 
 `--skip-deps` skips the dependency step for offline machines.
@@ -52,7 +52,7 @@ generated; **Admin Settings → Network Helper → Reset helper key** retires it
 
 ## Router SSH configuration
 
-Firewall and NTP jobs use SSH port **22** through the on-network helper and the
+Firewall and miscellaneous-command jobs use SSH port **22** through the on-network helper and the
 ordered logins saved in Admin Settings. Only authentication rejection tries
 another login; connection failures, changed host keys and command errors stop.
 Enable SSH and remote SSH access on the router. The helper uses an interactive
@@ -64,12 +64,12 @@ Commands are sent as entered, preserving IDs and order. Bare iptables arguments
 and arbitrary shell commands are not accepted. Existing rules are not cleared;
 conflicting IDs stop before writes. Unsupported CLI commands stop the job.
 
-NTP keeps the existing JSON editor format (`enabled`, `servers`, `timezone`).
-The helper converts it to `clock timezone UTC+8`, `clock zonename Asia/Manila`,
-`ntp server <primary>` and `ntp secondary-server <backup>` (or removes the backup).
-It preserves the readable nonzero `ntp update-interval`, saves with `end` → `write`,
-and requests `ntp sync`. It refuses disabled/unreadable NTP rather than inventing
-an enable command. Only Asia/Manila and one or two servers are supported.
+Miscellaneous settings are optional and off by default. Turn them on in Admin Settings and
+paste plain router CLI commands, one per line; they are applied after the firewall rules,
+exactly as entered, and skipped when already present. Shell characters such as `;`, `&`,
+`|`, `<`, `>` and `` ` `` are rejected before the router is contacted. Commands that act
+immediately and are never stored in the running configuration (`write`, `end`, `ntp sync`,
+`reboot`) are not required to reappear during verification.
 
 Firmware compatibility remains unverified: `show running-config` is probed
 before any write; unsupported readback stops safely. Custom firewall syntax is

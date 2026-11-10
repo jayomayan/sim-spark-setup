@@ -12,8 +12,8 @@
 // and `npx playwright install chromium` next to this file, then start it with:
 //   CONSOLE_URL=https://your-console AGENT_TOKEN=<helper key> node field-ops-helper.mjs
 //
-// The router login and the firewall/NTP templates normally live in Admin Settings;
-// UR35_USERNAME, UR35_PASSWORD, UR35_FIREWALL_PATH and UR35_NTP_PATH are used only
+// The router login, firewall commands and miscellaneous commands normally live in Admin
+// Settings; UR35_USERNAME, UR35_PASSWORD and UR35_FIREWALL_PATH are used only
 // if the console can't be reached.
 
 import { execFile } from "node:child_process";

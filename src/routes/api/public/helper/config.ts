@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-// The helper's private fetch: router login, firewall template and NTP template.
+// The helper's private fetch: router login, firewall commands and miscellaneous commands.
 // Only a caller holding the helper key gets it — it never goes to a browser.
 export const Route = createFileRoute("/api/public/helper/config")({
   server: {
