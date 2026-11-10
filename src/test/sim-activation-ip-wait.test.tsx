@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
   const from = vi.fn(() => ({
     select: vi.fn(() => ({
       eq: vi.fn(() => ({ single: async () => ({ data: { status: "running" }, error: null }) })),
+      maybeSingle: async () => ({ data: { misc_enabled: mocks.miscEnabled }, error: null }),
       order: vi.fn(() => ({
         limit: vi.fn(async () => ({ data: [] })),
       })),
@@ -24,7 +25,7 @@ const mocks = vi.hoisted(() => {
       return { eq: vi.fn(async () => ({ data: null })) };
     }),
   }));
-  return { activateSim, getSimIp, runJob, finished, from };
+  return { activateSim, getSimIp, runJob, finished, from, miscEnabled: false };
 });
 
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
@@ -74,6 +75,7 @@ describe("SIM activation IP wait", () => {
     vi.useRealTimers();
     vi.clearAllMocks();
     mocks.finished.length = 0;
+    mocks.miscEnabled = false;
   });
 
   it("gives up on the IP address after two minutes and offers to check again", async () => {
@@ -168,18 +170,45 @@ describe("SIM activation IP wait", () => {
     expect(mocks.finished).toEqual(["failed", "complete"]);
   });
 
-  it("does not queue a second router job when the browser timed out but the helper is still running", async () => {
+  it("applies miscellaneous settings after the firewall rules when they are enabled", async () => {
+    mocks.miscEnabled = true;
     mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
-    mocks.runJob.mockImplementationOnce(async (_type, _payload, opts) => {
-      opts?.onQueued?.("job-running");
-      throw new Error("The helper didn't respond in time");
-    });
     renderPage();
+    await tick(0);
     startActivation();
     await tick(0);
-    fireEvent.click(screen.getByRole("button", { name: "Retry firewall rules" }));
+
+    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_misc"]);
+    expect(screen.getByText("Apply miscellaneous settings")).toBeInTheDocument();
+    expect(mocks.finished).toContain("complete");
+  });
+
+  it("retries failed miscellaneous settings without re-running the firewall rules", async () => {
+    mocks.miscEnabled = true;
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    mocks.runJob.mockResolvedValueOnce({ status: "done", result: null, error: null });
+    mocks.runJob.mockResolvedValueOnce({ status: "failed", result: null, error: "Router rejected the command" });
+    renderPage();
     await tick(0);
-    expect(mocks.runJob).toHaveBeenCalledTimes(1);
-    expect(mocks.finished).not.toContain("complete");
+    startActivation();
+    await tick(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry miscellaneous settings" }));
+    await tick(0);
+
+    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_misc", "ur35_misc"]);
+    expect(mocks.activateSim).toHaveBeenCalledTimes(1);
+    expect(mocks.finished).toEqual(["failed", "complete"]);
+  });
+
+  it("keeps miscellaneous settings out of the progress list while they are disabled", async () => {
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    renderPage();
+    await tick(0);
+    startActivation();
+    await tick(0);
+
+    expect(screen.queryByText("Apply miscellaneous settings")).not.toBeInTheDocument();
+    expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall"]);
   });
 });
