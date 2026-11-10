@@ -93,21 +93,14 @@ export async function helperConfig(db: Client): Promise<HelperConfig> {
       return null;
     })
     .filter((r): r is FirewallRule => r !== null && r.rule.length > 0);
-  const ntp = (row.ntp_settings ?? {}) as Partial<NtpSettings>;
-  const ntp = (row.ntp_settings ?? {}) as Partial<NtpSettings>;
   return {
     configVersion: row.config_version,
     ur35Username: routerLogins[0]?.username ?? "",
     ur35Password: routerLogins[0]?.password ?? "",
     routerLogins,
     ur35FirewallPath: row.ur35_firewall_path || "/api/firewall/rules",
-    ur35NtpPath: row.ur35_ntp_path || "/api/system/ntp",
     firewallRules: rules.length ? rules : DEFAULT_FIREWALL_RULES,
-    ntp: {
-      enabled: ntp.enabled ?? DEFAULT_NTP_SETTINGS.enabled,
-      servers: ntp.servers?.length ? ntp.servers : DEFAULT_NTP_SETTINGS.servers,
-      timezone: ntp.timezone || DEFAULT_NTP_SETTINGS.timezone,
-    },
+    misc: { enabled: Boolean(row.misc_enabled), commands: safeRouterCommands(row.misc_commands) },
   };
 }
 
@@ -130,12 +123,8 @@ export async function saveHelperConfig(db: Client, input: HelperSettingsInput) {
     if (!password) throw new Error("Set a password for each new router login.");
     return { ...login, password };
   });
-  const ntp: NtpSettings = {
-    enabled: input.ntpEnabled ?? DEFAULT_NTP_SETTINGS.enabled,
-    servers: parseNtpServers(input.ntpServers ?? DEFAULT_NTP_SETTINGS.servers.join(", ")),
-    timezone: input.ntpTimezone ?? DEFAULT_NTP_SETTINGS.timezone,
-  };
-  if (input.ntpEnabled && ntp.servers.length === 0) throw new Error("Add at least one time server, or turn NTP off.");
+  const miscCommands = parseRouterCommands(input.miscCommands ?? "");
+  if (input.miscEnabled && miscCommands.length === 0) throw new Error("Add at least one miscellaneous command, or turn it off.");
   const { error } = await db
     .from("helper_settings")
     .update({
@@ -143,9 +132,9 @@ export async function saveHelperConfig(db: Client, input: HelperSettingsInput) {
       ur35_username: routerLogins[0]?.username ?? "",
       ur35_password_cipher: routerLogins[0]?.password ? encryptPassword(routerLogins[0].password) : null,
       ur35_firewall_path: input.ur35FirewallPath ?? "/api/firewall/rules",
-      ur35_ntp_path: input.ur35NtpPath ?? "/api/system/ntp",
       firewall_rules: input.firewallRules as never,
-      ntp_settings: ntp as never,
+      misc_enabled: Boolean(input.miscEnabled),
+      misc_commands: miscCommands.join("\n"),
       config_version: row.config_version + 1,
       updated_at: new Date().toISOString(),
     })
