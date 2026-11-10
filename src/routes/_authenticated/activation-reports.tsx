@@ -83,11 +83,11 @@ function ActivationReports() {
       {row.finished_at && <p className="text-xs text-muted-foreground">Finished: <time dateTime={row.finished_at}>{date(row.finished_at)}</time></p>}
       {row.error && <p className="break-words text-xs text-destructive">{row.error}</p>}
     </article>)}</div>
-    {rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{total === 0 ? "No activations recorded yet." : "No activations on this page."}</p>}
+    {rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{q ? `No activations match “${q}”.` : total === 0 ? "No activations recorded yet." : "No activations on this page."}</p>}
     <div className="mt-4 flex items-center justify-end gap-3">
-      <Button variant="outline" size="icon" aria-label="Previous activation reports" disabled={page === 0 || reports.isFetching} onClick={() => navigate({ search: { page: page - 1 } })}><ChevronLeft /></Button>
+      <Button variant="outline" size="icon" aria-label="Previous activation reports" disabled={page === 0 || reports.isFetching} onClick={() => navigate({ search: { page: page - 1, q } })}><ChevronLeft /></Button>
       <span className="text-xs text-muted-foreground">Page {page + 1} of {pageCount}</span>
-      <Button variant="outline" size="icon" aria-label="Next activation reports" disabled={page + 1 >= pageCount || reports.isFetching} onClick={() => navigate({ search: { page: page + 1 } })}><ChevronRight /></Button>
+      <Button variant="outline" size="icon" aria-label="Next activation reports" disabled={page + 1 >= pageCount || reports.isFetching} onClick={() => navigate({ search: { page: page + 1, q } })}><ChevronRight /></Button>
     </div>
   </>;
 }
