@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Prefer subscription assigned IPs, then fixed IP inventory, then explicitly newest-first events; reuse a sign-in within each operation, preserve rate-limit cooldown and verify regressions. Live affected-SIM verification requires its ICCID and VM access.
 - [x] Handle Console Connect HTTP 429 during IP checks with Retry-After-aware cooldown, thirty-second default and increasing backoff; preserve the two-minute waiting window and cooldown across manual retries without reactivating the SIM. All 57 targeted tests pass and preview build is OK; live VM verification remains blocked on access.
 - [x] Correct shared Console Connect IP lookup to check up to ten newest events for a valid IP, reuse one token per check and expose provider HTTP failures; all 52 targeted tests pass and preview build is OK. Checks pause five seconds after each response within a two-minute window.
 - [ ] Verify the affected SIM's IP against live Console Connect after the VM app update; blocked on its ICCID and access to the user's VM.
