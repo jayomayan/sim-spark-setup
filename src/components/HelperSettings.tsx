@@ -4,25 +4,28 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, Eye, EyeOff, KeyRound, Loader2, Plus, RefreshCw, Save, Terminal, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { createHelperInstallCode, getHelperSettings, rotateHelperKey, saveHelperSettings } from "@/lib/helper.functions";
-import { buildInstallCommand, ENROLLMENT_TTL_MINUTES, type RouterLogin } from "@/lib/helper-settings";
+import { buildInstallCommand, ENROLLMENT_TTL_MINUTES, parseRouterCommands, type RouterLogin } from "@/lib/helper-settings";
 import { HELPER_VERSION } from "@/lib/helper-release";
 import { useHelperStatus } from "@/components/HelperStatus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 type Settings = Awaited<ReturnType<typeof getHelperSettings>>;
 type Form = {
   routerLogins: RouterLogin[];
   firewallCommands: string;
-  ntpCommands: string;
+  miscEnabled: boolean;
+  miscCommands: string;
 };
 
 const toForm = (s: Settings): Form => ({
   routerLogins: s.routerLogins.map(({ id, username }) => ({ id, username, password: "" })),
   firewallCommands: s.firewallRules.map((rule) => rule.rule).join("\n"),
-  ntpCommands: JSON.stringify(s.ntp, null, 2),
+  miscEnabled: s.misc.enabled,
+  miscCommands: s.misc.commands.join("\n"),
 });
 
 function InstallPanel() {
@@ -141,14 +144,9 @@ export function HelperSettings() {
     setSaving(true);
     try {
       if (!form) return;
-      const { firewallCommands, ntpCommands, ...fields } = form;
-      let ntp: unknown;
-      try { ntp = JSON.parse(ntpCommands); } catch { throw new Error("NTP commands must be valid JSON."); }
-      if (!ntp || typeof ntp !== "object" || !("enabled" in ntp) || typeof ntp.enabled !== "boolean" ||
-          !("servers" in ntp) || !Array.isArray(ntp.servers) || !ntp.servers.every((server) => typeof server === "string") ||
-          !("timezone" in ntp) || typeof ntp.timezone !== "string") {
-        throw new Error("NTP commands need enabled, servers and timezone values.");
-      }
+      const { firewallCommands, miscCommands, miscEnabled, ...fields } = form;
+      const misc = parseRouterCommands(miscCommands);
+      if (miscEnabled && misc.length === 0) throw new Error("Add at least one miscellaneous command, or turn it off.");
       const firewallRules = firewallCommands.split(/\r?\n/).map((rule) => rule.trim()).filter(Boolean).map((rule) => ({
         rule,
         description: current?.firewallRules.find((saved) => saved.rule === rule)?.description ?? "",
@@ -156,8 +154,7 @@ export function HelperSettings() {
       await save({ data: {
         ...fields, firewallRules,
         ur35FirewallPath: current?.ur35FirewallPath ?? "/api/firewall/rules",
-        ur35NtpPath: current?.ur35NtpPath ?? "/api/system/ntp",
-        ntpEnabled: ntp.enabled, ntpServers: ntp.servers.join(", "), ntpTimezone: ntp.timezone,
+        miscEnabled, miscCommands,
       } });
       setForm((f) => (f ? { ...f, routerLogins: f.routerLogins.map((login) => ({ ...login, password: "" })) } : f));
       toast.success("Saved — the helper picks the changes up within a minute.");
@@ -238,12 +235,27 @@ export function HelperSettings() {
         </div>
 
         <div className="space-y-3 border-t pt-4">
-          <Label htmlFor="ntp-commands" className="font-medium">NTP commands applied during SIM activation</Label>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 className="font-medium">Miscellaneous settings applied during SIM activation</h4>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Extra router commands, one per line. Applied after the firewall rules.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Switch
+                id="misc-enabled"
+                checked={form.miscEnabled}
+                onCheckedChange={(checked) => setField("miscEnabled", checked)}
+              />
+              <Label htmlFor="misc-enabled" className="text-sm font-normal">Apply after firewall rules</Label>
+            </div>
+          </div>
           <Textarea
-            id="ntp-commands"
-            aria-label="NTP commands"
-            value={form.ntpCommands}
-            onChange={(e) => setField("ntpCommands", e.target.value)}
+            id="misc-commands"
+            aria-label="Miscellaneous commands"
+            value={form.miscCommands}
+            onChange={(e) => setField("miscCommands", e.target.value)}
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"
