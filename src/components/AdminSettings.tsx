@@ -284,8 +284,8 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
           <TabsTrigger value="okta" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><KeyRound className="h-4 w-4 shrink-0" />Okta Integration</TabsTrigger>
           <TabsTrigger value="console-connect" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Server className="h-4 w-4 shrink-0" />Console Connect</TabsTrigger>
           <TabsTrigger value="helper" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Terminal className="h-4 w-4 shrink-0" />Network Helper</TabsTrigger>
+          <TabsTrigger value="site-connectivity" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Server className="h-4 w-4 shrink-0" />Site Connectivity Check</TabsTrigger>
         </TabsList>
-        <TabsList className="mb-6"><TabsTrigger value="site-connectivity">Site Connectivity Check</TabsTrigger></TabsList>
         <TabsContent value="site-connectivity"><SiteConnectivitySettings /></TabsContent>
         <TabsContent value="console-connect"><ConsoleConnectSettings /></TabsContent>
         <TabsContent value="helper"><HelperSettings /></TabsContent>

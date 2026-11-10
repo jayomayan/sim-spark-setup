@@ -13,7 +13,7 @@ describe("configured connectivity endpoints", () => {
     for (const url of ["http://10.1.2.3:9000", "https://10.1.2.3:443", "https://10.1.2.4:9000", "https://example.com:9000", "https://user:pass@10.1.2.3:9000"]) expect(sameTarget(url, "10.1.2.3", allowed)).toBe(false);
   });
   it("captures the configured custom endpoint and preserves protocol in its result", async () => {
-    const goto = vi.fn(async () => ({ status: () => 200 }));
+    const goto = vi.fn(async (_url: string, _options: unknown) => ({ status: () => 200 }));
     let current = "";
     const page = { on: vi.fn(), goto: async (url: string, options: unknown) => { current = url; return goto(url, options); }, url: () => current, waitForTimeout: vi.fn(), screenshot: async () => Buffer.from("image") };
     const context = { route: vi.fn(), routeWebSocket: vi.fn(), newPage: async () => page, close: vi.fn() };
