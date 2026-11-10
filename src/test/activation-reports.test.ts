@@ -34,6 +34,19 @@ describe("Admin-only activation reports", () => {
     await readActivationReports(h.client, "admin", 1);
     expect(h.range).toHaveBeenCalledWith(25, 49);
   });
+  it("filters reports by ICCID, Site ID or IP address when a search term is given", async () => {
+    const h = harness(true);
+    await readActivationReports(h.client, "admin", 0, "PH010065");
+    expect(h.or).toHaveBeenCalledWith("iccid.ilike.%PH010065%,site_id.ilike.%PH010065%,ip.ilike.%PH010065%");
+  });
+  it("does not filter when the search term is blank", async () => {
+    const h = harness(true);
+    await readActivationReports(h.client, "admin", 0, "   ");
+    expect(h.or).not.toHaveBeenCalled();
+  });
+  it("escapes wildcards and commas so a search term cannot alter the filter", () => {
+    expect(escapeReportSearch("10.194.%,_x")).toBe("10.194.\\%\\,\\_x");
+  });
   it("fails closed when checking the admin role errors", async () => {
     const h = harness(true);
     h.rpc.mockResolvedValue({ data: true, error: new Error("Unavailable") });
