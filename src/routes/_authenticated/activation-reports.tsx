@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/activation-reports")({
   beforeLoad: ({ context }) => {
     if (!context.isAdmin) throw redirect({ to: "/dashboard" });
   },
-  loader: ({ context, deps }) => context.queryClient.ensureQueryData(reportsQuery(context.user.id, deps.page)),
+  loader: ({ context, deps }) => context.queryClient.ensureQueryData(reportsQuery(context.user.id, deps.page, deps.q)),
   head: () => meta("Activation Reports", "Admin-only SIM activation reports across all users for Frontier Tower Associates Philippines."),
   pendingComponent: () => <p role="status" className="text-sm text-muted-foreground">Loading activation reports…</p>,
   errorComponent: ReportError,
@@ -43,17 +43,24 @@ function ReportError() {
 
 function ActivationReports() {
   const { user } = Route.useRouteContext();
-  const { page } = Route.useSearch();
+  const { page, q } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const reports = useSuspenseQuery(reportsQuery(user.id, page));
+  const [term, setTerm] = useState(q);
+  const reports = useSuspenseQuery(reportsQuery(user.id, page, q));
   const { rows, total } = reports.data;
   const pageCount = Math.max(1, Math.ceil(total / ACTIVATION_REPORT_PAGE_SIZE));
+  const applySearch = (value: string) => navigate({ search: { page: 0, q: value.trim() } });
   return <>
     <PageHeader kicker="Admin · SIM" title="Activation Reports">
       <Button variant="outline" size="sm" disabled={reports.isFetching} onClick={() => reports.refetch()}><RefreshCw className={reports.isFetching ? "animate-spin" : ""} />Refresh</Button>
     </PageHeader>
+    <form className="mb-3 flex max-w-md gap-2" role="search" onSubmit={(event) => { event.preventDefault(); applySearch(term); }}>
+      <Input type="search" aria-label="Search activation reports" placeholder="Search ICCID, Site ID or IP address…" value={term} onChange={(event) => setTerm(event.target.value)} />
+      {q && <Button type="button" variant="outline" size="icon" aria-label="Clear search" onClick={() => { setTerm(""); applySearch(""); }}><X /></Button>}
+      <Button type="submit" variant="outline" size="icon" aria-label="Search activation reports" disabled={reports.isFetching}><Search /></Button>
+    </form>
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-      <p>{total.toLocaleString()} activations · All users</p><span>Times in Manila</span>
+      <p>{total.toLocaleString()} {q ? `matching “${q}”` : "activations"} · All users</p><span>Times in Manila</span>
     </div>
     {reports.isRefetchError && <p role="alert" className="mb-3 text-sm text-destructive">Couldn't refresh reports. Showing the last loaded results.</p>}
     <div className="hidden overflow-x-auto border-y md:block">
