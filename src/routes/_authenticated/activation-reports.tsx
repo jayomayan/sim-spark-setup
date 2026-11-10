@@ -1,23 +1,26 @@
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight, RefreshCw, Search, X } from "lucide-react";
 import { listActivationReports } from "@/lib/activation-reports.functions";
 import { ACTIVATION_REPORT_PAGE_SIZE } from "@/lib/activation-reports";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-const reportsQuery = (userId: string, page: number) => queryOptions({
-  queryKey: ["admin", "activation-reports", userId, page],
-  queryFn: () => listActivationReports({ data: { page } }),
+const reportsQuery = (userId: string, page: number, search: string) => queryOptions({
+  queryKey: ["admin", "activation-reports", userId, page, search],
+  queryFn: () => listActivationReports({ data: { page, search } }),
   staleTime: 0,
 });
 
 export const Route = createFileRoute("/_authenticated/activation-reports")({
   validateSearch: (search: Record<string, unknown>) => {
     const page = Number(search['page'] ?? 0);
-    return { page: Number.isInteger(page) && page >= 0 && page <= 1000000 ? page : 0 };
+    const q = typeof search['q'] === "string" ? search['q'].slice(0, 100) : "";
+    return { page: Number.isInteger(page) && page >= 0 && page <= 1000000 ? page : 0, q };
   },
-  loaderDeps: ({ search }) => ({ page: search.page }),
+  loaderDeps: ({ search }) => ({ page: search.page, q: search.q }),
   beforeLoad: ({ context }) => {
     if (!context.isAdmin) throw redirect({ to: "/dashboard" });
   },
