@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BROWSER_PORTS, captureInputSchema, isRouterIp, portLabel, routerUrl, pingInputSchema, pingResultSchema } from "@/lib/site-connectivity";
+import { BROWSER_PORTS, DEFAULT_SITE_TARGETS, siteTargetsSchema, captureInputSchema, isRouterIp, portLabel, routerUrl, pingInputSchema, pingResultSchema } from "@/lib/site-connectivity";
 describe("Site Connectivity Check targets", () => {
   it("browses exactly ports 80, 443, 8443 and 8080", () => {
     expect(BROWSER_PORTS).toEqual([80, 443, 8443, 8080]);
@@ -10,7 +10,15 @@ describe("Site Connectivity Check targets", () => {
     expect(portLabel(8080)).toBe("HTTP / HTTPS");
     expect(portLabel(443)).toBe("HTTPS");
     for (const port of BROWSER_PORTS) expect(captureInputSchema.safeParse({ ip: "10.194.72.40", port }).success).toBe(true);
-    for (const port of [22, 8081, 8080.5]) expect(captureInputSchema.safeParse({ ip: "10.194.72.40", port }).success).toBe(false);
+    for (const port of [0, 65536, 8080.5]) expect(captureInputSchema.safeParse({ ip: "10.194.72.40", port }).success).toBe(false);
+  });
+  it("accepts configurable HTTP/HTTPS ports and retains the existing defaults", () => {
+    expect(DEFAULT_SITE_TARGETS).toEqual([{ port: 80, protocol: "http" }, { port: 443, protocol: "https" }, { port: 8443, protocol: "https" }, { port: 8080, protocol: "http" }, { port: 8080, protocol: "https" }]);
+    expect(siteTargetsSchema.parse([{ port: 9000, protocol: "https" }])).toEqual([{ port: 9000, protocol: "https" }]);
+    expect(routerUrl("10.194.72.40", 9000, "https")).toBe("https://10.194.72.40:9000");
+    expect(siteTargetsSchema.safeParse([{ port: 9000, protocol: "ftp" }]).success).toBe(false);
+    expect(siteTargetsSchema.safeParse([{ port: 80, protocol: "http" }, { port: 80, protocol: "http" }]).success).toBe(false);
+    expect(siteTargetsSchema.parse([])).toEqual([]);
   });
   it("limits browser targets to canonical RFC1918 addresses", () => {
     expect(isRouterIp("10.194.72.40")).toBe(true);
