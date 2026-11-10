@@ -10,7 +10,7 @@
 <!-- LOVABLE:END -->
 
 - Router work never runs in the app server: SNMP, UR35 config, ping and Site Connectivity Check captures all use `agent_jobs` and the on-network helper, so one install covers everything.
-- Share homepage session state via the root auth listener and SignedInContext to avoid duplicate subscriptions.
+- Share homepage session state via the root auth listener and SignedInContext.
 - Encrypted helper settings live in admin-only `public.helper_settings`; stable login IDs preserve only their own secret. Router jobs use the helper SSH module with ordered logins, authentication-only retries and pinned host keys. Probe CLI readback before changes; preserve unrelated router settings, save/read back without reboots or write replay. Machines pull settings/releases; legacy columns serve old helpers. `src/lib/helper-release.ts` is the tested version source.
 - Supported router jobs are defined in `src/lib/job-types.ts` and validated before queueing and dispatching so retired jobs cannot execute.
 - Firewall progress uses bounded stage/count events, never output or secrets.
