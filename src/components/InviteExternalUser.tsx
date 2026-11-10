@@ -60,7 +60,7 @@ export function InviteExternalUser() {
         <div className="flex flex-wrap gap-2">
           <div className="relative min-w-0 flex-1 basis-48">
             <Input className={key === "password" ? "pr-11" : undefined} id={`invite-${key}`} type={key === "password" && showPassword ? "text" : type} autoComplete={key === "password" ? "new-password" : "off"} required={key !== "email"} disabled={busy} value={form[key]} placeholder={key === "phone" ? "+639171234567" : undefined} onChange={(event) => updateField(key, event.target.value)} />
-            {key === "password" && <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-9 w-10 text-muted-foreground" disabled={busy} aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>}
+            {key === "password" && <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-9 w-10 text-muted-foreground" disabled={busy} aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}</Button>}
           </div>
           {key === "password" && <Button type="button" variant="outline" disabled={busy} onClick={generatePassword}><RefreshCw className="h-4 w-4" />Generate password</Button>}
         </div>
