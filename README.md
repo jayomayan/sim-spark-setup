@@ -20,9 +20,9 @@ Loop to get the assigned IP, once acquired, go to next step
 
 Apply custom firewall rules to UR35 
 
-7. Apply ntp settings 
+7. Apply miscellaneous settings 
 
-Apply NTP settings to UR35
+Apply the extra router commands to UR35 (only when enabled in Admin Settings)
 
 8. Process complete 
 
