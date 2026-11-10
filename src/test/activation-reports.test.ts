@@ -104,7 +104,7 @@ describe("Activation report CSV export", () => {
     ]);
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe("Date,User,ICCID,Site ID,Equipment,IP address,Status,Error,Finished,Test mode");
-    expect(lines[1]).toBe('2026-11-09T08:00:00Z,Operator One,89630000000000000001,PH010065,"ur35, gps_battery",10.194.89.128,failed,"Line one');
-    expect(lines[2]).toBe('Line ""two""",,Yes');
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toBe('2026-11-09T08:00:00Z,Operator One,89630000000000000001,PH010065,"ur35, gps_battery",10.194.89.128,failed,"Line one\nLine ""two""",,Yes');
   });
 });
