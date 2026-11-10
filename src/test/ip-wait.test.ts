@@ -21,8 +21,7 @@ describe("SIM activation IP wait window", () => {
     expect(ipWaitSecondsLeft(240_000)).toBe(0);
   });
 
-  it("checks well inside the window", () => {
-    expect(IP_WAIT_POLL_MS).toBeGreaterThan(0);
-    expect(IP_WAIT_POLL_MS).toBeLessThan(IP_WAIT_TIMEOUT_MS);
+  it("waits five seconds between completed IP checks", () => {
+    expect(IP_WAIT_POLL_MS).toBe(5_000);
   });
 });

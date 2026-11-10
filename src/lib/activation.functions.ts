@@ -69,9 +69,13 @@ export const activateSim = createServerFn({ method: "POST" })
 
 export const getSimIp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { iccid: string; attempt: number }) => d)
+  .inputValidator((d: { iccid: string; attempt: number }) => {
+    if (!validIccid(d.iccid)) throw new Error("ICCID must be 18–22 digits");
+    return d;
+  })
   .handler(async ({ data, context }) => {
-    const { memberConsoleConfig, consoleApiRequest } = await import("@/lib/console-connect.server");
+    const { memberConsoleConfig, consoleToken, consoleFetch } = await import("@/lib/console-connect.server");
+    const { findSimIp } = await import("@/lib/sim-ip.server");
     const config = await memberConsoleConfig(context.supabase, context.userId, "sim_activation");
     const cfg = config.apiUrl && config.username && config.password;
     if (!cfg) {
@@ -80,17 +84,18 @@ export const getSimIp = createServerFn({ method: "POST" })
       const n = Number(data.iccid.slice(-4)) || 1;
       return { ip: `10.${(n >> 8) % 255}.${n % 255}.${((data.attempt * 7) % 250) + 2}`, status: "ACTIVE", simulated: true };
     }
-    const sub = await findSubscription(consoleApiRequest, config, data.iccid);
+    // One token per complete check, not a new sign-in for every event request.
+    const token = await consoleToken(config);
+    const request = async (_config: unknown, path: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers);
+      headers.set("Authorization", `Bearer ${token}`);
+      headers.set("Accept", "application/json");
+      return consoleFetch(`${config.apiUrl}${path}`, { ...init, headers });
+    };
+    const sub = await findSubscription(request, config, data.iccid);
     if (sub.state !== "ACTIVE") return { ip: null as string | null, status: sub.state ?? "PENDING", simulated: false };
-    const ev = await consoleApiRequest(config, `/xdr/events?imsi=${encodeURIComponent(sub.imsi)}`, { headers: { Accept: "application/json" } });
-    if (!ev.ok) return { ip: null as string | null, status: "ACTIVE", simulated: false };
-    const items = ((await ev.json()) as { items?: { id: string; occurred_at: string }[] }).items ?? [];
-    const latest = [...items].sort((x, y) => (x.occurred_at < y.occurred_at ? 1 : -1))[0];
-    if (!latest) return { ip: null as string | null, status: "ACTIVE", simulated: false };
-    const det = await consoleApiRequest(config, `/xdr/events/${encodeURIComponent(latest.id)}`, { headers: { Accept: "application/json" } });
-    if (!det.ok) return { ip: null as string | null, status: "ACTIVE", simulated: false };
-    const d = (await det.json()) as { terminal_ip?: string };
-    return { ip: d.terminal_ip || null, status: "ACTIVE", simulated: false };
+    const result = await findSimIp((path) => request(config, path), sub.imsi);
+    return { ip: result.ip, status: "ACTIVE", simulated: false };
   });
 
 type ConsoleRequest = (config: never, path: string, init?: RequestInit) => Promise<Response>;
