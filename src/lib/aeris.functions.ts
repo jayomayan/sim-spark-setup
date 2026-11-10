@@ -9,24 +9,21 @@ export const lookupSite = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data, context }) => {
-    const { memberConsoleConfig, consoleToken, consoleFetch } = await import("@/lib/console-connect.server");
+    const { memberConsoleConfig, createConsoleRequest } = await import("@/lib/console-connect.server");
     const { findSimIp } = await import("@/lib/sim-ip.server");
     const config = await memberConsoleConfig(context.supabase, context.userId, "site_lookup");
     if (!config.username || !config.password) return { error: "Console Connect login isn't set up yet. Ask an admin to configure it in Admin Settings.", ip: null, network: null };
     try {
-    const token = await consoleToken(config);
-    const h = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+    const request = createConsoleRequest(config);
 
-    const sub = await consoleFetch(
-      `${config.apiUrl}/subscriptions/details?q=label==${encodeURIComponent(data.siteId)}`,
-      { headers: h },
-    );
+    const sub = await request(`/subscriptions/details?q=label==${encodeURIComponent(data.siteId)}`);
     if (!sub.ok) return { error: "Aeris site search failed.", ip: null, network: null };
-    const s = (await sub.json()) as { size?: number; subscriptions?: { imsi: string }[] };
-    const imsi = s.subscriptions?.[0]?.imsi;
+    const s = (await sub.json()) as { size?: number; subscriptions?: { imsi: string; ips?: unknown }[] };
+    const subscription = s.subscriptions?.[0];
+    const imsi = subscription?.imsi;
     if (!imsi || s.size === 0) return { error: "No subscription found for that Site ID.", ip: null, network: null };
 
-    const result = await findSimIp((path) => consoleFetch(`${config.apiUrl}${path}`, { headers: h }), imsi);
+    const result = await findSimIp(request, imsi, subscription?.ips);
     if (!result.ip) return { error: "No router IP found for that Site ID.", ip: null, network: null };
     return { error: null, ...result };
     } catch { return { error: "Couldn't connect to Console Connect. Ask an admin to test the saved connection.", ip: null, network: null }; }
