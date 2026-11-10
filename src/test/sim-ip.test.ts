@@ -10,7 +10,7 @@ describe("Console Connect assigned IP lookup", () => {
       { id: "registration", occurred_at: "2026-11-10T05:01:00Z" },
     ] })).mockResolvedValueOnce(json({})).mockResolvedValueOnce(json({ terminal_ip: "10.194.89.128", visited_nw: "network" }));
     expect(await findEventIp(request, "12345")).toEqual({ ip: "10.194.89.128", network: "network" });
-    expect(request.mock.calls.map(([path]) => path)).toEqual(["/xdr/events?imsi=12345&sort=occurred_at:desc&limit=10", "/xdr/events/registration", "/xdr/events/data"]);
+    expect(request.mock.calls.map(([path]) => path)).toEqual(["/xdr/events?imsi=12345&sort=occurred_at:desc&limit=10&additionalFields=terminal_ip,visited_nw", "/xdr/events/registration", "/xdr/events/data"]);
   });
 
   it("prefers the latest valid IP and accepts it directly from the event list", async () => {
@@ -56,14 +56,14 @@ describe("Assigned IP source priority", () => {
   it("uses fixed_ips before events when subscription IPs are unavailable", async () => {
     const request = vi.fn().mockResolvedValue(json({ sims: [{ fixed_ips: [{ ip: "10.20.30.40", ip_version: "IPV4" }] }] }));
     expect((await findSimIp(request, "12345", [])).ip).toBe("10.20.30.40");
-    expect(request.mock.calls).toEqual([["/sica/subscriptions/sims/12345?identifier_type=IMSI"]]);
+    expect(request.mock.calls).toEqual([["/sica/subscriptions/sim-resource/12345?identifier_type=IMSI"]]);
   });
 
   it.each([404, 405])("falls back to newest events when inventory is unavailable (HTTP %s)", async (status) => {
     const request = vi.fn().mockResolvedValueOnce(new Response(null, { status }))
       .mockResolvedValueOnce(json({ items: [{ terminal_ip: "10.1.2.3" }] }));
     expect((await findSimIp(request, "12345")).ip).toBe("10.1.2.3");
-    expect(request.mock.calls[1]?.[0]).toBe("/xdr/events?imsi=12345&sort=occurred_at:desc&limit=10");
+    expect(request.mock.calls[1]?.[0]).toBe("/xdr/events?imsi=12345&sort=occurred_at:desc&limit=10&additionalFields=terminal_ip,visited_nw");
   });
 
   it("rejects invalid and IPv6 allocations before falling back", async () => {

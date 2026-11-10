@@ -25,7 +25,7 @@ function assignedIp(entries: unknown) {
 export async function findSimIp(request: Request, imsi: string, ips?: unknown) {
   const direct = assignedIp(ips);
   if (direct) return { ip: direct, network: null };
-  const response = await request(`/sica/subscriptions/sims/${encodeURIComponent(imsi)}?identifier_type=IMSI`);
+  const response = await request(`/sica/subscriptions/sim-resource/${encodeURIComponent(imsi)}?identifier_type=IMSI`);
   checkConsoleRateLimit(response);
   // Older accounts may not expose inventory. Do not hide auth, throttling or server errors.
   if (response.status !== 404 && response.status !== 405) {
@@ -41,7 +41,7 @@ export async function findSimIp(request: Request, imsi: string, ips?: unknown) {
 
 /** Ask the provider for newest-first before paging, not just sorting its oldest page. */
 export async function findEventIp(request: Request, imsi: string) {
-  const response = await request(`/xdr/events?imsi=${encodeURIComponent(imsi)}&sort=occurred_at:desc&limit=10`);
+  const response = await request(`/xdr/events?imsi=${encodeURIComponent(imsi)}&sort=occurred_at:desc&limit=10&additionalFields=terminal_ip,visited_nw`);
   checkConsoleRateLimit(response);
   if (!response.ok) throw new Error(`Console Connect IP event lookup failed (HTTP ${response.status}). Try the IP address check again.`);
   const body = await response.json() as { items?: Event[] };

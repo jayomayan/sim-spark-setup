@@ -15,7 +15,7 @@ describe("Console Connect configuration", () => {
     const config = { integration: "site_lookup" as const, ...CONSOLE_DEFAULTS.site_lookup, username: "test-user", password: "test-password", source: "test", credentialSource: "test", updatedAt: null };
     const request = createConsoleRequest(config);
     await request("/subscriptions/details");
-    await request("/sica/subscriptions/sims/12345?identifier_type=IMSI");
+    await request("/sica/subscriptions/sim-resource/12345?identifier_type=IMSI");
     expect(fetchMock.mock.calls.filter(([url]) => url === config.tokenUrl)).toHaveLength(1);
     await createConsoleRequest(config)("/subscriptions/details");
     expect(fetchMock.mock.calls.filter(([url]) => url === config.tokenUrl)).toHaveLength(2);
