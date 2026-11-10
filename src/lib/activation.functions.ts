@@ -39,6 +39,9 @@ export const activateSim = createServerFn({ method: "POST" })
     // Equipment (GPS-Battery / GPS-Genset) is not sent to Console Connect.
     let labelWarning: string | null = null;
     if (data.label) {
+      // Give Console Connect time to process activation before updating the label.
+      // IP assignment is still confirmed by the separate bounded IP polling step.
+      await wait(5_000);
       try {
         // Resolve the exact existing custom field (e.g. the account uses "Label#").
         const list = await request("/subscriptions/custom-fields", { headers: { Accept: "application/json" } });
