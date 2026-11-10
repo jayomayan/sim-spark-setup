@@ -4,11 +4,11 @@ import type { Database } from "@/integrations/supabase/types";
 import { decryptPassword, encryptPassword } from "@/lib/db-connection.server";
 import {
   DEFAULT_FIREWALL_RULES,
-  DEFAULT_NTP_SETTINGS,
   ENROLLMENT_TTL_MINUTES,
-  parseNtpServers,
+  parseRouterCommands,
+  safeRouterCommands,
   type FirewallRule,
-  type NtpSettings,
+  type MiscSettings,
   type RouterLogin,
   type HelperSettingsInput,
 } from "@/lib/helper-settings";
@@ -21,9 +21,8 @@ export type HelperConfig = {
   ur35Password: string;
   routerLogins: RouterLogin[];
   ur35FirewallPath: string;
-  ur35NtpPath: string;
   firewallRules: FirewallRule[];
-  ntp: NtpSettings;
+  misc: MiscSettings;
 };
 
 function safeEqual(a: string, b: string) {
@@ -94,6 +93,7 @@ export async function helperConfig(db: Client): Promise<HelperConfig> {
       return null;
     })
     .filter((r): r is FirewallRule => r !== null && r.rule.length > 0);
+  const ntp = (row.ntp_settings ?? {}) as Partial<NtpSettings>;
   const ntp = (row.ntp_settings ?? {}) as Partial<NtpSettings>;
   return {
     configVersion: row.config_version,
