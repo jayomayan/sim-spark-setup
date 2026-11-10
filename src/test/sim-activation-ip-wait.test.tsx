@@ -170,6 +170,21 @@ describe("SIM activation IP wait", () => {
     expect(mocks.finished).toEqual(["failed", "complete"]);
   });
 
+  it("does not queue a second router job when the browser timed out but the helper is still running", async () => {
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    mocks.runJob.mockImplementationOnce(async (_type, _payload, opts) => {
+      opts?.onQueued?.("job-running");
+      throw new Error("The helper didn't respond in time");
+    });
+    renderPage();
+    startActivation();
+    await tick(0);
+    fireEvent.click(screen.getByRole("button", { name: "Retry firewall rules" }));
+    await tick(0);
+    expect(mocks.runJob).toHaveBeenCalledTimes(1);
+    expect(mocks.finished).not.toContain("complete");
+  });
+
   it("applies miscellaneous settings after the firewall rules when they are enabled", async () => {
     mocks.miscEnabled = true;
     mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
