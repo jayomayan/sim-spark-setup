@@ -1,16 +1,18 @@
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, RefreshCw, Search, X } from "lucide-react";
-import { listActivationReports } from "@/lib/activation-reports.functions";
-import { ACTIVATION_REPORT_PAGE_SIZE } from "@/lib/activation-reports";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Search, X } from "lucide-react";
+import { toast } from "sonner";
+import { exportActivationReportsCsv, listActivationReports } from "@/lib/activation-reports.functions";
+import { ACTIVATION_REPORT_PAGE_SIZE, activationReportsCsv, normalizeReportDate } from "@/lib/activation-reports";
+import { downloadBlob } from "@/lib/download";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const reportsQuery = (userId: string, page: number, search: string) => queryOptions({
-  queryKey: ["admin", "activation-reports", userId, page, search],
-  queryFn: () => listActivationReports({ data: { page, search } }),
+const reportsQuery = (userId: string, page: number, search: string, from: string, to: string) => queryOptions({
+  queryKey: ["admin", "activation-reports", userId, page, search, from, to],
+  queryFn: () => listActivationReports({ data: { page, search, from, to } }),
   staleTime: 0,
 });
 
@@ -18,13 +20,15 @@ export const Route = createFileRoute("/_authenticated/activation-reports")({
   validateSearch: (search: Record<string, unknown>) => {
     const page = Number(search['page'] ?? 0);
     const q = typeof search['q'] === "string" ? search['q'].slice(0, 100) : "";
-    return { page: Number.isInteger(page) && page >= 0 && page <= 1000000 ? page : 0, q };
+    const from = normalizeReportDate(typeof search['from'] === "string" ? search['from'] : "");
+    const to = normalizeReportDate(typeof search['to'] === "string" ? search['to'] : "");
+    return { page: Number.isInteger(page) && page >= 0 && page <= 1000000 ? page : 0, q, from, to };
   },
-  loaderDeps: ({ search }) => ({ page: search.page, q: search.q }),
+  loaderDeps: ({ search }) => ({ page: search.page, q: search.q, from: search.from, to: search.to }),
   beforeLoad: ({ context }) => {
     if (!context.isAdmin) throw redirect({ to: "/dashboard" });
   },
-  loader: ({ context, deps }) => context.queryClient.ensureQueryData(reportsQuery(context.user.id, deps.page, deps.q)),
+  loader: ({ context, deps }) => context.queryClient.ensureQueryData(reportsQuery(context.user.id, deps.page, deps.q, deps.from, deps.to)),
   head: () => meta("Activation Reports", "Admin-only SIM activation reports across all users for Frontier Tower Associates Philippines."),
   pendingComponent: () => <p role="status" className="text-sm text-muted-foreground">Loading activation reports…</p>,
   errorComponent: ReportError,
@@ -43,24 +47,50 @@ function ReportError() {
 
 function ActivationReports() {
   const { user } = Route.useRouteContext();
-  const { page, q } = Route.useSearch();
+  const { page, q, from, to } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [term, setTerm] = useState(q);
-  const reports = useSuspenseQuery(reportsQuery(user.id, page, q));
+  const [fromDate, setFromDate] = useState(from);
+  const [toDate, setToDate] = useState(to);
+  const [exporting, setExporting] = useState(false);
+  const reports = useSuspenseQuery(reportsQuery(user.id, page, q, from, to));
   const { rows, total } = reports.data;
   const pageCount = Math.max(1, Math.ceil(total / ACTIVATION_REPORT_PAGE_SIZE));
-  const applySearch = (value: string) => navigate({ search: { page: 0, q: value.trim() } });
+  const applyFilters = (nextTerm: string, nextFrom: string, nextTo: string) =>
+    navigate({ search: { page: 0, q: nextTerm.trim(), from: normalizeReportDate(nextFrom), to: normalizeReportDate(nextTo) } });
+  const hasFilters = Boolean(q || from || to);
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const result = await exportActivationReportsCsv({ data: { search: q, from, to } });
+      if (!result.rows.length) {
+        toast.info("No activations to export for the current filters.");
+        return;
+      }
+      const csv = activationReportsCsv(result.rows);
+      downloadBlob(new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" }), `activation-reports-${new Date().toISOString().slice(0, 10)}.csv`);
+      toast.success(`Exported ${result.rows.length.toLocaleString()} activation${result.rows.length === 1 ? "" : "s"}${result.truncated ? " (first 5,000)" : ""}.`);
+    } catch {
+      toast.error("Couldn't export activation reports. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
   return <>
     <PageHeader kicker="Admin · SIM" title="Activation Reports">
       <Button variant="outline" size="sm" disabled={reports.isFetching} onClick={() => reports.refetch()}><RefreshCw className={reports.isFetching ? "animate-spin" : ""} />Refresh</Button>
+      <Button variant="outline" size="sm" disabled={exporting || reports.isFetching} onClick={exportCsv}><Download />{exporting ? "Exporting…" : "Export CSV"}</Button>
     </PageHeader>
-    <form className="mb-3 flex max-w-md gap-2" role="search" onSubmit={(event) => { event.preventDefault(); applySearch(term); }}>
-      <Input type="search" aria-label="Search activation reports" placeholder="Search ICCID, Site ID or IP address…" value={term} onChange={(event) => setTerm(event.target.value)} />
-      {q && <Button type="button" variant="outline" size="icon" aria-label="Clear search" onClick={() => { setTerm(""); applySearch(""); }}><X /></Button>}
+    <form className="mb-3 flex max-w-2xl flex-wrap items-center gap-2" role="search" onSubmit={(event) => { event.preventDefault(); applyFilters(term, fromDate, toDate); }}>
+      <Input className="min-w-48 flex-1" type="search" aria-label="Search activation reports" placeholder="Search ICCID, Site ID or IP address…" value={term} onChange={(event) => setTerm(event.target.value)} />
+      <Input className="w-36" type="date" aria-label="From date" value={fromDate} max={toDate || undefined} onChange={(event) => setFromDate(event.target.value)} />
+      <span className="text-xs text-muted-foreground">to</span>
+      <Input className="w-36" type="date" aria-label="To date" value={toDate} min={fromDate || undefined} onChange={(event) => setToDate(event.target.value)} />
+      {hasFilters && <Button type="button" variant="outline" size="icon" aria-label="Clear filters" onClick={() => { setTerm(""); setFromDate(""); setToDate(""); applyFilters("", "", ""); }}><X /></Button>}
       <Button type="submit" variant="outline" size="icon" aria-label="Search activation reports" disabled={reports.isFetching}><Search /></Button>
     </form>
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-      <p>{total.toLocaleString()} {q ? `matching “${q}”` : "activations"} · All users</p><span>Times in Manila</span>
+      <p>{total.toLocaleString()} {hasFilters ? "matching activations" : "activations"} · All users</p><span>Times in Manila</span>
     </div>
     {reports.isRefetchError && <p role="alert" className="mb-3 text-sm text-destructive">Couldn't refresh reports. Showing the last loaded results.</p>}
     <div className="hidden overflow-x-auto border-y md:block">
@@ -83,11 +113,11 @@ function ActivationReports() {
       {row.finished_at && <p className="text-xs text-muted-foreground">Finished: <time dateTime={row.finished_at}>{date(row.finished_at)}</time></p>}
       {row.error && <p className="break-words text-xs text-destructive">{row.error}</p>}
     </article>)}</div>
-    {rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{q ? `No activations match “${q}”.` : total === 0 ? "No activations recorded yet." : "No activations on this page."}</p>}
+    {rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{hasFilters ? "No activations match the current filters." : total === 0 ? "No activations recorded yet." : "No activations on this page."}</p>}
     <div className="mt-4 flex items-center justify-end gap-3">
-      <Button variant="outline" size="icon" aria-label="Previous activation reports" disabled={page === 0 || reports.isFetching} onClick={() => navigate({ search: { page: page - 1, q } })}><ChevronLeft /></Button>
+      <Button variant="outline" size="icon" aria-label="Previous activation reports" disabled={page === 0 || reports.isFetching} onClick={() => navigate({ search: { page: page - 1, q, from, to } })}><ChevronLeft /></Button>
       <span className="text-xs text-muted-foreground">Page {page + 1} of {pageCount}</span>
-      <Button variant="outline" size="icon" aria-label="Next activation reports" disabled={page + 1 >= pageCount || reports.isFetching} onClick={() => navigate({ search: { page: page + 1, q } })}><ChevronRight /></Button>
+      <Button variant="outline" size="icon" aria-label="Next activation reports" disabled={page + 1 >= pageCount || reports.isFetching} onClick={() => navigate({ search: { page: page + 1, q, from, to } })}><ChevronRight /></Button>
     </div>
   </>;
 }
