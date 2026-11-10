@@ -5,20 +5,24 @@ import { ExternalLink, Camera, LoaderCircle, RefreshCw, Download, Activity, Hist
 import { lookupSite } from "@/lib/aeris.functions";
 import { runJob } from "@/lib/jobs";
 import { listSiteChecks, saveSiteCheck, type SiteCheck } from "@/lib/site-checks";
-import { BROWSER_PORTS, captureResultSchema, isRouterIp, pingResultSchema, portLabel, routerUrl, type BrowserPort, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
+import { BROWSER_PORTS, captureResultSchema, isRouterIp, pingResultSchema, routerUrl, targetKey, type SiteTarget, type CaptureResult, type PingResult } from "@/lib/site-connectivity";
+import { getSiteTargets } from "@/lib/site-settings.functions";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { PageHeader, meta } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/site-connectivity-check")({
-  head: () => meta("Site Connectivity Check", "Resolve Site IDs through Console Connect, test ping reachability and latency, and check screenshots of ports 80, 443, 8443 and 8080."),
+  loader: ({ context }) => context.queryClient.ensureQueryData({ queryKey: ["site-targets"], queryFn: () => getSiteTargets() }),
+  head: () => meta("Site Connectivity Check", "Resolve Site IDs through Console Connect, test ping reachability and check configured HTTP and HTTPS ports."),
   component: SiteConnectivityCheck,
 });
 
 type Tile = { state: "idle" | "loading" | "done" | "error"; capture?: CaptureResult; error?: string };
-const emptyTiles = (): Record<BrowserPort, Tile> => ({ 80: { state: "idle" }, 443: { state: "idle" }, 8443: { state: "idle" }, 8080: { state: "idle" } });
+const emptyTiles = (): Record<string, Tile> => ({});
 
 function SiteConnectivityCheck() {
+  const { data: targets } = useSuspenseQuery({ queryKey: ["site-targets"], queryFn: () => getSiteTargets() });
   const lookup = useServerFn(lookupSite);
   const [pingState, setPingState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
@@ -47,19 +51,21 @@ function SiteConnectivityCheck() {
     return null;
   }
 
-  async function browsePort(target: string, port: BrowserPort): Promise<CaptureResult | null> {
-    setTiles((previous) => ({ ...previous, [port]: { state: "loading" } }));
+  async function browsePort(target: string, entry: SiteTarget): Promise<CaptureResult | null> {
+    const { port, protocol } = entry;
+    const key = targetKey(entry);
+    setTiles((previous) => ({ ...previous, [key]: { state: "loading" } }));
     try {
-      const job = await runJob("site_capture", { ip: target, port }, { timeoutMs: 180_000 });
+      const job = await runJob("site_capture", { ip: target, port, protocol }, { timeoutMs: Math.max(180_000, targets.length * 25_000) });
       if (job.status === "done") {
         const capture = captureResultSchema.parse(job.result);
-        if (capture.port !== port) throw new Error("Unexpected port");
-        setTiles((previous) => ({ ...previous, [port]: { state: "done", capture } }));
+        if (capture.port !== port || capture.protocol !== protocol) throw new Error("Unexpected port or protocol; update the network helper.");
+        setTiles((previous) => ({ ...previous, [key]: { state: "done", capture } }));
         return capture;
       }
-      setTiles((previous) => ({ ...previous, [port]: { state: "error", error: job.error ?? "Screenshot unavailable" } }));
+      setTiles((previous) => ({ ...previous, [key]: { state: "error", error: job.error ?? "Screenshot unavailable" } }));
     } catch (err) {
-      setTiles((previous) => ({ ...previous, [port]: { state: "error", error: err instanceof Error ? err.message : "Could not capture this port. Please try again." } }));
+      setTiles((previous) => ({ ...previous, [key]: { state: "error", error: err instanceof Error ? err.message : "Could not capture this port. Please try again." } }));
     }
     return null;
   }
@@ -84,7 +90,7 @@ function SiteConnectivityCheck() {
       }
       if (!isRouterIp(target)) throw new Error("Please enter a Site ID or a private IP address.");
       setIp(target);
-      const [ping, ...ports] = await Promise.all([testPing(target), ...BROWSER_PORTS.map((port) => browsePort(target, port))]);
+      const [ping, ...ports] = await Promise.all([testPing(target), ...targets.map((entry) => browsePort(target, entry))]);
       const captures = ports.filter((capture): capture is CaptureResult => capture !== null);
       if (ping || captures.length) {
         try {
@@ -114,7 +120,7 @@ function SiteConnectivityCheck() {
             {site && <Field label="Site ID" value={site} />}
             <Field label="Router IP" value={ip} />
             <Field label="Network" value={network ?? "—"} />
-            <Field label="Accessible ports" value={`${BROWSER_PORTS.filter((port) => tiles[port].capture?.accessible).length} / ${BROWSER_PORTS.length}`} />
+            <Field label="Accessible checks" value={`${targets.filter((entry) => tiles[targetKey(entry)]?.capture?.accessible).length} / ${targets.length}`} />
           </div>
         )}
         <section aria-label="Ping test results" className="space-y-4 border-y py-5">
@@ -140,12 +146,13 @@ function SiteConnectivityCheck() {
           </div>
         </section>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {BROWSER_PORTS.map((port) => {
-            const tile = tiles[port];
-            const url = ip ? routerUrl(ip, port) : null;
-            return <article key={port} className="overflow-hidden rounded-lg border bg-card">
+          {targets.map((entry) => {
+            const { port, protocol } = entry;
+            const tile = tiles[targetKey(entry)] ?? { state: "idle" };
+            const url = ip ? routerUrl(ip, port, protocol) : null;
+            return <article key={targetKey(entry)} className="overflow-hidden rounded-lg border bg-card">
               <header className="flex items-center justify-between border-b px-4 py-3">
-                <div><h2 className="font-semibold">Port {port}</h2><p className="font-mono text-xs text-muted-foreground">{portLabel(port)}</p></div>
+                <div><h2 className="font-semibold">Port {port}</h2><p className="font-mono text-xs text-muted-foreground">{protocol.toUpperCase()}</p></div>
                 <span className={`text-xs ${tile.capture?.accessible ? "text-primary" : "text-muted-foreground"}`}>{tile.state === "loading" ? "Browsing" : tile.capture ? tile.capture.accessible ? "Accessible" : "Not accessible" : tile.state === "error" ? "Unavailable" : "Not browsed"}</span>
               </header>
               <div className="flex aspect-[4/3] items-center justify-center bg-muted/40">
@@ -159,7 +166,7 @@ function SiteConnectivityCheck() {
                 {url ? <Button asChild variant="ghost" size="sm"><a href={url} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />Open</a></Button> : <span className="px-1 font-mono text-xs text-muted-foreground">—</span>}
                 <div className="flex gap-1">
                   {tile.capture && <Button asChild variant="ghost" size="icon" title="Download screenshot"><a href={tile.capture.screenshot} download={`router-${ip}-port-${port}.jpg`} aria-label={`Download port ${port} screenshot`}><Download className="h-4 w-4" /></a></Button>}
-                  <Button variant="ghost" size="icon" title="Browse port again" aria-label={`Retry port ${port}`} disabled={!ip || busy || tile.state === "loading"} onClick={() => { if (ip) void browsePort(ip, port); }}><RefreshCw className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" title="Browse port again" aria-label={`Retry ${protocol.toUpperCase()} port ${port}`} disabled={!ip || busy || tile.state === "loading"} onClick={() => { if (ip) void browsePort(ip, entry); }}><RefreshCw className="h-4 w-4" /></Button>
                 </div>
               </footer>
             </article>;
@@ -219,12 +226,12 @@ function CheckHistory({ siteId, ip, refreshKey }: { siteId: string | null; ip: s
                   )}
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {check.ports.map((capture) => (
-                      <figure key={capture.port} className="overflow-hidden rounded-md border">
+                      <figure key={`${capture.protocol ?? "legacy"}:${capture.port}`} className="overflow-hidden rounded-md border">
                         <a href={capture.screenshot} download={`router-${check.ip}-port-${capture.port}-${check.created_at.slice(0, 10)}.jpg`} title={`Download port ${capture.port} screenshot`}>
                           <img src={capture.screenshot} alt={capture.accessible ? `Port ${capture.port} accessible` : `Not able to access Port ${capture.port}`} className="aspect-[4/3] w-full bg-muted/40 object-contain" />
                         </a>
                         <figcaption className="flex items-center justify-between px-3 py-2 text-xs">
-                          <span className="font-mono">Port {capture.port}</span>
+                          <span className="font-mono">Port {capture.port} {capture.protocol?.toUpperCase()}</span>
                           <span className={capture.accessible ? "text-primary" : "text-muted-foreground"}>{capture.accessible ? "Accessible" : "Not accessible"}</span>
                         </figcaption>
                       </figure>

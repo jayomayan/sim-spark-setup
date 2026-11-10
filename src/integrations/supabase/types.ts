@@ -499,6 +499,24 @@ export type Database = {
         }
         Relationships: []
       }
+      site_connectivity_settings: {
+        Row: {
+          id: number
+          targets: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          targets?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          targets?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string

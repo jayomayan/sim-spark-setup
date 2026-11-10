@@ -30,12 +30,13 @@ import { ConsoleConnectSettings } from "@/components/ConsoleConnectSettings";
 import { HelperSettings } from "@/components/HelperSettings";
 import { InviteExternalUser } from "@/components/InviteExternalUser";
 import { InvitationHistory } from "@/components/InvitationHistory";
+import { SiteConnectivitySettings } from "@/components/SiteConnectivitySettings";
 
 type ProfileForm = { label: string; host: string; port: string; databaseName: string; username: string; password: string };
 
 const EMPTY_FORM: ProfileForm = { label: "", host: "", port: "5432", databaseName: "postgres", username: "", password: "" };
 
-export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "database" | "users" | "okta" | "console-connect" | "helper" }) {
+export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "database" | "users" | "okta" | "console-connect" | "helper" | "site-connectivity" }) {
   const { user } = useRouteContext({ from: "/_authenticated" });
   const qc = useQueryClient();
   const check = useServerFn(checkDatabaseConnection);
@@ -276,14 +277,16 @@ export function AdminSettings({ defaultTab = "database" }: { defaultTab?: "datab
       <PageHeader kicker="Administration" title="Admin Settings">
         <span className="flex items-center gap-2 text-xs font-semibold text-primary"><ShieldCheck className="h-4 w-4" />Admins only</span>
       </PageHeader>
-      <Tabs value={tab} onValueChange={(value) => { if (value === "database" || value === "users" || value === "okta" || value === "console-connect" || value === "helper") setTab(value); }}>
+      <Tabs value={tab} onValueChange={(value) => { if (value === "database" || value === "users" || value === "okta" || value === "console-connect" || value === "helper" || value === "site-connectivity") setTab(value); }}>
         <TabsList className="mb-8 h-auto w-full justify-start gap-2 overflow-x-auto rounded-none border-b bg-transparent p-0">
           <TabsTrigger value="database" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Database className="h-4 w-4 shrink-0" />Database Connection Settings</TabsTrigger>
           <TabsTrigger value="users" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Users className="h-4 w-4 shrink-0" />User Settings</TabsTrigger>
           <TabsTrigger value="okta" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><KeyRound className="h-4 w-4 shrink-0" />Okta Integration</TabsTrigger>
           <TabsTrigger value="console-connect" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Server className="h-4 w-4 shrink-0" />Console Connect</TabsTrigger>
           <TabsTrigger value="helper" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Terminal className="h-4 w-4 shrink-0" />Network Helper</TabsTrigger>
+          <TabsTrigger value="site-connectivity" className="gap-2 whitespace-normal rounded-none border-b-2 border-transparent px-3 py-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:shadow-none"><Server className="h-4 w-4 shrink-0" />Site Connectivity Check</TabsTrigger>
         </TabsList>
+        <TabsContent value="site-connectivity"><SiteConnectivitySettings /></TabsContent>
         <TabsContent value="console-connect"><ConsoleConnectSettings /></TabsContent>
         <TabsContent value="helper"><HelperSettings /></TabsContent>
         <TabsContent value="database">
