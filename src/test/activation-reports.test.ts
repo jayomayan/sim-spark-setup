@@ -1,18 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { readActivationReports } from "@/lib/activation-reports";
+import { escapeReportSearch, readActivationReports } from "@/lib/activation-reports";
 
 function harness(admin: boolean) {
   const row = { id: "activation-1", iccid: "89630000000000000001", site_id: "PH010065", equipment: ["ur35"], ip: "10.194.89.128", status: "complete", error: null, simulated: false, created_by: "another-user", created_at: "2026-11-09T08:00:00Z", finished_at: "2026-11-09T08:01:00Z" };
   const range = vi.fn().mockResolvedValue({ data: [row], count: 57, error: null });
   const order = vi.fn();
   order.mockReturnValue({ order, range });
-  const select = vi.fn().mockReturnValue({ order });
+  const or = vi.fn().mockReturnValue({ order });
+  const select = vi.fn().mockReturnValue({ order, or });
   const profiles = vi.fn().mockResolvedValue({ data: [{ id: "another-user", display_name: "Operator One", username: null, email: null }], error: null });
   const from = vi.fn((table: string) => table === "profiles" ? { select: () => ({ in: profiles }) } : { select });
   const rpc = vi.fn().mockResolvedValue({ data: admin, error: null });
-  return { client: { rpc, from } as unknown as SupabaseClient<Database>, from, rpc, range, select };
+  return { client: { rpc, from } as unknown as SupabaseClient<Database>, from, rpc, range, select, or };
 }
 
 describe("Admin-only activation reports", () => {
