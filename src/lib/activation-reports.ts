@@ -4,10 +4,17 @@ import { assertAdmin } from "@/lib/admin-access";
 
 export const ACTIVATION_REPORT_PAGE_SIZE = 25;
 
-export async function readActivationReports(client: SupabaseClient<Database>, userId: string, page: number) {
+export function escapeReportSearch(search: string) {
+  return search.trim().slice(0, 100).replace(/[\\%_,]/g, (char) => `\\${char}`);
+}
+
+export async function readActivationReports(client: SupabaseClient<Database>, userId: string, page: number, search = "") {
   await assertAdmin(client, userId);
-  const result = await client.from("sim_activations")
-    .select("id,iccid,site_id,equipment,ip,status,error,simulated,created_by,created_at,finished_at", { count: "exact" })
+  const term = escapeReportSearch(search);
+  let query = client.from("sim_activations")
+    .select("id,iccid,site_id,equipment,ip,status,error,simulated,created_by,created_at,finished_at", { count: "exact" });
+  if (term) query = query.or(`iccid.ilike.%${term}%,site_id.ilike.%${term}%,ip.ilike.%${term}%`);
+  const result = await query
     .order("created_at", { ascending: false }).order("id", { ascending: false })
     .range(page * ACTIVATION_REPORT_PAGE_SIZE, (page + 1) * ACTIVATION_REPORT_PAGE_SIZE - 1);
   if (result.error) throw new Error("Couldn't load activation reports. Please try again.");
