@@ -14,7 +14,7 @@ export const siteTargetSchema = z.object({ port: z.number().int().min(1).max(655
 export const siteTargetsSchema = z.array(siteTargetSchema).max(20).refine((targets) => new Set(targets.map(targetKey)).size === targets.length, "Remove duplicate port and protocol entries.");
 export type SiteTarget = z.infer<typeof siteTargetSchema>;
 export function targetKey(target: SiteTarget): string { return `${target.protocol}:${target.port}`; }
-export const DEFAULT_SITE_TARGETS: SiteTarget[] = BROWSER_PORTS.flatMap((port) => PORT_SCHEMES[port].map((protocol) => ({ port, protocol })));
+export const DEFAULT_SITE_TARGETS: SiteTarget[] = BROWSER_PORTS.flatMap((port) => (PORT_SCHEMES[port] ?? []).map((protocol) => ({ port, protocol })));
 export function isRouterIp(ip: string): boolean {
   if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) return false;
   const parts = ip.split(".");
