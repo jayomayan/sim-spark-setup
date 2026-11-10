@@ -1,4 +1,5 @@
 # Tasks
+- [x] Handle Console Connect HTTP 429 during IP checks with Retry-After-aware cooldown, thirty-second default and increasing backoff; preserve the two-minute waiting window and cooldown across manual retries without reactivating the SIM. All 57 targeted tests pass and preview build is OK; live VM verification remains blocked on access.
 - [x] Correct shared Console Connect IP lookup to check up to ten newest events for a valid IP, reuse one token per check and expose provider HTTP failures; all 52 targeted tests pass and preview build is OK. Checks pause five seconds after each response within a two-minute window.
 - [ ] Verify the affected SIM's IP against live Console Connect after the VM app update; blocked on its ICCID and access to the user's VM.
 - [x] Replace NTP settings with admin-enabled Miscellaneous settings: switch plus one-per-line commands, applied after firewall rules as the `ur35_misc` job with its own retry; migration 0013 adds the columns and a flag-only view, helper 1.9.6 archive rebuilt, all 180 tests pass, and the signed-in preview shows the step only when enabled. Applying commands on the real router needs the VM app/helper upgrade.

@@ -88,6 +88,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const ipRef = useRef<string | null>(null);
   const activate = useServerFn(activateSim);
   const poll = useServerFn(getSimIp);
+  const ipCooldownUntil = useRef(0);
 
   // The on/off switch lives in Admin Settings; the view exposes only that flag to signed-in users.
   const miscFlags = useQuery({
@@ -195,12 +196,29 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     const started = Date.now();
     let attempt = 0;
     let got: string | null = null;
+    let rateLimitCount = 0;
     while (ipWaitOpen(Date.now() - started)) {
+      const cooldownMs = ipCooldownUntil.current - Date.now();
+      if (cooldownMs > 0) {
+        await wait(Math.min(cooldownMs, ipWaitSecondsLeft(Date.now() - started) * 1000));
+        continue;
+      }
       const r = await poll({ data: { iccid, attempt: attempt++ } });
       got = r.ip;
       if (got) break;
+      const remainingMs = ipWaitSecondsLeft(Date.now() - started) * 1000;
       setSecondsLeft(ipWaitSecondsLeft(Date.now() - started));
-      await wait(IP_WAIT_POLL_MS);
+      if (r.status === "RATE_LIMITED") {
+        rateLimitCount++;
+        const delay = Math.max(r.retryAfterMs ?? 30_000, 30_000 * 2 ** Math.min(rateLimitCount - 1, 2));
+        ipCooldownUntil.current = Date.now() + delay;
+        setError("Console Connect is limiting requests. Waiting before checking the IP address again; your SIM remains activated.");
+        await wait(Math.min(delay, remainingMs));
+      } else {
+        rateLimitCount = 0;
+        setError(null);
+        await wait(Math.min(IP_WAIT_POLL_MS, remainingMs));
+      }
     }
     if (!got) {
       set(1, "waiting");
@@ -209,6 +227,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       return;
     }
     showIp(got);
+    setError(null);
     set(1, "done");
     set(2, "done");
     await applyRouterSettings(got, sim, id);
