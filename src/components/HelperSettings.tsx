@@ -207,7 +207,7 @@ export function HelperSettings() {
                   <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-9 w-10 text-muted-foreground"
                     aria-label={visiblePasswords[login.id] ? "Hide password" : "Show password"} title={visiblePasswords[login.id] ? "Hide password" : "Show password"} aria-pressed={Boolean(visiblePasswords[login.id])}
                     onClick={() => setVisiblePasswords((visible) => ({ ...visible, [login.id]: !visible[login.id] }))}>
-                    {visiblePasswords[login.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {visiblePasswords[login.id] ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
