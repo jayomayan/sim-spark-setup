@@ -104,7 +104,7 @@ function AuthPage() {
               <Label htmlFor="password">Password</Label>
               <div className="relative">
                 <Input id="password" type={showPassword ? "text" : "password"} required minLength={8} autoComplete="current-password" className="pr-10" value={password} onChange={(e) => setPassword(e.target.value)} />
-                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-9 w-10 text-muted-foreground" aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
+                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-9 w-10 text-muted-foreground" aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}</Button>
               </div>
             </div>
           )}
