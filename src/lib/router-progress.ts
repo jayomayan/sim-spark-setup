@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const routerProgressEvent = z.object({
-  stage: z.enum(["connecting", "connected", "authenticating", "authenticated", "login_rejected", "retrying", "cli", "privileged", "reading", "checking", "configuring", "rule", "rule_applied", "unchanged", "saving", "saved", "verifying", "verified", "closed"]),
+  stage: z.enum(["connecting", "connected", "authenticating", "authenticated", "login_rejected", "retrying", "cli", "privileged", "reading", "checking", "configuring", "rule", "rule_applied", "command", "command_applied", "unchanged", "saving", "saved", "verifying", "verified", "closed"]),
   index: z.number().int().min(1).max(50).optional(),
   total: z.number().int().min(1).max(50).optional(),
 });
