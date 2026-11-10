@@ -14,7 +14,7 @@ import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/sim-activation")({
-  head: () => meta("SIM Activation", "Activate an IoT SIM, wait for its assigned IP address, then apply firewall rules to the router."),
+  head: () => meta("SIM Activation", "Activate an IoT SIM, wait for its assigned IP address, then apply firewall rules and optional miscellaneous settings to the router."),
   component: SimActivationPage,
 });
 
@@ -23,7 +23,10 @@ function SimActivationPage() {
   return <SimActivation isAdmin={isAdmin} />;
 }
 
-const STEPS = ["Activate SIM", "Wait for IP address", "SIM active", "Apply firewall rules", "Complete"];
+const STEPS = ["Activate SIM", "Wait for IP address", "SIM active", "Apply firewall rules", "Apply miscellaneous settings", "Complete"];
+const FIREWALL = 3;
+const MISC = 4;
+const COMPLETE = 5;
 type State = "idle" | "running" | "done" | "error" | "skipped" | "waiting";
 
 const EQUIPMENT = [
@@ -38,6 +41,28 @@ const ADMIN_ONLY_EQUIPMENT = new Set<string>(["other"]);
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+/** Live status line plus the scrollable milestone list under a router step. */
+function RouterStepDetails({ label, status, events, failed, running }: {
+  label: string; status: string; events: RouterProgressEvent[]; failed: boolean; running: boolean;
+}) {
+  if (!status && !events.length) return null;
+  return (
+    <>
+      {status && <span role="status" aria-live="polite" className={`max-w-full text-xs ${failed ? "text-destructive" : "text-muted-foreground"}`}>{status}</span>}
+      {events.length > 0 && (
+        <ol aria-label={label} className="max-h-48 w-full space-y-1 overflow-y-auto border-l border-border pl-3 text-xs text-muted-foreground sm:ml-10">
+          {events.map((event, index) => (
+            <li key={index} className="flex items-start gap-2 break-words">
+              <span aria-hidden="true" className="shrink-0">{index === events.length - 1 && running && event.stage !== "closed" ? "›" : "·"}</span>
+              <span>{routerProgressLabel(event)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </>
+  );
+}
 
 export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const qc = useQueryClient();
@@ -54,12 +79,28 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const [recordId, setRecordId] = useState<string | null>(null);
   const [firewallStatus, setFirewallStatus] = useState("");
   const [firewallProgress, setFirewallProgress] = useState<RouterProgressEvent[]>([]);
+  const [miscStatus, setMiscStatus] = useState("");
+  const [miscProgress, setMiscProgress] = useState<RouterProgressEvent[]>([]);
   const stepRef = useRef(0);
   const runningRef = useRef(false);
   const routerJobRef = useRef<string | null>(null);
+  const miscJobRef = useRef<string | null>(null);
   const ipRef = useRef<string | null>(null);
   const activate = useServerFn(activateSim);
   const poll = useServerFn(getSimIp);
+
+  // The on/off switch lives in Admin Settings; the view exposes only that flag to signed-in users.
+  const miscFlags = useQuery({
+    queryKey: ["router_settings_flags"],
+    queryFn: async () => {
+      const { data, error: readError } = await supabase.from("router_settings_flags").select("misc_enabled").maybeSingle();
+      if (readError) throw new Error(readError.message);
+      return Boolean(data?.misc_enabled);
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+  const miscEnabled = miscFlags.data === true;
 
   const history = useQuery({
     queryKey: ["sim_activations"],
@@ -78,35 +119,70 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const finishRecord = (id: string | null, patch: { status: string; ip?: string | null; error?: string | null; simulated?: boolean }) =>
     id ? supabase.from("sim_activations").update({ ...patch, finished_at: new Date().toISOString() }).eq("id", id) : Promise.resolve();
 
+  async function runFirewall(got: string, sim: boolean) {
+    set(FIREWALL, "running");
+    setFirewallProgress([]);
+    setFirewallStatus(sim ? "Applying · test mode" : "Queueing for helper…");
+    if (sim) await wait(1200);
+    else {
+      // Router SSH may need a few minutes after a new cellular IP; the helper retries for up to 3.
+      const j = await runJob("ur35_firewall", { ip: got }, {
+        timeoutMs: 300_000,
+        onQueued: (jobId) => { routerJobRef.current = jobId; },
+        onProgress: (events) => {
+          setFirewallProgress(events);
+          const latest = events.at(-1);
+          if (latest && latest.stage !== "closed") setFirewallStatus(routerProgressLabel(latest));
+        },
+        onStatus: (status) => {
+          setFirewallStatus(status === "running" ? "Waiting for router, then applying rules…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…");
+        },
+      });
+      routerJobRef.current = null;
+      if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
+    }
+    setFirewallStatus(sim ? "Finished · test mode" : "Applied and verified");
+    set(FIREWALL, "done");
+  }
+
+  async function runMisc(got: string, sim: boolean) {
+    if (equipment !== "ur35" || !miscEnabled) {
+      set(MISC, "skipped");
+      return;
+    }
+    set(MISC, "running");
+    setMiscProgress([]);
+    setMiscStatus(sim ? "Applying · test mode" : "Queueing for helper…");
+    if (sim) await wait(1200);
+    else {
+      const j = await runJob("ur35_misc", { ip: got }, {
+        timeoutMs: 300_000,
+        onQueued: (jobId) => { miscJobRef.current = jobId; },
+        onProgress: (events) => {
+          setMiscProgress(events);
+          const latest = events.at(-1);
+          if (latest && latest.stage !== "closed") setMiscStatus(routerProgressLabel(latest));
+        },
+        onStatus: (status) => {
+          setMiscStatus(status === "running" ? "Waiting for router, then applying commands…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…");
+        },
+      });
+      miscJobRef.current = null;
+      if (j.status !== "done") throw new Error(j.error ?? "Router rejected the miscellaneous settings");
+    }
+    setMiscStatus(sim ? "Finished · test mode" : "Applied and verified");
+    set(MISC, "done");
+  }
+
   async function applyRouterSettings(got: string, sim: boolean, id: string | null) {
     if (equipment === "ur35") {
-      set(3, "running");
-      setFirewallProgress([]);
-      setFirewallStatus(sim ? "Applying · test mode" : "Queueing for helper…");
-      if (sim) await wait(1200);
-      else {
-        // Router SSH may need a few minutes after a new cellular IP; the helper retries for up to 3.
-        const j = await runJob("ur35_firewall", { ip: got }, {
-          timeoutMs: 300_000,
-          onQueued: (jobId) => { routerJobRef.current = jobId; },
-          onProgress: (events) => {
-            setFirewallProgress(events);
-            const latest = events.at(-1);
-            if (latest && latest.stage !== "closed") setFirewallStatus(routerProgressLabel(latest));
-          },
-          onStatus: (status) => {
-            setFirewallStatus(status === "running" ? "Waiting for router, then applying rules…" : status === "done" ? "Applied and verified" : status === "failed" ? "Failed" : "Waiting for helper…");
-          },
-        });
-        routerJobRef.current = null;
-        if (j.status !== "done") throw new Error(j.error ?? "Router rejected the settings");
-      }
-      setFirewallStatus(sim ? "Finished · test mode" : "Applied and verified");
-      set(3, "done");
+      await runFirewall(got, sim);
+      await runMisc(got, sim);
     } else {
-      set(3, "skipped");
+      set(FIREWALL, "skipped");
+      set(MISC, "skipped");
     }
-    set(4, "done");
+    set(COMPLETE, "done");
     await finishRecord(id, { status: "complete", ip: got, simulated: sim, error: null });
   }
 
@@ -137,7 +213,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   async function failRun(e: unknown, id: string | null, sim: boolean) {
-    if (stepRef.current === 3) setFirewallStatus("Failed · see error below");
+    if (stepRef.current === FIREWALL) setFirewallStatus("Failed · see error below");
+    if (stepRef.current === MISC) setMiscStatus("Failed · see error below");
     set(stepRef.current, "error");
     const msg = e instanceof Error ? e.message : "Something went wrong";
     setError(msg);
@@ -149,6 +226,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     runningRef.current = true;
     setBusy(true);
     setFirewallStatus("");
+    setMiscStatus("");
     setError(null);
     setWaitingForIp(false);
     setSimulated(false);
@@ -176,9 +254,10 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       if (equipment === "other") {
         set(1, "skipped");
         set(2, "done");
-        set(3, "skipped");
+        set(FIREWALL, "skipped");
+        set(MISC, "skipped");
         await finishRecord(id, { status: "complete", ip: null, simulated: sim });
-        set(4, "done");
+        set(COMPLETE, "done");
       } else {
         await waitForIp(sim, id);
       }
@@ -208,31 +287,39 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     }
   }
 
-  async function retryFirewall() {
+  /** Retry one failed router step without re-activating the SIM or polling for the IP again. */
+  async function retryRouterStep(step: number) {
     const target = ipRef.current;
-    if (runningRef.current || !target || equipment !== "ur35" || states[3] !== "error") return;
+    const jobRef = step === FIREWALL ? routerJobRef : miscJobRef;
+    if (runningRef.current || !target || equipment !== "ur35" || states[step] !== "error") return;
     runningRef.current = true;
     setBusy(true);
     setError(null);
     try {
       // A browser wait can time out while the helper is still working. Never queue a duplicate.
-      if (routerJobRef.current) {
+      if (jobRef.current) {
         const { data: job, error: readError } = await supabase.from("agent_jobs")
-          .select("status").eq("id", routerJobRef.current).single();
+          .select("status").eq("id", jobRef.current).single();
         if (readError || !job) throw new Error("Unable to check the previous router task. Try again shortly.");
         if (job.status !== "done" && job.status !== "failed") {
           throw new Error("The previous router task is still waiting or running. Retry once it finishes.");
         }
-        routerJobRef.current = null;
+        jobRef.current = null;
         if (job.status === "done") {
-          set(3, "done");
-          setFirewallStatus("Applied and verified");
-          set(4, "done");
+          set(step, "done");
+          (step === FIREWALL ? setFirewallStatus : setMiscStatus)("Applied and verified");
+          if (step === FIREWALL) await runMisc(target, simulated);
+          set(COMPLETE, "done");
           await finishRecord(recordId, { status: "complete", ip: target, simulated, error: null });
           return;
         }
       }
-      await applyRouterSettings(target, simulated, recordId);
+      if (step === FIREWALL) await applyRouterSettings(target, simulated, recordId);
+      else {
+        await runMisc(target, simulated);
+        set(COMPLETE, "done");
+        await finishRecord(recordId, { status: "complete", ip: target, simulated, error: null });
+      }
     } catch (e) {
       await failRun(e, recordId, simulated);
     } finally {
@@ -245,6 +332,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   function startOver() {
     setFirewallProgress([]);
     setFirewallStatus("");
+    setMiscProgress([]);
+    setMiscStatus("");
     setWaitingForIp(false);
     setError(null);
     showIp(null);
@@ -254,11 +343,11 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     setSecondsLeft(0);
   }
 
-  const complete = states[4] === "done";
-  const routerFailed = states[3] === "error";
+  const complete = states[COMPLETE] === "done";
+  const routerFailed = states[FIREWALL] === "error" || states[MISC] === "error";
   const locked = busy || waitingForIp || routerFailed;
   const visibleSteps = STEPS.map((label, i) => ({ label, i })).filter(({ i }) =>
-    equipment === "ur35" || (i !== 3 && (equipment !== "other" || i !== 1)),
+    (i !== MISC || miscEnabled) && (equipment === "ur35" || (i !== FIREWALL && i !== MISC && (equipment !== "other" || i !== 1))),
   );
   const doneCount = visibleSteps.filter(({ i }) => states[i] === "done" || states[i] === "skipped").length;
   const options = EQUIPMENT.filter((e) => isAdmin || !ADMIN_ONLY_EQUIPMENT.has(e.key));
@@ -319,22 +408,18 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                     {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : states[i] === "skipped" ? "–" : states[i] === "waiting" ? "↻" : n + 1}
                   </span>
                   <span className="step-label flex-1 text-muted-foreground">{s}</span>
-                  {i === 3 && states[i] === "error" && ip && (
-                    <Button size="sm" variant="outline" disabled={busy} onClick={retryFirewall}>
+                  {i === FIREWALL && states[FIREWALL] === "error" && ip && (
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => retryRouterStep(FIREWALL)}>
                       <RotateCcw aria-hidden="true" />Retry firewall rules
                     </Button>
                   )}
-                  {i === 3 && firewallStatus && <span role="status" aria-live="polite" className={`max-w-full text-xs ${states[3] === "error" ? "text-destructive" : "text-muted-foreground"}`}>{firewallStatus}</span>}
-                  {i === 3 && firewallProgress.length > 0 && (
-                    <ol aria-label="Firewall progress details" className="max-h-48 w-full space-y-1 overflow-y-auto border-l border-border pl-3 text-xs text-muted-foreground sm:ml-10">
-                      {firewallProgress.map((event, index) => (
-                        <li key={index} className="flex items-start gap-2 break-words">
-                          <span aria-hidden="true" className="shrink-0">{index === firewallProgress.length - 1 && states[3] === "running" && event.stage !== "closed" ? "›" : "·"}</span>
-                          <span>{routerProgressLabel(event)}</span>
-                        </li>
-                      ))}
-                    </ol>
+                  {i === MISC && states[MISC] === "error" && ip && (
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => retryRouterStep(MISC)}>
+                      <RotateCcw aria-hidden="true" />Retry miscellaneous settings
+                    </Button>
                   )}
+                  {i === FIREWALL && <RouterStepDetails label="Firewall progress details" status={firewallStatus} events={firewallProgress} failed={states[FIREWALL] === "error"} running={states[FIREWALL] === "running"} />}
+                  {i === MISC && <RouterStepDetails label="Miscellaneous settings progress details" status={miscStatus} events={miscProgress} failed={states[MISC] === "error"} running={states[MISC] === "running"} />}
                   {i === 1 && states[1] === "running" && <span className="font-mono text-xs text-muted-foreground">{fmtClock(secondsLeft)} left</span>}
                   {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
                   {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
