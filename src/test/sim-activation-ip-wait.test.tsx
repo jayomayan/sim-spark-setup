@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const activateSim = vi.fn(async () => ({ ok: true, simulated: false, labelWarning: null as string | null }));
-  const getSimIp = vi.fn(async () => ({ ip: null as string | null, status: "PENDING", simulated: false }));
+  const getSimIp = vi.fn(async (): Promise<{ ip: string | null; status: string; simulated: boolean; retryAfterMs?: number }> => ({ ip: null, status: "PENDING", simulated: false }));
   const runJob = vi.fn(async (type: string, _payload?: Record<string, unknown>, _opts?: { onQueued?: (id: string) => void }) => ({ status: "done", result: null, error: null as string | null }));
   const finished: string[] = [];
   const from = vi.fn(() => ({
@@ -152,6 +152,31 @@ describe("SIM activation IP wait", () => {
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
     expect(mocks.getSimIp).toHaveBeenCalledTimes(2);
     expect(mocks.finished).toContain("complete");
+  });
+
+  it("pauses for Retry-After on HTTP 429 and completes without reactivation", async () => {
+    mocks.getSimIp.mockResolvedValueOnce({ ip: null, status: "RATE_LIMITED", simulated: false, retryAfterMs: 45_000 });
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    renderPage();
+    startActivation();
+    await tick(0);
+    await tick(44_999);
+    expect(mocks.getSimIp).toHaveBeenCalledTimes(1);
+    expect(mocks.finished).not.toContain("failed");
+    await tick(1);
+    expect(mocks.getSimIp).toHaveBeenCalledTimes(2);
+    expect(mocks.activateSim).toHaveBeenCalledTimes(1);
+    expect(mocks.finished).toContain("complete");
+  });
+
+  it("ends the two-minute window without retrying before a longer provider cooldown", async () => {
+    mocks.getSimIp.mockResolvedValueOnce({ ip: null, status: "RATE_LIMITED", simulated: false, retryAfterMs: 180_000 });
+    renderPage();
+    startActivation();
+    await tick(120_000);
+    expect(mocks.getSimIp).toHaveBeenCalledTimes(1);
+    expect(mocks.finished).toContain("waiting_ip");
+    expect(mocks.finished).not.toContain("failed");
   });
 
   it("retries failed firewall settings on the same IP without activating or polling again", async () => {

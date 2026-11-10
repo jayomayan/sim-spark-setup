@@ -37,4 +37,11 @@ describe("Console Connect assigned IP lookup", () => {
       .mockResolvedValueOnce(new Response(null, { status: 404 })).mockResolvedValueOnce(json({ terminal_ip: "10.1.2.3" }));
     expect((await findSimIp(request, "12345")).ip).toBe("10.1.2.3");
   });
+
+  it("stops issuing event requests on 429 and preserves Retry-After", async () => {
+    const request = vi.fn().mockResolvedValueOnce(json({ items: [{ id: "one" }, { id: "two" }] }))
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "Retry-After": "45" } }));
+    await expect(findSimIp(request, "12345")).rejects.toMatchObject({ retryAfterMs: 45_000 });
+    expect(request).toHaveBeenCalledTimes(2);
+  });
 });

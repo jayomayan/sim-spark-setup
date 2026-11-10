@@ -1,7 +1,7 @@
 /** Provider throttling is temporary, not a SIM activation failure. */
 export class ConsoleRateLimitError extends Error {
   constructor(public readonly retryAfterMs: number) {
-    super("Console Connect is limiting requests. IP checks will retry after a pause.");
+    super("Console Connect is limiting requests (HTTP 429). IP checks will retry after a pause.");
     this.name = "ConsoleRateLimitError";
   }
 }
