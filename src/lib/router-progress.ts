@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const routerProgressEvent = z.object({
-  stage: z.enum(["connecting", "connected", "authenticating", "authenticated", "login_rejected", "retrying", "cli", "privileged", "reading", "checking", "configuring", "rule", "rule_applied", "unchanged", "saving", "saved", "verifying", "verified", "closed"]),
+  stage: z.enum(["connecting", "connected", "authenticating", "authenticated", "login_rejected", "retrying", "cli", "privileged", "reading", "checking", "configuring", "rule", "rule_applied", "command", "command_applied", "unchanged", "saving", "saved", "verifying", "verified", "closed"]),
   index: z.number().int().min(1).max(50).optional(),
   total: z.number().int().min(1).max(50).optional(),
 });
@@ -23,11 +23,13 @@ export function routerProgressLabel(event: RouterProgressEvent): string {
     configuring: "Entering configuration mode…",
     rule: `Applying firewall rule ${event.index ?? ""} of ${event.total ?? ""}…`,
     rule_applied: `Firewall rule ${event.index ?? ""} of ${event.total ?? ""} accepted`,
-    unchanged: "All requested rules are already present; no changes needed",
+    command: `Applying command ${event.index ?? ""} of ${event.total ?? ""}…`,
+    command_applied: `Command ${event.index ?? ""} of ${event.total ?? ""} accepted`,
+    unchanged: "Everything requested is already present; no changes needed",
     saving: "Saving router configuration…",
     saved: "Router configuration saved",
-    verifying: "Reading back and verifying firewall rules…",
-    verified: "All firewall rules verified",
+    verifying: "Reading back and verifying the saved settings…",
+    verified: "All settings verified in the saved configuration",
     closed: "Router connection closed",
   };
   return labels[event.stage];

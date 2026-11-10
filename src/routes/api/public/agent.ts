@@ -56,7 +56,8 @@ export const Route = createFileRoute("/api/public/agent")({
           const parsed = routerProgressSchema.safeParse(body);
           if (!parsed.success) return new Response("Invalid progress", { status: 400 });
           const { data: job } = await db.from("agent_jobs").select("type,status").eq("id", body.id).maybeSingle();
-          if (!job || job.type !== "ur35_firewall" || job.status !== "running") return new Response("Job is not running", { status: 409 });
+          const reportsProgress = job?.type === "ur35_firewall" || job?.type === "ur35_misc";
+          if (!job || !reportsProgress || job.status !== "running") return new Response("Job is not running", { status: 409 });
           const { error } = await db.from("agent_jobs").update({ result: parsed.data as never })
             .eq("id", body.id).eq("status", "running");
           if (error) return new Response("Progress update failed", { status: 500 });

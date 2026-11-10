@@ -283,6 +283,8 @@ export type Database = {
           config_version: number
           firewall_rules: Json
           id: number
+          misc_commands: string
+          misc_enabled: boolean
           ntp_settings: Json
           router_logins_cipher: string | null
           updated_at: string
@@ -296,6 +298,8 @@ export type Database = {
           config_version?: number
           firewall_rules?: Json
           id?: number
+          misc_commands?: string
+          misc_enabled?: boolean
           ntp_settings?: Json
           router_logins_cipher?: string | null
           updated_at?: string
@@ -309,6 +313,8 @@ export type Database = {
           config_version?: number
           firewall_rules?: Json
           id?: number
+          misc_commands?: string
+          misc_enabled?: boolean
           ntp_settings?: Json
           router_logins_cipher?: string | null
           updated_at?: string
@@ -513,7 +519,18 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      router_settings_flags: {
+        Row: {
+          misc_enabled: boolean | null
+        }
+        Insert: {
+          misc_enabled?: boolean | null
+        }
+        Update: {
+          misc_enabled?: boolean | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       before_staff_user_created: { Args: { event: Json }; Returns: Json }

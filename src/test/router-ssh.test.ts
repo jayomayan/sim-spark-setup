@@ -8,9 +8,8 @@ import { expect, it, vi } from "vitest";
 const source = readFileSync("public/helper/router-ssh.mjs", "utf8");
 const start = source.indexOf("export function firewallCommands");
 const end = source.indexOf("export async function connectRouterSsh");
-const functions = runInNewContext(source.slice(start, end).replaceAll("export ", "") + "; ({firewallCommands, ntpCommands, configureRouter})");
+const functions = runInNewContext(source.slice(start, end).replaceAll("export ", "") + "; ({firewallCommands, miscCommands, configureRouter})");
 const rule = "firewall access-control custom id csrid rule -I OUTPUT -d 37.17.191.17 -j DROP";
-const ntp = { enabled: true, servers: ["pool.ntp.org", "time.google.com"], timezone: "Asia/Manila" };
 
 function harness(initial = "hostname Router\nntp update-interval 60", rejectCommand = "") {
   let config = initial;
@@ -60,10 +59,37 @@ it("does not report saved or verified milestones after a rule fails", async () =
   expect(stages.at(-1)).toBe("closed");
 });
 
-it("converts the existing NTP JSON to server and Manila CLI commands preserving interval", async () => {
+it("applies miscellaneous commands exactly as saved, then verifies them", async () => {
   const h = harness();
-  await functions.configureRouter("10.194.89.128", h.logins, "ntp", ntp, h.connect);
-  expect(h.commands).toEqual(["show running-config", "configure terminal", "clock timezone UTC+8", "clock zonename Asia/Manila", "ntp server pool.ntp.org", "ntp secondary-server time.google.com", "end", "write", "show running-config", "configure terminal", "ntp sync", "end"]);
+  const commands = ["clock timezone UTC+8", "ntp server pool.ntp.org"];
+  expect(await functions.configureRouter("10.194.89.128", h.logins, "misc", commands, h.connect)).toMatchObject({ verified: true, transport: "ssh", commands: 2 });
+  expect(h.commands).toEqual(["show running-config", "configure terminal", "clock timezone UTC+8", "ntp server pool.ntp.org", "end", "write", "show running-config"]);
+});
+
+it("reports miscellaneous command milestones in execution order without raw output", async () => {
+  const h = harness();
+  const events: { stage: string; index?: number; total?: number }[] = [];
+  await functions.configureRouter("10.194.89.128", h.logins, "misc", ["clock timezone UTC+8"], h.connect, { onProgress: (event: any) => events.push(event) });
+  expect(events.map((event) => event.stage)).toEqual(["connecting", "login_rejected", "connecting", "authenticated", "privileged", "reading", "configuring", "command", "command_applied", "saving", "saved", "verifying", "verified", "closed"]);
+  expect(events.find((event) => event.stage === "command")).toEqual({ stage: "command", index: 1, total: 1 });
+});
+
+it("skips miscellaneous commands the router already has", async () => {
+  const h = harness("hostname Router\nntp update-interval 60\nclock timezone UTC+8");
+  expect(await functions.configureRouter("10.194.89.128", h.logins, "misc", ["clock timezone UTC+8"], h.connect)).toMatchObject({ verified: true, commands: 1 });
+  expect(h.commands).toEqual(["show running-config", "show running-config"]);
+});
+
+it("does not require immediate-effect commands to reappear in the saved configuration", async () => {
+  const h = harness();
+  expect(await functions.configureRouter("10.194.89.128", h.logins, "misc", ["ntp sync"], h.connect)).toMatchObject({ verified: true });
+  expect(h.commands).toContain("ntp sync");
+});
+
+it("refuses a miscellaneous command the router rejects, without saving", async () => {
+  const h = harness(undefined, "ntp server pool.ntp.org");
+  await expect(functions.configureRouter("10.194.89.128", h.logins, "misc", ["ntp server pool.ntp.org"], h.connect)).rejects.toThrow("rejected");
+  expect(h.commands).not.toContain("write");
 });
 
 it("refuses conflicting firewall IDs before writing", async () => {
@@ -80,8 +106,10 @@ it("does not replay commands or switch accounts after a configuration error", as
   expect(h.commands).not.toContain("write");
 });
 
-it("refuses disabled NTP rather than guessing an enable command", () => {
-  expect(() => functions.ntpCommands(ntp, "no ntp\nntp update-interval 60")).toThrow("already be enabled");
+it("refuses shell injection in miscellaneous commands before login", async () => {
+  const h = harness();
+  await expect(functions.configureRouter("10.194.89.128", h.logins, "misc", ["ntp server pool.ntp.org; reboot"], h.connect)).rejects.toThrow("shell commands");
+  expect(h.connect).not.toHaveBeenCalled();
 });
 
 it("rejects shell injection before login", async () => {

@@ -130,7 +130,7 @@ Skip `ln -s` if the link already exists. Use your real domains in Certbot. Confi
 3. Re-enter Console Connect settings. Site ID Lookup and SIM Activation use the same configuration. Test the saved connection and a known Site ID from the VM.
 4. If using Okta, follow [the standalone Okta section](README.md#5-okta) to configure the independent Auth provider and its callback; filling the app's Okta form alone does not enable sign-in.
 5. In the new website's Admin Settings → Network Helper, generate its install command and run it with sudo on the machine that can reach your routers. This can be the GCP VM if VPN/routes are in place, or an on-network company server.
-6. Re-enter router logins and firewall/NTP templates. Verify helper heartbeat and a safe private-IP connectivity check. Router work always runs through the helper.
+6. Re-enter router logins and firewall / miscellaneous settings templates. Verify helper heartbeat and a safe private-IP connectivity check. Router work always runs through the helper.
 
 Invitation contact details are stored, but the current invitation feature reports that invitation emails are not sent; configuring backend SMTP enables Auth mail, not automatic invitation notification emails. Admins can copy login details and share them privately; invited users must change the temporary password at first login.
 
@@ -140,7 +140,7 @@ Invitation contact details are stored, but the current invitation feature report
 sudo bash -c 'set -a; . /etc/field-ops-console.env; set +a; cd /opt/field-ops-console; runuser -u fieldops-web --preserve-environment -- bun run check:standalone'
 ```
 
-Also complete the [acceptance checklist](README.md#6-required-acceptance-checks): HTTPS, deep-link refresh, first admin, restricted user access, invitation/password change, data save/readback, helper screenshots/ping and approved live SIM activation. For Router, verify IP lookup and firewall/NTP jobs; GPS does not apply router settings, and admin-only Other does not wait for IP.
+Also complete the [acceptance checklist](README.md#6-required-acceptance-checks): HTTPS, deep-link refresh, first admin, restricted user access, invitation/password change, data save/readback, helper screenshots/ping and approved live SIM activation. For Router, verify IP lookup and firewall / miscellaneous settings jobs; GPS does not apply router settings, and admin-only Other does not wait for IP.
 
 Configure encrypted database/backups, preserve `DB_SECRET_KEY`, test restore and reboot recovery, and budget for GCP VM/disk/network costs. Do not treat a green web page as proof that all integrations work.
 

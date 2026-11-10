@@ -10,7 +10,7 @@ import {
   DEFAULT_FIREWALL_RULES,
   firewallRuleSchema,
   helperSettingsInput,
-  parseNtpServers,
+  parseRouterCommands,
 } from "@/lib/helper-settings";
 import { HELPER_FILES, HELPER_VERSION } from "@/lib/helper-release";
 import { pingResultSchema } from "@/lib/site-connectivity";
@@ -349,22 +349,28 @@ describe("router credentials file", () => {
   });
 });
 
-describe("ntp servers", () => {
-  it("keeps clean hosts and drops junk, in order", () => {
-    expect(parseNtpServers("https://Pool.NTP.org/path, time.google.com , ,, !!")).toEqual([
-      "pool.ntp.org",
-      "time.google.com",
+describe("miscellaneous commands", () => {
+  it("keeps one command per line and drops blank lines", () => {
+    expect(parseRouterCommands("ntp server pool.ntp.org\n\n  clock timezone UTC+8  \n")).toEqual([
+      "ntp server pool.ntp.org",
+      "clock timezone UTC+8",
     ]);
   });
 
-  it("caps the list at eight servers", () => {
-    const many = Array.from({ length: 20 }, (_, i) => `n${i}.example.com`).join(", ");
-    expect(parseNtpServers(many)).toHaveLength(8);
+  it("refuses shell characters, over-long lines and more than fifty commands", () => {
+    expect(() => parseRouterCommands("ntp server pool.ntp.org; reboot")).toThrow("shell characters");
+    expect(() => parseRouterCommands(`ntp server ${"a".repeat(250)}`)).toThrow("255 characters");
+    expect(() => parseRouterCommands(Array.from({ length: 51 }, (_, i) => `line ${i}`).join("\n"))).toThrow("at most 50");
   });
 
-  it("allows an empty server list through the form, which the save step then rejects", () => {
-    const result = helperSettingsInput.safeParse({ ntpEnabled: true, ntpServers: "  ", firewallRules: [] });
+  it("allows an empty command box through the form, which the save step then rejects", () => {
+    const result = helperSettingsInput.safeParse({
+      routerLogins: [{ id: "00000000-0000-4000-8000-000000000001", username: "admin", password: "secret" }],
+      firewallRules: [{ rule: "allow tcp/443", description: "" }],
+      miscEnabled: true,
+      miscCommands: "  ",
+    });
     expect(result.success).toBe(true);
-    expect(parseNtpServers("  ")).toEqual([]); // saveHelperConfig refuses this combination
+    expect(parseRouterCommands("  ")).toEqual([]); // saveHelperConfig refuses this combination
   });
 });

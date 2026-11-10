@@ -15,7 +15,7 @@ export const routerLoginSchema = z.object({
 });
 export type RouterLogin = z.infer<typeof routerLoginSchema>;
 
-export type NtpSettings = { enabled: boolean; servers: string[]; timezone: string };
+export type MiscSettings = { enabled: boolean; commands: string[] };
 
 export const DEFAULT_FIREWALL_RULES: FirewallRule[] = [
   { rule: "allow tcp/443", description: "Allow HTTPS management" },
@@ -24,17 +24,32 @@ export const DEFAULT_FIREWALL_RULES: FirewallRule[] = [
   { rule: "drop any/0", description: "Drop all other inbound" },
 ];
 
-export const DEFAULT_NTP_SETTINGS: NtpSettings = {
-  enabled: true,
-  servers: ["pool.ntp.org", "time.google.com"],
-  timezone: "Asia/Manila",
-};
-
 const apiPathSchema = z
   .string()
   .trim()
   .regex(/^\//, "Path must start with /")
   .max(120);
+
+const MAX_MISC_COMMANDS = 50;
+const MISC_COMMAND_TOO_LONG = 255;
+const MISC_SHELL_CHARS = /[;&|<>$`]/;
+
+/** One router command per line; blank lines are ignored. */
+export function parseRouterCommands(text: string): string[] {
+  const lines = String(text ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length > MAX_MISC_COMMANDS) throw new Error("Use at most 50 miscellaneous commands, one per line.");
+  if (lines.some((line) => line.length > MISC_COMMAND_TOO_LONG)) throw new Error(`Each miscellaneous command must be ${MISC_COMMAND_TOO_LONG} characters or fewer.`);
+  if (lines.some((line) => MISC_SHELL_CHARS.test(line))) throw new Error("Miscellaneous commands can't contain shell characters like ; & | < > $ or `.");
+  return lines;
+}
+
+/** Same rules, but used when reading saved settings: unusable lines are dropped, never applied. */
+export function safeRouterCommands(text: string): string[] {
+  return String(text ?? "").split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && line.length <= MISC_COMMAND_TOO_LONG && !MISC_SHELL_CHARS.test(line))
+    .slice(0, MAX_MISC_COMMANDS);
+}
 
 export const helperSettingsInput = z.object({
   routerLogins: z.array(routerLoginSchema).max(50).default([]).refine(
@@ -42,31 +57,11 @@ export const helperSettingsInput = z.object({
     "Router login IDs must be unique",
   ),
   ur35FirewallPath: apiPathSchema.default("/api/firewall/rules"),
-  ur35NtpPath: apiPathSchema.default("/api/system/ntp"),
   firewallRules: z.array(firewallRuleSchema).max(50, "At most 50 firewall rules"),
-  ntpEnabled: z.boolean().default(true),
-  ntpServers: z.string().trim().max(400).default("pool.ntp.org, time.google.com"),
-  ntpTimezone: z
-    .string()
-    .trim()
-    .regex(/^[A-Za-z_]+(\/[A-Za-z_+]+)?$/, "Use a timezone like Asia/Manila")
-    .default("Asia/Manila"),
+  miscEnabled: z.boolean().default(false),
+  miscCommands: z.string().max(20_000).default(""),
 });
 export type HelperSettingsInput = z.input<typeof helperSettingsInput>;
-
-/** Turns "pool.ntp.org, time.google.com" into a clean, de-duplicated server list. */
-export function parseNtpServers(text: string): string[] {
-  const seen = new Set<string>();
-  for (const part of text.split(",")) {
-    const host = part
-      .trim()
-      .replace(/^https?:\/\//i, "")
-      .replace(/\/.*$/, "")
-      .toLowerCase();
-    if (host && /^[a-z0-9._:-]+$/.test(host)) seen.add(host);
-  }
-  return [...seen].slice(0, 8);
-}
 
 /** The one-line command an admin pastes on the helper machine. */
 export function buildInstallCommand(origin: string, code: string): string {

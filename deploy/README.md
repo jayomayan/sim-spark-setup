@@ -103,7 +103,7 @@ Run `bun run check:standalone` with the private environment loaded as above. Com
 - [ ] Helper enrolls, heartbeat updates, settings arrive and `UR35_Credentials.txt` has mode 0600 and correct owner (never display its contents).
 - [ ] Real private-IP ping/screenshots return and history saves.
 - [ ] Console Connect test and a known Site ID lookup succeed from this VM.
-- [ ] An authorized test SIM completes real activation/IP lookup and approved firewall/NTP jobs; simulated results do not count.
+- [ ] An authorized test SIM completes real activation/IP lookup and approved firewall and miscellaneous-settings jobs; simulated results do not count.
 - [ ] Reboot recovery, certificate renewal, encrypted backups and a restore/rollback drill pass.
 
 ### Verification status
