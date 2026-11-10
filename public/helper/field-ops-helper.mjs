@@ -24,7 +24,7 @@ import https from "node:https";
 import { createCipheriv, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "1.9.6";
+const VERSION = "1.9.7";
 const URL_BASE = (process.env.CONSOLE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.AGENT_TOKEN || "";
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -316,12 +316,12 @@ async function getBrowser() {
   return browser;
 }
 // Only requests back to the very same router IP on a checked port may leave the browser.
-const sameTarget = (raw, ip) => {
+const sameTarget = (raw, ip, allowedTargets) => {
   try {
     const u = new URL(raw);
     if (u.protocol !== "http:" && u.protocol !== "https:") return false;
     const port = Number(u.port || (u.protocol === "https:" ? 443 : 80));
-    return u.hostname === ip && Object.prototype.hasOwnProperty.call(SITE_PORTS, port);
+    return u.hostname === ip && !u.username && !u.password && allowedTargets.some((entry) => entry.port === port && `${entry.protocol}:` === u.protocol);
   } catch { return false; }
 };
 
@@ -369,16 +369,21 @@ const handlers = {
       maxMs: timing ? Number(timing[3]) : null,
     };
   },
-  async site_capture({ ip, port }) {
+  async site_capture({ ip, port, protocol, allowedTargets }) {
     port = Number(port);
-    if (!Object.prototype.hasOwnProperty.call(SITE_PORTS, port)) throw new Error("Unsupported port");
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Unsupported port");
+    // Older consoles supply no allowlist; preserve their fixed checks only.
+    allowedTargets = allowedTargets ?? Object.entries(SITE_PORTS).flatMap(([port, schemes]) => schemes.map((protocol) => ({ port: Number(port), protocol })));
+    const schemes = allowedTargets.filter((entry) => entry.port === port && (!protocol || entry.protocol === protocol)).map((entry) => entry.protocol);
+    if (!schemes.length || schemes.some((scheme) => scheme !== "http" && scheme !== "https")) throw new Error("Port and protocol are not enabled in Admin Settings");
     const target = checkIp(ip);
+    if (target.startsWith("127.") || target.split(".").some((part) => String(Number(part)) !== part || Number(part) > 255)) throw new Error("Invalid private IP");
     const context = await (await getBrowser()).newContext({ viewport: { width: 1024, height: 768 }, ignoreHTTPSErrors: true, serviceWorkers: "block", acceptDownloads: false });
     try {
-      await context.route("**/*", (route) => (sameTarget(route.request().url(), target) ? route.continue() : route.abort()));
+      await context.route("**/*", (route) => (sameTarget(route.request().url(), target, allowedTargets) ? route.continue() : route.abort()));
       await context.routeWebSocket("**/*", (socket) => socket.close());
       let httpStatus = null;
-      for (const scheme of SITE_PORTS[port]) {
+      for (const scheme of schemes) {
         const page = await context.newPage();
         page.on("popup", (popup) => void popup.close());
         page.on("dialog", (dialog) => void dialog.dismiss());
@@ -387,10 +392,10 @@ const handlers = {
           const response = await page.goto(`${scheme}://${target}:${port}`, { waitUntil: "domcontentloaded", timeout: 15_000 });
           httpStatus = response?.status() ?? null;
           // Login/forbidden pages are browsable; a responding HTTP server is accessible.
-          if (response !== null && sameTarget(page.url(), target)) {
+          if (response !== null && sameTarget(page.url(), target, allowedTargets)) {
             await page.waitForTimeout(1000);
             const image = await page.screenshot({ type: "jpeg", quality: 70, timeout: 5000, animations: "disabled" });
-            return { port, accessible: true, httpStatus, screenshot: `data:image/jpeg;base64,${image.toString("base64")}` };
+            return { port, protocol: scheme, accessible: true, httpStatus, screenshot: `data:image/jpeg;base64,${image.toString("base64")}` };
           }
         } catch (error) {
           // A filtered port answers no protocol, so a timeout needs no further attempt.
@@ -401,7 +406,7 @@ const handlers = {
       const page = await context.newPage();
       await page.setContent(`<html><head><style>body{margin:0;background:#fff;color:#303030;font-family:Arial,sans-serif;display:grid;place-items:center;height:100vh}.message{text-align:center}h1{font-size:32px;color:#B0262D}p{font-size:20px;color:#686868}</style></head><body><div class="message"><h1>Not able to access Port ${port}</h1><p>${target}</p></div></body></html>`);
       const image = await page.screenshot({ type: "jpeg", quality: 70, timeout: 5000, animations: "disabled" });
-      return { port, accessible: false, httpStatus, screenshot: `data:image/jpeg;base64,${image.toString("base64")}` };
+      return { port, protocol: protocol ?? schemes[0], accessible: false, httpStatus, screenshot: `data:image/jpeg;base64,${image.toString("base64")}` };
     } finally { await context.close(); }
   },
 };

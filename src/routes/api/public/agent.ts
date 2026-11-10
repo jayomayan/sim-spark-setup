@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { JOB_TYPES, isSupportedJobType } from "@/lib/job-types";
 import { routerProgressSchema } from "@/lib/router-progress";
+import { DEFAULT_SITE_TARGETS, captureInputSchema, siteTargetsSchema } from "@/lib/site-connectivity";
 
 // Endpoint used by the on-network helper. The helper key is created in Admin Settings;
 // an AGENT_TOKEN secret still works as a fallback for machines installed the old way.
@@ -46,6 +47,17 @@ export const Route = createFileRoute("/api/public/agent")({
           const { data: next } = await db.from("agent_jobs").select("id,type,payload")
             .eq("status", "queued").in("type", [...JOB_TYPES]).order("created_at").limit(1).maybeSingle();
           if (!next) return Response.json({ job: null, ...release });
+          if (next.type === "site_capture") {
+            const input = captureInputSchema.safeParse(next.payload);
+            const { data: settings, error } = await db.from("site_connectivity_settings").select("targets").eq("id", 1).maybeSingle();
+            if (error) return new Response("Connectivity settings unavailable", { status: 503 });
+            const allowedTargets = siteTargetsSchema.parse(settings?.targets ?? DEFAULT_SITE_TARGETS);
+            if (!input.success || !allowedTargets.some((entry) => entry.port === input.data.port && (!input.data.protocol || entry.protocol === input.data.protocol))) {
+              await db.from("agent_jobs").update({ status: "failed", error: "Port and protocol are not enabled in Admin Settings", finished_at: new Date().toISOString() }).eq("id", next.id).eq("status", "queued");
+              return Response.json({ job: null, ...release });
+            }
+            next.payload = { ...input.data, allowedTargets };
+          }
           const { data: claimed } = await db.from("agent_jobs")
             .update({ status: "running", started_at: new Date().toISOString() })
             .eq("id", next.id).eq("status", "queued").select("id").maybeSingle();
