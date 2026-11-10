@@ -10,6 +10,7 @@ export const lookupSite = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const { memberConsoleConfig, consoleToken, consoleFetch } = await import("@/lib/console-connect.server");
+    const { findSimIp } = await import("@/lib/sim-ip.server");
     const config = await memberConsoleConfig(context.supabase, context.userId, "site_lookup");
     if (!config.username || !config.password) return { error: "Console Connect login isn't set up yet. Ask an admin to configure it in Admin Settings.", ip: null, network: null };
     try {
@@ -25,16 +26,8 @@ export const lookupSite = createServerFn({ method: "POST" })
     const imsi = s.subscriptions?.[0]?.imsi;
     if (!imsi || s.size === 0) return { error: "No subscription found for that Site ID.", ip: null, network: null };
 
-    const ev = await consoleFetch(`${config.apiUrl}/xdr/events?imsi=${encodeURIComponent(imsi)}`, { headers: h });
-    if (!ev.ok) return { error: "Couldn't load events for that Site ID.", ip: null, network: null };
-    const items = ((await ev.json()) as { items?: { id: string; occurred_at: string }[] }).items ?? [];
-    const latest = [...items].sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1))[0];
-    if (!latest) return { error: "No events found for that Site ID.", ip: null, network: null };
-
-    const det = await consoleFetch(`${config.apiUrl}/xdr/events/${encodeURIComponent(latest.id)}`, { headers: h });
-    if (!det.ok) return { error: "Couldn't load the latest event.", ip: null, network: null };
-    const d = (await det.json()) as { terminal_ip?: string; visited_nw?: string };
-    if (!d.terminal_ip) return { error: "No router IP found for that Site ID.", ip: null, network: null };
-    return { error: null, ip: d.terminal_ip, network: d.visited_nw ?? null };
+    const result = await findSimIp((path) => consoleFetch(`${config.apiUrl}${path}`, { headers: h }), imsi);
+    if (!result.ip) return { error: "No router IP found for that Site ID.", ip: null, network: null };
+    return { error: null, ...result };
     } catch { return { error: "Couldn't connect to Console Connect. Ask an admin to test the saved connection.", ip: null, network: null }; }
   });

@@ -1,4 +1,6 @@
 # Tasks
+- [x] Correct shared Console Connect IP lookup to check up to ten newest events for a valid IP, reuse one token per check and expose provider HTTP failures; all 52 targeted tests pass and preview build is OK. Checks pause five seconds after each response within a two-minute window.
+- [ ] Verify the affected SIM's IP against live Console Connect after the VM app update; blocked on its ICCID and access to the user's VM.
 - [x] Replace NTP settings with admin-enabled Miscellaneous settings: switch plus one-per-line commands, applied after firewall rules as the `ur35_misc` job with its own retry; migration 0013 adds the columns and a flag-only view, helper 1.9.6 archive rebuilt, all 180 tests pass, and the signed-in preview shows the step only when enabled. Applying commands on the real router needs the VM app/helper upgrade.
 - [x] Add admin-only all-user Activation Reports with pagination and refresh; 15 access/report/routing tests pass, and all 12 saved records load in the signed-in desktop/mobile view without errors. VM deployment remains user-run.
 - [x] Add inline firewall/NTP retries preserving activation/IP and completed steps; timed-out active jobs cannot be duplicated. Thirteen selected tests pass; signed-in desktop/mobile page verified. Real router retry requires VM access and the app upgrade.
