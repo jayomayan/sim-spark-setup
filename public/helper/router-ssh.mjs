@@ -19,18 +19,22 @@ export function firewallCommands(rules) {
   });
 }
 
-export function ntpCommands(ntp, current) {
-  if (!ntp?.enabled || !Array.isArray(ntp.servers) || ntp.servers.length < 1 || ntp.servers.length > 2 || ntp.servers.some((s) => typeof s !== "string" || !/^[a-zA-Z0-9._:-]+$/.test(s) || s.length > 256)) throw new Error("NTP requires enabled mode and one or two server addresses");
-  if (ntp.timezone !== "Asia/Manila") throw new Error("SSH NTP conversion currently supports Asia/Manila only");
-  const interval = current.match(/^\s*ntp update-interval (\d+)\s*$/m)?.[1];
-  if (/^\s*no ntp\s*$/m.test(current) || !interval || Number(interval) < 1 || Number(interval) > 1440) throw new Error("Router NTP must already be enabled with a readable synchronization interval; no settings were sent");
-  return ["clock timezone UTC+8", "clock zonename Asia/Manila", `ntp server ${ntp.servers[0]}`,
-    ntp.servers[1] ? `ntp secondary-server ${ntp.servers[1]}` : "no ntp secondary-server", `ntp update-interval ${interval}`];
+// Miscellaneous settings are plain router CLI lines, applied exactly as saved.
+export function miscCommands(commands) {
+  if (!Array.isArray(commands) || !commands.length || commands.length > 50) throw new Error("Enter 1–50 miscellaneous commands in Admin Settings");
+  return commands.map((command) => {
+    const line = String(command).trim();
+    if (!line || line.length > 255 || /[\r\n\x00;`$|&<>\\]/.test(line)) throw new Error("Miscellaneous commands must be plain router CLI lines; shell commands are not allowed");
+    return line;
+  });
 }
 
 function configLines(output) {
   return output.split(/\r?\n/).map((s) => s.trim());
 }
+
+// Commands that take effect immediately and are never stored in the running configuration.
+const VOLATILE = /^(?:write|end|exit|quit|reboot|reload|ntp sync|copy running-config startup-config|clear \S*)$/i;
 
 // A router that just got its cellular IP often needs a minute or two before SSH answers.
 // Retry only failures that happen before any login is sent; nothing is written on the router.
@@ -43,7 +47,8 @@ export async function configureRouter(ip, logins, kind, settings, connect = conn
   const progress = timing.onProgress ?? (() => {});
   // Validate all user input before opening a router connection.
   const firewall = kind === "firewall" ? firewallCommands(settings) : null;
-  if (!firewall) ntpCommands(settings, "ntp update-interval 60");
+  const misc = kind === "misc" ? miscCommands(settings) : null;
+  if (!firewall && !misc) throw new Error("Unsupported router settings request; no settings were sent");
   if (!Array.isArray(logins) || !logins.length || logins.some((l) => !l.username || !l.password)) throw new Error("Enter router logins in Admin Settings");
   let session;
   const startedAt = now();
@@ -70,7 +75,7 @@ export async function configureRouter(ip, logins, kind, settings, connect = conn
     await progress({ stage: "reading" });
     const before = await session.command("show running-config");
     if (!/^(?:\s*(?:hostname|ntp |clock |firewall |interface |!|version )).+/m.test(before)) throw new Error("Router SSH configuration readback unsupported; no settings were sent");
-    const commands = firewall ?? ntpCommands(settings, before);
+    const commands = firewall ?? misc;
     const lines = configLines(before);
     if (firewall) {
       await progress({ stage: "checking" });
@@ -86,8 +91,10 @@ export async function configureRouter(ip, logins, kind, settings, connect = conn
       if (!session.prompt.includes("(config)")) throw new Error("Router refused configuration mode; no settings were sent");
       for (let i = 0; i < pending.length; i++) {
         if (firewall) await progress({ stage: "rule", index: i + 1, total: pending.length });
+        if (misc) await progress({ stage: "command", index: i + 1, total: pending.length });
         await session.command(pending[i]);
         if (firewall) await progress({ stage: "rule_applied", index: i + 1, total: pending.length });
+        if (misc) await progress({ stage: "command_applied", index: i + 1, total: pending.length });
       }
       await session.command("end");
       await progress({ stage: "saving" });
@@ -98,15 +105,10 @@ export async function configureRouter(ip, logins, kind, settings, connect = conn
     }
     await progress({ stage: "verifying" });
     const after = configLines(await session.command("show running-config"));
-    const expected = commands.filter((c) => c !== "no ntp secondary-server");
+    const expected = commands.filter((c) => c !== "no ntp secondary-server" && !VOLATILE.test(c));
     if (expected.some((c) => !after.includes(c)) || (commands.includes("no ntp secondary-server") && after.some((c) => c.startsWith("ntp secondary-server ")))) throw new Error("Router SSH settings verification failed; check the router before retrying");
-    if (kind === "ntp") {
-      await session.command("configure terminal");
-      await session.command("ntp sync");
-      await session.command("end");
-    }
     await progress({ stage: "verified" });
-    return { status: 200, verified: true, transport: "ssh", ...(firewall ? { rules: commands.length } : {}) };
+    return { status: 200, verified: true, transport: "ssh", ...(firewall ? { rules: commands.length } : { commands: commands.length }) };
   } finally { session.close(); await progress({ stage: "closed" }); }
 }
 
