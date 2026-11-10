@@ -101,6 +101,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     staleTime: 60_000,
   });
   const miscEnabled = miscFlags.data === true;
+  const miscEnabledRef = useRef(false);
+  miscEnabledRef.current = miscEnabled;
 
   const history = useQuery({
     queryKey: ["sim_activations"],
@@ -146,7 +148,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   async function runMisc(got: string, sim: boolean) {
-    if (equipment !== "ur35" || !miscEnabled) {
+    if (equipment !== "ur35" || !miscEnabledRef.current) {
       set(MISC, "skipped");
       return;
     }
