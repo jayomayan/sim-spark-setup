@@ -14,19 +14,20 @@ export const activateSim = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data, context }) => {
-    const { memberConsoleConfig, consoleApiRequest } = await import("@/lib/console-connect.server");
+    const { memberConsoleConfig, createConsoleRequest } = await import("@/lib/console-connect.server");
     const config = await memberConsoleConfig(context.supabase, context.userId, "sim_activation");
     const cfg = config.apiUrl && config.username && config.password;
     if (!cfg) {
       await wait(1200);
       return { ok: true, simulated: true, alreadyActive: false, labelWarning: null as string | null };
     }
-    const sub = await findSubscription(consoleApiRequest, config, data.iccid);
+    const request = createConsoleRequest(config);
+    const sub = await findSubscription(request, data.iccid);
     if (sub.state === "ACTIVE") {
       return { ok: true, simulated: false, alreadyActive: true, labelWarning: null as string | null };
     }
     {
-      const res = await consoleApiRequest(config, "/sica/subscriptions/requests/state-changes", {
+      const res = await request("/sica/subscriptions/requests/state-changes", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ subscriptions: { identifier_type: "IMSI", identifiers: [sub.imsi] }, change: { state: "ACTIVE" } }),
@@ -40,14 +41,14 @@ export const activateSim = createServerFn({ method: "POST" })
     if (data.label) {
       try {
         // Resolve the exact existing custom field (e.g. the account uses "Label#").
-        const list = await consoleApiRequest(config, "/subscriptions/custom-fields", { headers: { Accept: "application/json" } });
+        const list = await request("/subscriptions/custom-fields", { headers: { Accept: "application/json" } });
         if (!list.ok) throw new Error(`fields ${list.status}`);
         const items = ((await list.json()) as { items?: { id?: string | number; fieldName?: string }[] }).items ?? [];
         const { customFields, missing } = matchCustomFields(items, { label: data.label });
         const problems: string[] = [];
         if (missing.length) problems.push(`no "${missing.join('" or "')}" field exists in Console Connect`);
         if (customFields.length) {
-          const r = await consoleApiRequest(config, "/subscriptions/custom-fields/requests", {
+          const r = await request("/subscriptions/custom-fields/requests", {
             method: "POST",
             headers: { "Content-Type": "application/json", Accept: "application/json" },
             body: JSON.stringify({ identifierType: "IMSI", identifiers: [sub.imsi], customFields }),
@@ -75,7 +76,7 @@ export const getSimIp = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data, context }) => {
-    const { memberConsoleConfig, consoleToken, consoleFetch } = await import("@/lib/console-connect.server");
+    const { memberConsoleConfig, createConsoleRequest } = await import("@/lib/console-connect.server");
     const { findSimIp } = await import("@/lib/sim-ip.server");
     const config = await memberConsoleConfig(context.supabase, context.userId, "sim_activation");
     const cfg = config.apiUrl && config.username && config.password;
@@ -87,16 +88,10 @@ export const getSimIp = createServerFn({ method: "POST" })
     }
     // One token per complete check, not a new sign-in for every event request.
     try {
-    const token = await consoleToken(config);
-    const request = async (_config: unknown, path: string, init: RequestInit = {}) => {
-      const headers = new Headers(init.headers);
-      headers.set("Authorization", `Bearer ${token}`);
-      headers.set("Accept", "application/json");
-      return consoleFetch(`${config.apiUrl}${path}`, { ...init, headers });
-    };
-    const sub = await findSubscription(request, config, data.iccid);
+    const request = createConsoleRequest(config);
+    const sub = await findSubscription(request, data.iccid);
     if (sub.state !== "ACTIVE") return { ip: null as string | null, status: sub.state ?? "PENDING", simulated: false };
-    const result = await findSimIp((path) => request(config, path), sub.imsi);
+    const result = await findSimIp(request, sub.imsi, sub.ips);
     return { ip: result.ip, status: "ACTIVE", simulated: false };
     } catch (error) {
       if (error instanceof ConsoleRateLimitError) {
@@ -106,20 +101,20 @@ export const getSimIp = createServerFn({ method: "POST" })
     }
   });
 
-type ConsoleRequest = (config: never, path: string, init?: RequestInit) => Promise<Response>;
+type ConsoleRequest = (path: string, init?: RequestInit) => Promise<Response>;
 
 /** Aeris Subscription Search: resolve an ICCID to its IMSI and current state. */
-async function findSubscription(request: unknown, config: unknown, iccid: string) {
+async function findSubscription(request: ConsoleRequest, iccid: string) {
   // Aeris Subscription Search: identifierType must be "ICC" (ICCID), per the published spec.
-  const res = await (request as ConsoleRequest)(config as never, "/subscriptions/details", {
+  const res = await request("/subscriptions/details", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ identifierType: "ICC", identifierValues: [iccid] }),
   });
   checkConsoleRateLimit(res);
   if (!res.ok) throw new Error(`SIM lookup failed (${res.status})`);
-  const j = (await res.json()) as { subscriptions?: { imsi?: string; state?: string }[] };
+  const j = (await res.json()) as { subscriptions?: { imsi?: string; state?: string; ips?: unknown }[] };
   const sub = j.subscriptions?.[0];
   if (!sub?.imsi) throw new Error("No SIM found in Console Connect for that ICCID");
-  return { imsi: sub.imsi, state: sub.state };
+  return { imsi: sub.imsi, state: sub.state, ips: sub.ips };
 }

@@ -1,12 +1,25 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { CONSOLE_DEFAULTS, consoleSettingsSchema, providerUrlSchema } from "@/lib/console-connect";
-import { consoleApiRequest, consoleFetch, consoleToken, memberConsoleConfig, readConsoleConfig } from "@/lib/console-connect.server";
+import { consoleApiRequest, consoleFetch, consoleToken, createConsoleRequest, memberConsoleConfig, readConsoleConfig } from "@/lib/console-connect.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { encryptPassword } from "@/lib/db-connection.server";
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe("Console Connect configuration", () => {
+  it("reuses one token across an operation and isolates tokens between operations", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => new Response(JSON.stringify(
+      url === CONSOLE_DEFAULTS.site_lookup.tokenUrl ? { access_token: "test-token" } : {}
+    )));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = { integration: "site_lookup" as const, ...CONSOLE_DEFAULTS.site_lookup, username: "test-user", password: "test-password", source: "test", credentialSource: "test", updatedAt: null };
+    const request = createConsoleRequest(config);
+    await request("/subscriptions/details");
+    await request("/sica/subscriptions/sims/12345?identifier_type=IMSI");
+    expect(fetchMock.mock.calls.filter(([url]) => url === config.tokenUrl)).toHaveLength(1);
+    await createConsoleRequest(config)("/subscriptions/details");
+    expect(fetchMock.mock.calls.filter(([url]) => url === config.tokenUrl)).toHaveLength(2);
+  });
   it("signs in using the published runtime's supported manual redirect mode", async () => {
     const fetchMock = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
       if (init.redirect !== "manual") throw new TypeError("Unsupported redirect mode");

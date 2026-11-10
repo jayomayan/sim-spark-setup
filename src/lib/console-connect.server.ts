@@ -88,9 +88,19 @@ export async function consoleToken(config: Awaited<ReturnType<typeof readConsole
 }
 
 export async function consoleApiRequest(config: Awaited<ReturnType<typeof readConsoleConfig>>, path: string, init: RequestInit = {}) {
-  const token = await consoleToken(config);
-  const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${token}`);
-  headers.set("Accept", "application/json");
-  return consoleFetch(`${config.apiUrl}${path}`, { ...init, headers });
+  return createConsoleRequest(config)(path, init);
+}
+
+/** Request-scoped token only: never persist provider credentials or tokens in browser/global state. */
+export function createConsoleRequest(config: Awaited<ReturnType<typeof readConsoleConfig>>) {
+  let token: Promise<string> | undefined;
+  return async (path: string, init: RequestInit = {}) => {
+    token ??= consoleToken(config);
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${await token}`);
+    headers.set("Accept", "application/json");
+    const response = await consoleFetch(`${config.apiUrl}${path}`, { ...init, headers });
+    checkConsoleRateLimit(response);
+    return response;
+  };
 }
