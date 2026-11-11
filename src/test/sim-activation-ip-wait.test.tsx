@@ -227,7 +227,11 @@ describe("SIM activation IP wait", () => {
   });
 
   it("retries failed miscellaneous settings without re-running the firewall rules", async () => {
-X, result: null, error: "Router rejected the command" });
+    mocks.miscEnabled = true;
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
+    mocks.runJob.mockResolvedValueOnce({ status: "done", result: null, error: null });
+    mocks.runJob.mockResolvedValueOnce({ status: "failed", result: null, error: "Router rejected the command" });
     renderPage();
     await tick(0);
     startActivation();
