@@ -39,7 +39,7 @@ function Landing() {
         </p>
         <div className="mt-10 flex gap-3">
           {signedIn === false && <Button asChild size="lg"><Link to="/auth">Sign in</Link></Button>}
-          <Button asChild size="lg" variant="secondary"><Link to="/dashboard">Open dashboard</Link></Button>
+          {signedIn === true && <Button asChild size="lg" variant="secondary"><Link to="/dashboard">Open dashboard</Link></Button>}
         </div>
         <div className="mt-16 grid gap-px overflow-hidden rounded-lg border bg-border font-mono text-sm sm:grid-cols-2">
           {["SIM activation", "Router tools"].map((t, i) => (
