@@ -8,7 +8,7 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { IdleSession } from "@/components/IdleSession";
 import { clearActivity, syncSignInActivity } from "@/lib/idle-session";
 import { toast } from "sonner";
