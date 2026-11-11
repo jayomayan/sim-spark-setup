@@ -5,12 +5,14 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { nitro } from "nitro/vite";
+import { appVersion } from "./scripts/app-version.mjs";
 
 // Separate standard Node configuration; never changes the hosted build target.
 export default defineConfig(({ command }) => ({
   envDir: "deploy/env",
   envPrefix: "VITE_",
   css: { transformer: "lightningcss" },
+  define: { __APP_VERSION__: JSON.stringify(appVersion()) },
   resolve: {
     alias: [
       { find: /^\.\/previewAuthStorage$/, replacement: fileURLToPath(new URL("./deploy/auth-storage.ts", import.meta.url)) },
