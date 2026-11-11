@@ -88,6 +88,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const ipRef = useRef<string | null>(null);
   const activate = useServerFn(activateSim);
   const poll = useServerFn(getSimIp);
+  const setSimState = useServerFn(setRouterSimState);
+  const [suspended, setSuspended] = useState(false);
   const ipCooldownUntil = useRef(0);
 
   // The on/off switch lives in Admin Settings; the view exposes only that flag to signed-in users.
@@ -237,7 +239,17 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     if (stepRef.current === FIREWALL) setFirewallStatus("Failed · see error below");
     if (stepRef.current === MISC) setMiscStatus("Failed · see error below");
     set(stepRef.current, "error");
-    const msg = e instanceof Error ? e.message : "Something went wrong";
+    let msg = e instanceof Error ? e.message : "Something went wrong";
+    // A Router SIM is only usable once its firewall rules are in place.
+    if (equipment === "ur35" && (stepRef.current === FIREWALL || stepRef.current === MISC)) {
+      try {
+        await setSimState({ data: { iccid, state: "SUSPENDED" } });
+        setSuspended(true);
+        msg += " The SIM has been suspended until the router settings are applied. Retry to resume it.";
+      } catch (se) {
+        msg += ` WARNING: the SIM could not be suspended (${se instanceof Error ? se.message : "error"}). Suspend it in Console Connect.`;
+      }
+    }
     setError(msg);
     await finishRecord(id, { status: "failed", ip: ipRef.current, error: msg, simulated: sim });
   }
@@ -312,11 +324,22 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   async function retryRouterStep(step: number) {
     const target = ipRef.current;
     const jobRef = step === FIREWALL ? routerJobRef : miscJobRef;
-    if (runningRef.current || !target || equipment !== "ur35" || states[step] !== "error") return;
+    if (runningRef.current || !ipRef.current || equipment !== "ur35" || states[step] !== "error") return;
     runningRef.current = true;
     setBusy(true);
     setError(null);
     try {
+      if (suspended) {
+        (step === FIREWALL ? setFirewallStatus : setMiscStatus)("Resuming SIM…");
+        await setSimState({ data: { iccid, state: "ACTIVE" } });
+        setSuspended(false);
+        // The router may take a moment to reconnect; refresh its IP if Console Connect reports one.
+        for (let attempt = 0; attempt < 12; attempt++) {
+          const r = await poll({ data: { iccid, attempt: attempt + 10 } });
+          if (r.ip) { showIp(r.ip); break; }
+          await wait(5_000);
+        }
+      }
       // A browser wait can time out while the helper is still working. Never queue a duplicate.
       if (jobRef.current) {
         const { data: job, error: readError } = await supabase.from("agent_jobs")
@@ -335,11 +358,12 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
           return;
         }
       }
-      if (step === FIREWALL) await applyRouterSettings(target, simulated, recordId);
+      const current = ipRef.current ?? target!;
+      if (step === FIREWALL) await applyRouterSettings(current, simulated, recordId);
       else {
-        await runMisc(target, simulated);
+        await runMisc(current, simulated);
         set(COMPLETE, "done");
-        await finishRecord(recordId, { status: "complete", ip: target, simulated, error: null });
+        await finishRecord(recordId, { status: "complete", ip: current, simulated, error: null });
       }
     } catch (e) {
       await failRun(e, recordId, simulated);
@@ -350,7 +374,17 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     }
   }
 
+  // Warn before leaving while router settings are still being applied.
+  useEffect(() => {
+    const routerBusy = equipment === "ur35" && (states[FIREWALL] === "running" || states[MISC] === "running");
+    if (!routerBusy) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [equipment, states]);
+
   function startOver() {
+    setSuspended(false);
     setFirewallProgress([]);
     setFirewallStatus("");
     setMiscProgress([]);
