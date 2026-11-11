@@ -405,6 +405,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     (i !== MISC || miscEnabled) && (equipment === "ur35" || (i !== FIREWALL && i !== MISC && (equipment !== "other" || i !== 1))),
   );
   const doneCount = visibleSteps.filter(({ i }) => states[i] === "done" || states[i] === "skipped").length;
+  const progressActive = visibleSteps.some(({ i }) => states[i] === "running" || states[i] === "waiting");
   const options = EQUIPMENT.filter((e) => isAdmin || !ADMIN_ONLY_EQUIPMENT.has(e.key));
   const valid = /^\d{18,22}$/.test(iccid) && siteId.trim().length > 0;
 
