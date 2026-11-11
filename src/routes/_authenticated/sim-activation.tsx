@@ -454,8 +454,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
               <span className="font-semibold">Activation progress</span>
               <span className="font-mono text-muted-foreground">{doneCount} / {visibleSteps.length}</span>
             </div>
-            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${(doneCount / visibleSteps.length) * 100}%` }} />
+            <div className={`progress-track mb-3${progressActive ? " is-active" : ""}`}>
+              <div className={`progress-fill${progressActive ? " is-active" : ""}`} style={{ width: `${(doneCount / visibleSteps.length) * 100}%` }} />
             </div>
             <ol className="stepper space-y-0.5 text-sm">
               {visibleSteps.map(({ label: s, i }, n) => (
