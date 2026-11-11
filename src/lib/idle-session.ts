@@ -7,6 +7,12 @@ export function saveActivity(userId: string, now = Date.now()) {
   try { localStorage.setItem(idleActivityKey(userId), String(now)); } catch { /* In-memory fallback. */ }
 }
 
+// A finished session must not leave a stale timestamp that would instantly
+// expire the next login (e.g. Okta when last_sign_in_at lags).
+export function clearActivity(userId: string) {
+  try { localStorage.removeItem(idleActivityKey(userId)); } catch { /* ignore */ }
+}
+
 // OAuth can finish before the root subscribes, delivering INITIAL_SESSION
 // instead of SIGNED_IN. Use Auth's login timestamp, not the event name, to
 // distinguish a new login from page reloads and refreshes of an old session.

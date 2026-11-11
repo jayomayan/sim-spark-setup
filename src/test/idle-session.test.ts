@@ -78,3 +78,14 @@ describe("Inactive sessions", () => {
     expect(expire).not.toHaveBeenCalled();
   });
 });
+import { clearActivity as _clear, idleActivityKey as _key, startIdleSession as _start } from "@/lib/idle-session";
+describe("re-login after idle expiry", () => {
+  it("does not instantly expire a new login once the old timestamp is cleared", () => {
+    localStorage.setItem(_key("u-relogin"), String(Date.now() - 60 * 60 * 1000));
+    _clear("u-relogin");
+    let expired = false;
+    const c = _start("u-relogin", () => {}, () => { expired = true; });
+    c.stop();
+    expect(expired).toBe(false);
+  });
+});
