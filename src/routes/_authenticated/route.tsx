@@ -6,6 +6,7 @@ import { ClipboardList, Gauge, Globe, ListTree, LogOut, Menu, Radio, Server, Set
 import { canAccessAdminSettings, canAccessOperationalTools } from "@/lib/admin-access";
 import { supabase } from "@/integrations/supabase/client";
 import { HelperStatus } from "@/components/HelperStatus";
+import { APP_VERSION } from "@/lib/app-version";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -86,6 +87,7 @@ function Layout() {
           <button onClick={signOut} className="mt-2 flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
             <LogOut className="h-4 w-4" />Sign out
           </button>
+          <p className="mt-3 px-2 font-mono text-[11px] text-muted-foreground/70">v{APP_VERSION}</p>
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
