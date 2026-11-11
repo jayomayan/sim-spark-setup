@@ -1,9 +1,9 @@
 import { createFileRoute, useRouteContext } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { activateSim, getSimIp } from "@/lib/activation.functions";
+import { activateSim, getSimIp, setRouterSimState } from "@/lib/activation.functions";
 import { runJob } from "@/lib/jobs";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader, meta } from "@/components/PageHeader";
