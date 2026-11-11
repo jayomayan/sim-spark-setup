@@ -352,7 +352,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
         if (job.status === "done") {
           set(step, "done");
           (step === FIREWALL ? setFirewallStatus : setMiscStatus)("Applied and verified");
-          if (step === FIREWALL) await runMisc(target, simulated);
+          if (step === FIREWALL) await runMisc(target!, simulated);
           set(COMPLETE, "done");
           await finishRecord(recordId, { status: "complete", ip: target, simulated, error: null });
           return;
