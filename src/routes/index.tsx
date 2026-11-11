@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import logo from "@/assets/fta-logo.png.asset.json";
 import towerWireframe from "@/assets/cellular-tower-wireframe.png";
 import { Button } from "@/components/ui/button";
+import { APP_VERSION } from "@/lib/app-version";
 import { useSignedIn } from "@/lib/session-context";
 
 export const Route = createFileRoute("/")({
@@ -46,6 +47,7 @@ function Landing() {
             <div key={t} className="bg-card p-5"><span className="text-primary">0{i + 1}</span> {t}</div>
           ))}
         </div>
+        <p className="mt-8 font-mono text-[11px] text-muted-foreground/70">v{APP_VERSION}</p>
       </div>
     </main>
   );
