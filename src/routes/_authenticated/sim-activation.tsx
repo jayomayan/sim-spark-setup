@@ -406,6 +406,9 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   );
   const doneCount = visibleSteps.filter(({ i }) => states[i] === "done" || states[i] === "skipped").length;
   const progressActive = visibleSteps.some(({ i }) => states[i] === "running" || states[i] === "waiting");
+  // Nudge the bar forward while a step is still working so it visibly moves, not just on completion.
+  const workingCount = visibleSteps.filter(({ i }) => states[i] === "running" || states[i] === "waiting").length;
+  const progressPct = Math.min(100, ((doneCount + workingCount * 0.5) / visibleSteps.length) * 100);
   const options = EQUIPMENT.filter((e) => isAdmin || !ADMIN_ONLY_EQUIPMENT.has(e.key));
   const valid = /^\d{18,22}$/.test(iccid) && siteId.trim().length > 0;
 
@@ -455,7 +458,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
               <span className="font-mono text-muted-foreground">{doneCount} / {visibleSteps.length}</span>
             </div>
             <div className={`progress-track mb-3${progressActive ? " is-active" : ""}`}>
-              <div className={`progress-fill${progressActive ? " is-active" : ""}`} style={{ width: `${(doneCount / visibleSteps.length) * 100}%` }} />
+              <div className={`progress-fill${progressActive ? " is-active" : ""}`} style={{ width: `${progressPct}%` }} />
             </div>
             <ol className="stepper space-y-0.5 text-sm">
               {visibleSteps.map(({ label: s, i }, n) => (
