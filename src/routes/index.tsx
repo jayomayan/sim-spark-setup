@@ -41,8 +41,8 @@ function Landing() {
           {signedIn === false && <Button asChild size="lg"><Link to="/auth">Sign in</Link></Button>}
           <Button asChild size="lg" variant="secondary"><Link to="/dashboard">Open dashboard</Link></Button>
         </div>
-        <div className="mt-16 grid gap-px overflow-hidden rounded-lg border bg-border font-mono text-sm sm:grid-cols-3">
-          {["SIM activation", "Router tools", "Device inventory"].map((t, i) => (
+        <div className="mt-16 grid gap-px overflow-hidden rounded-lg border bg-border font-mono text-sm sm:grid-cols-2">
+          {["SIM activation", "Router tools"].map((t, i) => (
             <div key={t} className="bg-card p-5"><span className="text-primary">0{i + 1}</span> {t}</div>
           ))}
         </div>
