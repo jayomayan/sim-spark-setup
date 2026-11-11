@@ -26,14 +26,7 @@ export const activateSim = createServerFn({ method: "POST" })
     if (sub.state === "ACTIVE") {
       return { ok: true, simulated: false, alreadyActive: true, labelWarning: null as string | null };
     }
-    {
-      const res = await request("/sica/subscriptions/requests/state-changes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ subscriptions: { identifier_type: "IMSI", identifiers: [sub.imsi] }, change: { state: "ACTIVE" } }),
-      });
-      if (!res.ok) throw new Error(`Activation failed (${res.status})`);
-    }
+    await changeState(request, sub.imsi, "ACTIVE");
     // Best effort: write the existing "Label" custom field (e.g. the account uses "Label#")
     // with the Site ID via Aeris Subscription Custom Fields API. Never blocks activation.
     // Equipment (GPS-Battery / GPS-Genset) is not sent to Console Connect.
@@ -103,6 +96,37 @@ export const getSimIp = createServerFn({ method: "POST" })
       throw error;
     }
   });
+
+/**
+ * Router activations must not leave a usable SIM behind when the firewall step
+ * fails: the page suspends it, and a retry resumes it before re-applying rules.
+ */
+export const setRouterSimState = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { iccid: string; state: "SUSPENDED" | "ACTIVE" }) => {
+    if (!validIccid(d.iccid)) throw new Error("ICCID must be 18–22 digits");
+    if (d.state !== "SUSPENDED" && d.state !== "ACTIVE") throw new Error("Unsupported SIM state");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const { memberConsoleConfig, createConsoleRequest } = await import("@/lib/console-connect.server");
+    const config = await memberConsoleConfig(context.supabase, context.userId, "sim_activation");
+    if (!(config.apiUrl && config.username && config.password)) return { ok: true, simulated: true };
+    const request = createConsoleRequest(config);
+    const sub = await findSubscription(request, data.iccid);
+    if (sub.state !== data.state) await changeState(request, sub.imsi, data.state);
+    return { ok: true, simulated: false };
+  });
+
+async function changeState(request: ConsoleRequest, imsi: string, state: "ACTIVE" | "SUSPENDED") {
+  const res = await request("/sica/subscriptions/requests/state-changes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ subscriptions: { identifier_type: "IMSI", identifiers: [imsi] }, change: { state } }),
+  });
+  checkConsoleRateLimit(res);
+  if (!res.ok) throw new Error(`${state === "ACTIVE" ? "Activation" : "Suspension"} failed (${res.status})`);
+}
 
 type ConsoleRequest = (path: string, init?: RequestInit) => Promise<Response>;
 

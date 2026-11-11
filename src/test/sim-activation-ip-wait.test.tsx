@@ -25,11 +25,12 @@ const mocks = vi.hoisted(() => {
       return { eq: vi.fn(async () => ({ data: null })) };
     }),
   }));
-  return { activateSim, getSimIp, runJob, finished, from, miscEnabled: false };
+  const setRouterSimState = vi.fn(async (_a: { data: { iccid: string; state: string } }) => ({ ok: true, simulated: false }));
+  return { setRouterSimState, activateSim, getSimIp, runJob, finished, from, miscEnabled: false };
 });
 
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
-vi.mock("@/lib/activation.functions", () => ({ activateSim: mocks.activateSim, getSimIp: mocks.getSimIp }));
+vi.mock("@/lib/activation.functions", () => ({ activateSim: mocks.activateSim, getSimIp: mocks.getSimIp, setRouterSimState: mocks.setRouterSimState }));
 vi.mock("@/lib/jobs", () => ({ runJob: mocks.runJob }));
 vi.mock("@/components/PageHeader", () => ({ PageHeader: () => null, meta: () => ({}) }));
 vi.mock("@/components/HelperStatus", () => ({ HelperOfflineNote: () => null }));
@@ -179,7 +180,9 @@ describe("SIM activation IP wait", () => {
     expect(mocks.finished).not.toContain("failed");
   });
 
-  it("retries failed firewall settings on the same IP without activating or polling again", async () => {
+  it("suspends a Router SIM when firewall rules fail and resumes it on retry without re-activating", async () => {
+    mocks.setRouterSimState.mockClear();
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
     mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
     mocks.runJob.mockResolvedValueOnce({ status: "failed", result: null, error: "Connection refused" });
     renderPage();
@@ -191,7 +194,7 @@ describe("SIM activation IP wait", () => {
     expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_firewall"]);
     expect(mocks.runJob.mock.calls.every((c) => c[1]?.["ip"] === "10.20.30.40")).toBe(true);
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
-    expect(mocks.getSimIp).toHaveBeenCalledTimes(1);
+    expect(mocks.setRouterSimState.mock.calls.map((c) => c[0].data.state)).toEqual(["SUSPENDED", "ACTIVE"]);
     expect(mocks.finished).toEqual(["failed", "complete"]);
   });
 
@@ -225,6 +228,7 @@ describe("SIM activation IP wait", () => {
 
   it("retries failed miscellaneous settings without re-running the firewall rules", async () => {
     mocks.miscEnabled = true;
+    mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
     mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
     mocks.runJob.mockResolvedValueOnce({ status: "done", result: null, error: null });
     mocks.runJob.mockResolvedValueOnce({ status: "failed", result: null, error: "Router rejected the command" });
