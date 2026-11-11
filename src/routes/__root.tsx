@@ -8,9 +8,9 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { IdleSession } from "@/components/IdleSession";
-import { saveActivity } from "@/lib/idle-session";
+import { syncSignInActivity } from "@/lib/idle-session";
 import { toast } from "sonner";
 import { SignedInContext } from "@/lib/session-context";
 import { Toaster } from "@/components/ui/sonner";
@@ -121,7 +121,6 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const currentUser = useRef<string | null>(null);
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   const expireSession = useCallback(async () => {
@@ -133,8 +132,7 @@ function RootComponent() {
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUser = session?.user.id ?? null;
-      if (event === "SIGNED_IN" && nextUser && currentUser.current !== nextUser) saveActivity(nextUser);
-      currentUser.current = nextUser;
+      if (nextUser) syncSignInActivity(nextUser, session?.user.last_sign_in_at);
       setUserId(nextUser);
       setSignedIn(Boolean(session?.user));
       if (event === "SIGNED_OUT") queryClient.clear();

@@ -7,6 +7,21 @@ export function saveActivity(userId: string, now = Date.now()) {
   try { localStorage.setItem(idleActivityKey(userId), String(now)); } catch { /* In-memory fallback. */ }
 }
 
+// OAuth can finish before the root subscribes, delivering INITIAL_SESSION
+// instead of SIGNED_IN. Use Auth's login timestamp, not the event name, to
+// distinguish a new login from page reloads and refreshes of an old session.
+export function syncSignInActivity(userId: string, lastSignInAt?: string) {
+  if (!lastSignInAt) return;
+  const signedInAt = Date.parse(lastSignInAt);
+  if (!Number.isFinite(signedInAt) || signedInAt > Date.now()) return;
+  try {
+    const activity = Number(localStorage.getItem(idleActivityKey(userId)));
+    if (Number.isFinite(activity) && activity > 0 && signedInAt > activity) {
+      saveActivity(userId);
+    }
+  } catch { /* The idle controller uses its in-memory fallback. */ }
+}
+
 export function startIdleSession(userId: string, onWarning: (seconds: number | null) => void, onExpire: () => void) {
   const key = idleActivityKey(userId);
   const read = () => {
