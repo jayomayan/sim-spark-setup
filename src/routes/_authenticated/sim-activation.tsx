@@ -90,6 +90,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const poll = useServerFn(getSimIp);
   const setSimState = useServerFn(setRouterSimState);
   const [suspended, setSuspended] = useState(false);
+  const activatedRouterRef = useRef(false);
   const ipCooldownUntil = useRef(0);
 
   // The on/off switch lives in Admin Settings; the view exposes only that flag to signed-in users.
@@ -225,6 +226,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     if (!got) {
       set(1, "waiting");
       setWaitingForIp(true);
+      await pauseIncompleteRouter(sim);
       if (id) await supabase.from("sim_activations").update({ status: "waiting_ip" }).eq("id", id);
       return;
     }
@@ -235,19 +237,24 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     await applyRouterSettings(got, sim, id);
   }
 
+  async function pauseIncompleteRouter(sim: boolean) {
+    if (equipment !== "ur35" || !activatedRouterRef.current || sim || suspended) return;
+    await setSimState({ data: { iccid, state: "PAUSE" } });
+    setSuspended(true);
+  }
+
   async function failRun(e: unknown, id: string | null, sim: boolean) {
     if (stepRef.current === FIREWALL) setFirewallStatus("Failed · see error below");
     if (stepRef.current === MISC) setMiscStatus("Failed · see error below");
     set(stepRef.current, "error");
     let msg = e instanceof Error ? e.message : "Something went wrong";
     // A Router SIM is only usable once its firewall rules are in place.
-    if (equipment === "ur35" && (stepRef.current === FIREWALL || stepRef.current === MISC)) {
+    if (equipment === "ur35" && activatedRouterRef.current && !sim) {
       try {
-        await setSimState({ data: { iccid, state: "SUSPENDED" } });
-        setSuspended(true);
-        msg += " The SIM has been suspended until the router settings are applied. Retry to resume it.";
+        await pauseIncompleteRouter(sim);
+        msg += " The SIM is in Pause until the router settings are applied. Retry to resume it.";
       } catch (se) {
-        msg += ` WARNING: the SIM could not be suspended (${se instanceof Error ? se.message : "error"}). Suspend it in Console Connect.`;
+        msg += ` WARNING: Pause could not be confirmed (${se instanceof Error ? se.message : "error"}). Pause the SIM in Console Connect.`;
       }
     }
     setError(msg);
@@ -266,6 +273,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     showIp(null);
     setStates(STEPS.map(() => "idle"));
     let sim = false;
+    activatedRouterRef.current = false;
+    setSuspended(false);
     let id: string | null = null;
     try {
       const { data: u } = await supabase.auth.getUser();
@@ -280,6 +289,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       // Site ID goes to Console Connect's Label# field; equipment is not sent to Console Connect.
       const a = await activate({ data: { iccid, label: siteId.trim() } });
       if (a.alreadyActive) throw new Error(`SIM with ICCID ${iccid} is already Active.`);
+      activatedRouterRef.current = equipment === "ur35";
       sim = a.simulated;
       setSimulated(sim);
       set(0, "done");
@@ -310,6 +320,10 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     setError(null);
     setWaitingForIp(false);
     try {
+      if (suspended) {
+        await setSimState({ data: { iccid, state: "ACTIVE" } });
+        setSuspended(false);
+      }
       await waitForIp(simulated, recordId);
     } catch (e) {
       await failRun(e, recordId, simulated);
@@ -324,7 +338,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   async function retryRouterStep(step: number) {
     const target = ipRef.current;
     const jobRef = step === FIREWALL ? routerJobRef : miscJobRef;
-    if (runningRef.current || !ipRef.current || equipment !== "ur35" || states[step] !== "error") return;
+    if (runningRef.current || !target || equipment !== "ur35" || states[step] !== "error") return;
     runningRef.current = true;
     setBusy(true);
     setError(null);
@@ -352,13 +366,13 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
         if (job.status === "done") {
           set(step, "done");
           (step === FIREWALL ? setFirewallStatus : setMiscStatus)("Applied and verified");
-          if (step === FIREWALL) await runMisc(target!, simulated);
+          if (step === FIREWALL) await runMisc(ipRef.current ?? target, simulated);
           set(COMPLETE, "done");
           await finishRecord(recordId, { status: "complete", ip: target, simulated, error: null });
           return;
         }
       }
-      const current = ipRef.current ?? target!;
+      const current = ipRef.current ?? target;
       if (step === FIREWALL) await applyRouterSettings(current, simulated, recordId);
       else {
         await runMisc(current, simulated);
@@ -384,6 +398,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   }, [equipment, states]);
 
   function startOver() {
+    activatedRouterRef.current = false;
     setSuspended(false);
     setFirewallProgress([]);
     setFirewallStatus("");
@@ -480,7 +495,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                   {i === FIREWALL && <RouterStepDetails label="Firewall progress details" status={firewallStatus} events={firewallProgress} failed={states[FIREWALL] === "error"} running={states[FIREWALL] === "running"} />}
                   {i === MISC && <RouterStepDetails label="Miscellaneous settings progress details" status={miscStatus} events={miscProgress} failed={states[MISC] === "error"} running={states[MISC] === "running"} />}
                   {i === 1 && states[1] === "running" && <span className="font-mono text-xs text-muted-foreground">{fmtClock(secondsLeft)} left</span>}
-                  {i === 2 && states[2] === "done" && <span className="badge-active">ACTIVE</span>}
+                  {i === 2 && states[2] === "done" && <span className="badge-active">{suspended ? "PAUSE" : "ACTIVE"}</span>}
                   {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
                   {i === 1 && states[1] === "error" && (
                     <Button size="sm" variant="outline" disabled={busy} onClick={checkAgain}>
@@ -498,8 +513,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
               <div className="mt-3 rounded-md border border-input bg-accent p-3">
                 <p className="text-sm font-semibold text-accent-foreground">No IP address yet after 2 minutes</p>
                 <p className="mt-1 text-sm text-accent-foreground/80">
-                  The SIM is active in Console Connect, but the device hasn't come online yet, so no IP address was assigned.
-                  Check again to wait another 2 minutes.
+                  {suspended ? "The Router SIM is in Pause because setup is incomplete. Check again to resume it and wait another 2 minutes." : "The SIM is active in Console Connect, but no IP address was assigned. Check again to wait another 2 minutes."}
                 </p>
                 <button onClick={startOver} className="mt-3 w-full text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">
                   Start over with a different SIM

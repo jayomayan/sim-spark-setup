@@ -194,7 +194,7 @@ describe("SIM activation IP wait", () => {
     expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_firewall"]);
     expect(mocks.runJob.mock.calls.every((c) => c[1]?.["ip"] === "10.20.30.40")).toBe(true);
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
-    expect(mocks.setRouterSimState.mock.calls.map((c) => c[0].data.state)).toEqual(["SUSPENDED", "ACTIVE"]);
+    expect(mocks.setRouterSimState.mock.calls.map((c) => c[0].data.state)).toEqual(["PAUSE", "ACTIVE"]);
     expect(mocks.finished).toEqual(["failed", "complete"]);
   });
 
