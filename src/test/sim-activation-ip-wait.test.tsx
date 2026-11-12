@@ -92,6 +92,7 @@ describe("SIM activation IP wait", () => {
     expect(mocks.finished).toContain("waiting_ip");
     expect(mocks.finished).not.toContain("failed");
     expect(mocks.runJob).not.toHaveBeenCalled();
+    expect(mocks.setRouterSimState).toHaveBeenCalledWith({ data: { iccid: "89630000000000000001", state: "PAUSE" } });
   });
 
   it("finishes the same activation when the IP address turns up on a later check", async () => {
@@ -144,6 +145,7 @@ describe("SIM activation IP wait", () => {
 
     expect(screen.getByRole("button", { name: "Retry IP address check" })).toBeInTheDocument();
     expect(mocks.finished).toContain("failed");
+    expect(mocks.setRouterSimState).toHaveBeenCalledWith({ data: { iccid: "89630000000000000001", state: "PAUSE" } });
 
     mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
     fireEvent.click(screen.getByRole("button", { name: "Retry IP address check" }));
@@ -153,6 +155,15 @@ describe("SIM activation IP wait", () => {
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
     expect(mocks.getSimIp).toHaveBeenCalledTimes(2);
     expect(mocks.finished).toContain("complete");
+  });
+
+  it.each(["GPS-Battery", "GPS-Genset", "Other"])("never pauses %s on IP failure", async (equipment) => {
+    renderPage();
+    fireEvent.click(screen.getByRole("radio", { name: equipment }));
+    if (equipment !== "Other") mocks.getSimIp.mockRejectedValueOnce(new Error("IP lookup failed"));
+    startActivation();
+    await tick(0);
+    expect(mocks.setRouterSimState).not.toHaveBeenCalled();
   });
 
   it("pauses for Retry-After on HTTP 429 and completes without reactivation", async () => {
@@ -194,7 +205,7 @@ describe("SIM activation IP wait", () => {
     expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_firewall"]);
     expect(mocks.runJob.mock.calls.every((c) => c[1]?.["ip"] === "10.20.30.40")).toBe(true);
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
-    expect(mocks.setRouterSimState.mock.calls.map((c) => c[0].data.state)).toEqual(["SUSPENDED", "ACTIVE"]);
+    expect(mocks.setRouterSimState.mock.calls.map((c) => c[0].data.state)).toEqual(["PAUSE", "ACTIVE"]);
     expect(mocks.finished).toEqual(["failed", "complete"]);
   });
 

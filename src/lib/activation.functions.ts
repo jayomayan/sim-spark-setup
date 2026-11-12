@@ -103,29 +103,38 @@ export const getSimIp = createServerFn({ method: "POST" })
  */
 export const setRouterSimState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { iccid: string; state: "SUSPENDED" | "ACTIVE" }) => {
+  .inputValidator((d: { iccid: string; state: "PAUSE" | "ACTIVE" }) => {
     if (!validIccid(d.iccid)) throw new Error("ICCID must be 18–22 digits");
-    if (d.state !== "SUSPENDED" && d.state !== "ACTIVE") throw new Error("Unsupported SIM state");
+    if (d.state !== "PAUSE" && d.state !== "ACTIVE") throw new Error("Unsupported SIM state");
     return d;
   })
   .handler(async ({ data, context }) => {
     const { memberConsoleConfig, createConsoleRequest } = await import("@/lib/console-connect.server");
     const config = await memberConsoleConfig(context.supabase, context.userId, "sim_activation");
-    if (!(config.apiUrl && config.username && config.password)) return { ok: true, simulated: true };
+    if (!(config.apiUrl && config.username && config.password)) throw new Error("Console Connect is not configured; SIM state could not be confirmed");
     const request = createConsoleRequest(config);
     const sub = await findSubscription(request, data.iccid);
     if (sub.state !== data.state) await changeState(request, sub.imsi, data.state);
+    // State-change requests are asynchronous. Never claim Pause before provider readback.
+    if (data.state === "PAUSE" && sub.state !== "PAUSE") {
+      for (let attempt = 0; attempt < 12; attempt++) {
+        await wait(5_000);
+        const updated = await findSubscription(request, data.iccid);
+        if (updated.state === "PAUSE") return { ok: true, simulated: false };
+      }
+      throw new Error("Pause was requested but Console Connect has not confirmed it; check the SIM in Console Connect");
+    }
     return { ok: true, simulated: false };
   });
 
-async function changeState(request: ConsoleRequest, imsi: string, state: "ACTIVE" | "SUSPENDED") {
+async function changeState(request: ConsoleRequest, imsi: string, state: "ACTIVE" | "PAUSE") {
   const res = await request("/sica/subscriptions/requests/state-changes", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ subscriptions: { identifier_type: "IMSI", identifiers: [imsi] }, change: { state } }),
   });
   checkConsoleRateLimit(res);
-  if (!res.ok) throw new Error(`${state === "ACTIVE" ? "Activation" : "Suspension"} failed (${res.status})`);
+  if (!res.ok) throw new Error(`${state === "ACTIVE" ? "Activation" : "Pause"} failed (${res.status})`);
 }
 
 type ConsoleRequest = (path: string, init?: RequestInit) => Promise<Response>;
@@ -140,8 +149,8 @@ async function findSubscription(request: ConsoleRequest, iccid: string) {
   });
   checkConsoleRateLimit(res);
   if (!res.ok) throw new Error(`SIM lookup failed (${res.status})`);
-  const j = (await res.json()) as { subscriptions?: { imsi?: string; state?: string; ips?: unknown }[] };
+  const j = (await res.json()) as { subscriptions?: { imsi?: string; state?: string; subscriptionState?: string; ips?: unknown }[] };
   const sub = j.subscriptions?.[0];
   if (!sub?.imsi) throw new Error("No SIM found in Console Connect for that ICCID");
-  return { imsi: sub.imsi, state: sub.state, ips: sub.ips };
+  return { imsi: sub.imsi, state: sub.state ?? sub.subscriptionState, ips: sub.ips };
 }
