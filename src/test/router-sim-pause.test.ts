@@ -25,7 +25,9 @@ describe("Router Pause provider contract", () => {
     const result = pause(args).then((value) => { settled = true; return value; });
     await vi.advanceTimersByTimeAsync(5_000);
     expect(settled).toBe(false);
-    expect(JSON.parse(mocks.request.mock.calls[1][1].body).change.state).toBe("PAUSE");
+    const body = mocks.request.mock.calls[1]?.[1]?.body;
+    expect(typeof body).toBe("string");
+    expect(JSON.parse(String(body)).change.state).toBe("PAUSE");
     await vi.advanceTimersByTimeAsync(5_000);
     expect(await result).toEqual({ ok: true, simulated: false });
   });
@@ -33,10 +35,11 @@ describe("Router Pause provider contract", () => {
   it("never reports Pause when the provider keeps reporting ACTIVE", async () => {
     vi.useFakeTimers();
     mocks.config.mockResolvedValue({ apiUrl: "https://iot-api.aeris.com", username: "test", password: "test" });
-    mocks.request.mockResolvedValue(json("ACTIVE"));
-    const result = expect(pause(args)).rejects.toThrow("has not confirmed");
+    mocks.request.mockImplementation(async () => json("ACTIVE"));
+    const result = pause(args).catch((error: unknown) => error);
     await vi.advanceTimersByTimeAsync(60_000);
-    await result;
+    expect(await result).toBeInstanceOf(Error);
+    expect((await result as Error).message).toContain("has not confirmed");
   });
 
   it("does not simulate successful Pause when Console Connect is unconfigured", async () => {
