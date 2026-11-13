@@ -4,7 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { activationReportsCsv, escapeReportSearch, exportActivationReports, readActivationReports, reportDateRange } from "@/lib/activation-reports";
 
 function harness(admin: boolean) {
-  const row = { id: "activation-1", iccid: "89630000000000000001", site_id: "PH010065", equipment: ["ur35"], ip: "10.194.89.128", status: "complete", error: null, simulated: false, created_by: "another-user", created_at: "2026-11-09T08:00:00Z", finished_at: "2026-11-09T08:01:00Z" };
+  const row = { id: "activation-1", iccid: "89630000000000000001", site_id: "PH010065", equipment: ["ur35"], ip: "10.194.89.128", status: "COMPLETED", error: null, simulated: false, created_by: "another-user", created_at: "2026-11-09T08:00:00Z", finished_at: "2026-11-09T08:01:00Z" };
   const range = vi.fn().mockResolvedValue({ data: [row], count: 57, error: null });
   const limit = vi.fn().mockResolvedValue({ data: [row], count: 1, error: null });
   const order = vi.fn();
@@ -29,7 +29,7 @@ describe("Admin-only activation reports", () => {
     const h = harness(true);
     const result = await readActivationReports(h.client, "admin", 0);
     expect(h.rpc).toHaveBeenCalledWith("has_role", { _user_id: "admin", _role: "admin" });
-    expect(result.rows[0]).toMatchObject({ created_by: "another-user", activated_by: "Operator One", iccid: "89630000000000000001", site_id: "PH010065", ip: "10.194.89.128", status: "complete" });
+    expect(result.rows[0]).toMatchObject({ created_by: "another-user", activated_by: "Operator One", iccid: "89630000000000000001", site_id: "PH010065", ip: "10.194.89.128", status: "COMPLETED" });
     expect(result.total).toBe(57);
   });
   it("pages through all reports rather than limiting the list to recent history", async () => {
@@ -100,11 +100,11 @@ describe("Activation report CSV export", () => {
   });
   it("writes a header row and escapes commas, quotes and line breaks", () => {
     const csv = activationReportsCsv([
-      { iccid: "89630000000000000001", site_id: "PH010065", equipment: ["ur35", "gps_battery"], ip: "10.194.89.128", status: "failed", error: "Line one\nLine \"two\"", simulated: true, created_at: "2026-11-09T08:00:00Z", finished_at: null, activated_by: "Operator One" },
+      { iccid: "89630000000000000001", site_id: "PH010065", equipment: ["ur35", "gps_battery"], ip: "10.194.89.128", status: "UNFINISHED", error: "Line one\nLine \"two\"", simulated: true, created_at: "2026-11-09T08:00:00Z", finished_at: null, activated_by: "Operator One" },
     ]);
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe("Date,User,ICCID,Site ID,Equipment,IP address,Status,Error,Finished,Test mode");
     expect(lines).toHaveLength(2);
-    expect(lines[1]).toBe('2026-11-09T08:00:00Z,Operator One,89630000000000000001,PH010065,"ur35, gps_battery",10.194.89.128,failed,"Line one\nLine ""two""",,Yes');
+    expect(lines[1]).toBe('2026-11-09T08:00:00Z,Operator One,89630000000000000001,PH010065,"ur35, gps_battery",10.194.89.128,UNFINISHED,"Line one\nLine ""two""",,Yes');
   });
 });
