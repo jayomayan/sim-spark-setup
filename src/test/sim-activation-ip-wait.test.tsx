@@ -26,15 +26,16 @@ const mocks = vi.hoisted(() => {
     }),
   }));
   const setRouterSimState = vi.fn(async (_a: { data: { iccid: string; state: string } }) => ({ ok: true, simulated: false }));
-  return { setRouterSimState, activateSim, getSimIp, runJob, finished, from, miscEnabled: false };
+  const closeUnfinished = vi.fn(async (_a: { data: { id?: string } }) => ({ closed: 0 }));
+  return { closeUnfinished, setRouterSimState, activateSim, getSimIp, runJob, finished, from, miscEnabled: false };
 });
 
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
-vi.mock("@/lib/activation.functions", () => ({ activateSim: mocks.activateSim, getSimIp: mocks.getSimIp, setRouterSimState: mocks.setRouterSimState }));
+vi.mock("@/lib/activation.functions", () => ({ activateSim: mocks.activateSim, getSimIp: mocks.getSimIp, setRouterSimState: mocks.setRouterSimState, closeUnfinishedActivations: mocks.closeUnfinished }));
 vi.mock("@/lib/jobs", () => ({ runJob: mocks.runJob }));
 vi.mock("@/components/PageHeader", () => ({ PageHeader: () => null, meta: () => ({}) }));
 vi.mock("@/components/HelperStatus", () => ({ HelperOfflineNote: () => null }));
-vi.mock("sonner", () => ({ toast: { warning: vi.fn(), success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { info: vi.fn(), warning: vi.fn(), success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: { getUser: async () => ({ data: { user: { id: "user-1" } } }) },
