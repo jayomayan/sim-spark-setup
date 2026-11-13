@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { matchCustomFields } from "@/lib/sim-custom-fields";
 import { ConsoleRateLimitError } from "@/lib/console-rate-limit";
 import { changeState, findSubscription } from "@/lib/sim-subscription";
+import { OPEN_STATUSES } from "@/lib/activation-process";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const validIccid = (s: string) => /^\d{18,22}$/.test(s);
@@ -144,8 +145,10 @@ export const closeUnfinishedActivations = createServerFn({ method: "POST" })
     const { closeActivations } = await import("@/lib/activation-sweep.server");
     const config = await memberConsoleConfig(context.supabase, context.userId, "sim_activation");
     let q = context.supabase.from("sim_activations").select("id,iccid,equipment,sim_activated,simulated,status")
-      .is("finished_at", null).eq("created_by", context.userId).in("status", ["running", "waiting_ip", "needs_retry"]);
+      .is("finished_at", null).eq("created_by", context.userId).in("status", [...OPEN_STATUSES]);
     if (data.id) q = q.eq("id", data.id);
     const { data: rows } = await q.limit(10);
-    return closeActivations(context.supabase, config, rows ?? [], data.id ? "No retry within 3 minutes" : "A new activation was started");
+    // A run left idle for 3 minutes is timed out; one displaced by a new activation was abandoned.
+    return closeActivations(context.supabase, config, rows ?? [], data.id ? "TERMINATED" : "UNFINISHED",
+      data.id ? "No retry within 3 minutes" : "A new activation was started");
   });
