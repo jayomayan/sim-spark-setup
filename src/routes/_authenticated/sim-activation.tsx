@@ -120,7 +120,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   });
 
   /** Saves where the run is so it can be monitored, and keeps it out of the 3-minute cleanup. */
-  const touch = (patch: { status?: string; step?: string | undefined; sim_activated?: boolean } = {}) => {
+  const touch = (patch: { status?: string; step?: string | null; sim_activated?: boolean } = {}) => {
     const id = recordIdRef.current;
     if (!id) return Promise.resolve();
     return supabase.from("sim_activations").update({ ...patch, last_activity_at: new Date().toISOString() }).eq("id", id).then(() => undefined);
@@ -128,7 +128,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const set = (i: number, s: State) => {
     stepRef.current = i;
     setStates((p) => p.map((v, j) => (j === i ? s : v)));
-    if (s === "running") void touch({ status: "running", step: STEPS[i] });
+    if (s === "running") void touch({ status: "running", step: STEPS[i] ?? null });
   };
   const showIp = (v: string | null) => {
     ipRef.current = v;
@@ -240,7 +240,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       set(1, "waiting");
       setWaitingForIp(true);
       // The SIM stays active so a retry can still get the IP; cleanup pauses it after 3 idle minutes.
-      await touch({ status: "waiting_ip", step: STEPS[1] });
+      await touch({ status: "waiting_ip", step: STEPS[1] ?? null });
       setRetryDeadline(Date.now() + RETRY_WINDOW_MS);
       return;
     }
