@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => {
   const getSimIp = vi.fn(async (): Promise<{ ip: string | null; status: string; simulated: boolean; retryAfterMs?: number }> => ({ ip: null, status: "PENDING", simulated: false }));
   const runJob = vi.fn(async (type: string, _payload?: Record<string, unknown>, _opts?: { onQueued?: (id: string) => void }) => ({ status: "done", result: null, error: null as string | null }));
   const finished: string[] = [];
+  const saved: string[] = [];
   const from = vi.fn(() => ({
     select: vi.fn(() => ({
       eq: vi.fn(() => ({ single: async () => ({ data: { status: "running" }, error: null }) })),
@@ -21,13 +22,17 @@ const mocks = vi.hoisted(() => {
       })),
     })),
     update: vi.fn((patch: { status?: string }) => {
-      if (patch?.status && patch.status !== "running") finished.push(patch.status);
+      if (patch?.status) {
+        saved.push(patch.status);
+        // Only the states that end a run count as finished.
+        if (["COMPLETED", "UNFINISHED", "TERMINATED"].includes(patch.status)) finished.push(patch.status);
+      }
       return { eq: vi.fn(async () => ({ data: null })) };
     }),
   }));
   const setRouterSimState = vi.fn(async (_a: { data: { iccid: string; state: string } }) => ({ ok: true, simulated: false }));
   const closeUnfinished = vi.fn(async (_a: { data: { id?: string } }) => ({ closed: 0 }));
-  return { closeUnfinished, setRouterSimState, activateSim, getSimIp, runJob, finished, from, miscEnabled: false };
+  return { closeUnfinished, setRouterSimState, activateSim, getSimIp, runJob, finished, saved, from, miscEnabled: false };
 });
 
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
@@ -77,6 +82,7 @@ describe("SIM activation IP wait", () => {
     vi.useRealTimers();
     vi.clearAllMocks();
     mocks.finished.length = 0;
+    mocks.saved.length = 0;
     mocks.miscEnabled = false;
   });
 
@@ -90,8 +96,8 @@ describe("SIM activation IP wait", () => {
     expect(screen.getAllByRole("button", { name: /check for ip address again/i })).toHaveLength(1);
     expect(document.querySelectorAll('li[data-state="waiting"]')).toHaveLength(1);
     // The activation is kept as waiting rather than failed, so it can still be finished.
-    expect(mocks.finished).toContain("waiting_ip");
-    expect(mocks.finished).not.toContain("failed");
+    expect(mocks.saved).toContain("RETRYING");
+    expect(mocks.finished).not.toContain("UNFINISHED");
     expect(mocks.runJob).not.toHaveBeenCalled();
     // IP wait timeout no longer pauses the SIM; the 3-minute cleanup does.
     expect(mocks.setRouterSimState).not.toHaveBeenCalled();
@@ -109,7 +115,7 @@ describe("SIM activation IP wait", () => {
     expect(screen.queryAllByRole("button", { name: /check for ip address again/i })).toHaveLength(0);
     expect(screen.getByText("10.20.30.40")).toBeInTheDocument();
     expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall"]);
-    expect(mocks.finished).toContain("complete");
+    expect(mocks.finished).toContain("COMPLETED");
   });
 
   it.each([
@@ -122,7 +128,7 @@ describe("SIM activation IP wait", () => {
     await tick(0);
 
     expect(mocks.activateSim).toHaveBeenCalledWith({ data: { iccid: "89630000000000000001", label: "PH010065" } });
-    expect(mocks.finished).toEqual(["complete"]);
+    expect(mocks.finished).toEqual(["COMPLETED"]);
     expect(screen.getByText("Process complete")).toBeInTheDocument();
     assertSkipped();
   });
@@ -146,7 +152,7 @@ describe("SIM activation IP wait", () => {
     await tick(0);
 
     expect(screen.getByRole("button", { name: "Retry IP address check" })).toBeInTheDocument();
-    expect(mocks.finished).toContain("needs_retry");
+    expect(mocks.saved).toContain("RETRYING");
     expect(mocks.setRouterSimState).not.toHaveBeenCalled();
 
     mocks.getSimIp.mockResolvedValueOnce({ ip: "10.20.30.40", status: "ACTIVE", simulated: false });
@@ -156,7 +162,7 @@ describe("SIM activation IP wait", () => {
     expect(screen.getByText("10.20.30.40")).toBeInTheDocument();
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
     expect(mocks.getSimIp).toHaveBeenCalledTimes(2);
-    expect(mocks.finished).toContain("complete");
+    expect(mocks.finished).toContain("COMPLETED");
   });
 
   it.each(["GPS-Battery", "GPS-Genset", "Other"])("never pauses %s on IP failure", async (equipment) => {
@@ -176,11 +182,11 @@ describe("SIM activation IP wait", () => {
     await tick(0);
     await tick(44_999);
     expect(mocks.getSimIp).toHaveBeenCalledTimes(1);
-    expect(mocks.finished).not.toContain("failed");
+    expect(mocks.finished).not.toContain("UNFINISHED");
     await tick(1);
     expect(mocks.getSimIp).toHaveBeenCalledTimes(2);
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
-    expect(mocks.finished).toContain("complete");
+    expect(mocks.finished).toContain("COMPLETED");
   });
 
   it("ends the two-minute window without retrying before a longer provider cooldown", async () => {
@@ -189,8 +195,8 @@ describe("SIM activation IP wait", () => {
     startActivation();
     await tick(120_000);
     expect(mocks.getSimIp).toHaveBeenCalledTimes(1);
-    expect(mocks.finished).toContain("waiting_ip");
-    expect(mocks.finished).not.toContain("failed");
+    expect(mocks.saved).toContain("RETRYING");
+    expect(mocks.finished).not.toContain("UNFINISHED");
   });
 
   it("keeps a Router SIM active when firewall rules fail and retries without re-activating", async () => {
@@ -223,7 +229,7 @@ describe("SIM activation IP wait", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry firewall rules" }));
     await tick(0);
     expect(mocks.runJob).toHaveBeenCalledTimes(1);
-    expect(mocks.finished).not.toContain("complete");
+    expect(mocks.finished).not.toContain("COMPLETED");
   });
 
   it("applies miscellaneous settings after the firewall rules when they are enabled", async () => {
@@ -236,7 +242,7 @@ describe("SIM activation IP wait", () => {
 
     expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_misc"]);
     expect(screen.getByText("Apply miscellaneous settings")).toBeInTheDocument();
-    expect(mocks.finished).toContain("complete");
+    expect(mocks.finished).toContain("COMPLETED");
   });
 
   it("retries failed miscellaneous settings without re-running the firewall rules", async () => {
@@ -255,7 +261,8 @@ describe("SIM activation IP wait", () => {
 
     expect(mocks.runJob.mock.calls.map((c) => c[0])).toEqual(["ur35_firewall", "ur35_misc", "ur35_misc"]);
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
-    expect(mocks.finished).toEqual(["needs_retry", "complete"]);
+    expect(mocks.saved).toContain("RETRYING");
+    expect(mocks.finished).toEqual(["COMPLETED"]);
   });
 
   it("keeps miscellaneous settings out of the progress list while they are disabled", async () => {
@@ -272,7 +279,7 @@ describe("SIM activation IP wait", () => {
 
 describe("unfinished activation cleanup on the page", () => {
   beforeEach(() => { vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] }); });
-  afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mocks.finished.length = 0; });
+  afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); mocks.finished.length = 0; mocks.saved.length = 0; });
 
   it("closes the user's previous unfinished run before starting a new one", async () => {
     renderPage();
