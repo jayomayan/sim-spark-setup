@@ -2,22 +2,24 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { createConsoleRequest, readConsoleConfig } from "@/lib/console-connect.server";
 import { changeState, findSubscription } from "@/lib/sim-subscription";
-import { OPEN_STATUSES, RETRY_WINDOW_MS, needsPause } from "@/lib/activation-process";
+import { OPEN_STATUSES, RETRY_WINDOW_MS, needsPause, type CloseOutcome } from "@/lib/activation-process";
 
 type Row = { id: string; iccid: string; equipment: string[]; sim_activated: boolean; simulated: boolean; status: string };
 type Config = Awaited<ReturnType<typeof readConsoleConfig>>;
 
-/** Claim each open run once, pause Router SIMs we turned on, and mark the run unfinished. */
-export async function closeActivations(db: SupabaseClient<Database>, config: Config, rows: Row[], reason: string) {
+/** Claim each open run once, pause Router SIMs we turned on, and record why it never completed. */
+export async function closeActivations(db: SupabaseClient<Database>, config: Config, rows: Row[], outcome: CloseOutcome, reason: string) {
   let closed = 0;
   const configured = Boolean(config.apiUrl && config.username && config.password);
   const request = configured ? createConsoleRequest(config) : null;
   for (const row of rows) {
-    const { data: claimed } = await db.from("sim_activations").update({ status: "terminating", last_activity_at: new Date().toISOString() })
+    const finished = new Date().toISOString();
+    // The claim writes the final state, so a concurrent closer can't repeat this cleanup.
+    const { data: claimed } = await db.from("sim_activations").update({ status: outcome, finished_at: finished, last_activity_at: finished })
       .eq("id", row.id).in("status", [...OPEN_STATUSES]).is("finished_at", null).select("id").maybeSingle();
     if (!claimed) continue;
     let paused = false;
-    let note = `Unfinished: ${reason}.`;
+    let note = `${outcome === "TERMINATED" ? "Terminated" : "Unfinished"}: ${reason}.`;
     if (needsPause(row)) {
       try {
         if (!request) throw new Error("Console Connect is not configured");
@@ -29,7 +31,7 @@ export async function closeActivations(db: SupabaseClient<Database>, config: Con
         note += ` WARNING: Pause failed (${e instanceof Error ? e.message.slice(0, 120) : "error"}). Pause the SIM in Console Connect.`;
       }
     }
-    await db.from("sim_activations").update({ status: "unfinished", sim_paused: paused, error: note, finished_at: new Date().toISOString() }).eq("id", row.id);
+    await db.from("sim_activations").update({ sim_paused: paused, error: note }).eq("id", row.id);
     closed++;
   }
   return { closed };
@@ -41,5 +43,5 @@ export async function sweepStaleActivations(db: SupabaseClient<Database>) {
   const { data: rows } = await db.from("sim_activations").select("id,iccid,equipment,sim_activated,simulated,status")
     .is("finished_at", null).in("status", [...OPEN_STATUSES]).lt("last_activity_at", cutoff).order("last_activity_at").limit(5);
   if (!rows?.length) return { closed: 0 };
-  return closeActivations(db, await readConsoleConfig(db, "sim_activation"), rows, "No retry within 3 minutes");
+  return closeActivations(db, await readConsoleConfig(db, "sim_activation"), rows, "TERMINATED", "No retry within 3 minutes");
 }

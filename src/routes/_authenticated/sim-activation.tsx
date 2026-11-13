@@ -40,6 +40,11 @@ const EQUIPMENT = [
 // "Other" is an admin-only choice: it skips the IP wait and firewall rules.
 const ADMIN_ONLY_EQUIPMENT = new Set<string>(["other"]);
 
+/** Short words for the saved run in the recent-activations list. */
+const historyLabels: Record<string, string> = {
+  INITIATED: "started", IN_PROGRESS: "in progress", RETRYING: "needs retry", COMPLETED: "complete", UNFINISHED: "unfinished", TERMINATED: "terminated",
+};
+
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
@@ -92,6 +97,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const setSimState = useServerFn(setRouterSimState);
   const [suspended, setSuspended] = useState(false);
   const activatedRouterRef = useRef(false);
+  // True while a retry is in flight, so the saved run reads RETRYING rather than IN_PROGRESS.
+  const retryingRef = useRef(false);
   const ipCooldownUntil = useRef(0);
   const closeUnfinished = useServerFn(closeUnfinishedActivations);
   const recordIdRef = useRef<string | null>(null);
@@ -128,7 +135,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const set = (i: number, s: State) => {
     stepRef.current = i;
     setStates((p) => p.map((v, j) => (j === i ? s : v)));
-    if (s === "running") void touch({ status: "running", step: STEPS[i] ?? null });
+    if (s === "running") void touch({ status: retryingRef.current ? "RETRYING" : "IN_PROGRESS", step: STEPS[i] ?? null });
   };
   const showIp = (v: string | null) => {
     ipRef.current = v;
@@ -202,7 +209,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       set(MISC, "skipped");
     }
     set(COMPLETE, "done");
-    await finishRecord(id, { status: "complete", ip: got, simulated: sim, error: null });
+    await finishRecord(id, { status: "COMPLETED", ip: got, simulated: sim, error: null });
   }
 
   /** Check Console Connect for up to two minutes, then let the user decide whether to wait again. */
@@ -240,7 +247,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       set(1, "waiting");
       setWaitingForIp(true);
       // The SIM stays active so a retry can still get the IP; cleanup pauses it after 3 idle minutes.
-      await touch({ status: "waiting_ip", step: STEPS[1] ?? null });
+      await touch({ status: "RETRYING", step: STEPS[1] ?? null });
       setRetryDeadline(Date.now() + RETRY_WINDOW_MS);
       return;
     }
@@ -259,14 +266,14 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     // IP and router-step failures stay retryable; the SIM is not paused unless nobody retries.
     const retryable = id !== null && (stepRef.current === 1 || stepRef.current === FIREWALL || stepRef.current === MISC);
     if (retryable) {
-      if (equipment === "ur35" && activatedRouterRef.current && !sim) msg += " Retry within 3 minutes, or the process will be stopped and the SIM set to Pause.";
+      if (equipment === "ur35" && activatedRouterRef.current && !sim) msg += " Retry within 3 minutes, or the process will be automatically terminated and the SIM set to Pause.";
       setError(msg);
-      await supabase.from("sim_activations").update({ status: "needs_retry", ip: ipRef.current, error: msg, simulated: sim, last_activity_at: new Date().toISOString() }).eq("id", id);
+      await supabase.from("sim_activations").update({ status: "RETRYING", ip: ipRef.current, error: msg, simulated: sim, last_activity_at: new Date().toISOString() }).eq("id", id);
       setRetryDeadline(Date.now() + RETRY_WINDOW_MS);
       return;
     }
     setError(msg);
-    await finishRecord(id, { status: "failed", ip: ipRef.current, error: msg, simulated: sim });
+    await finishRecord(id, { status: "UNFINISHED", ip: ipRef.current, error: msg, simulated: sim });
   }
 
   async function run() {
@@ -282,6 +289,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     setStates(STEPS.map(() => "idle"));
     let sim = false;
     activatedRouterRef.current = false;
+    retryingRef.current = false;
     setSuspended(false);
     setTerminated(false);
     setRetryDeadline(null);
@@ -297,7 +305,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       const { data: u } = await supabase.auth.getUser();
       const { data: rec } = await supabase
         .from("sim_activations")
-        .insert({ iccid, site_id: siteId.trim(), equipment: [equipment], created_by: u.user?.id ?? null })
+        .insert({ iccid, site_id: siteId.trim(), equipment: [equipment], status: "INITIATED", created_by: u.user?.id ?? null })
         .select("id")
         .single();
       id = rec?.id ?? null;
@@ -318,7 +326,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
         set(2, "done");
         set(FIREWALL, "skipped");
         set(MISC, "skipped");
-        await finishRecord(id, { status: "complete", ip: null, simulated: sim });
+        await finishRecord(id, { status: "COMPLETED", ip: null, simulated: sim });
         set(COMPLETE, "done");
       } else {
         await waitForIp(sim, id);
@@ -335,6 +343,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   async function checkAgain() {
     if (runningRef.current) return;
     runningRef.current = true;
+    retryingRef.current = true;
     setBusy(true);
     if (terminated) return;
     setError(null);
@@ -362,6 +371,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     if (runningRef.current || !target || equipment !== "ur35" || states[step] !== "error") return;
     if (terminated) return;
     runningRef.current = true;
+    retryingRef.current = true;
     setBusy(true);
     setError(null);
     setRetryDeadline(null);
@@ -391,7 +401,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
           (step === FIREWALL ? setFirewallStatus : setMiscStatus)("Applied and verified");
           if (step === FIREWALL) await runMisc(ipRef.current ?? target, simulated);
           set(COMPLETE, "done");
-          await finishRecord(recordId, { status: "complete", ip: target, simulated, error: null });
+          await finishRecord(recordId, { status: "COMPLETED", ip: target, simulated, error: null });
           return;
         }
       }
@@ -400,7 +410,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       else {
         await runMisc(current, simulated);
         set(COMPLETE, "done");
-        await finishRecord(recordId, { status: "complete", ip: current, simulated, error: null });
+        await finishRecord(recordId, { status: "COMPLETED", ip: current, simulated, error: null });
       }
     } catch (e) {
       await failRun(e, recordId, simulated);
@@ -430,7 +440,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       try {
         await closeUnfinished({ data: { id: id ?? undefined } });
       } catch { /* the helper check-in cleanup will retry */ }
-      setError("No retry within 3 minutes. The process was stopped and the SIM set to Pause. Start a new activation to try again.");
+      setError("No retry within 3 minutes. The process was automatically terminated and the SIM set to Pause. Start a new activation to try again.");
       qc.invalidateQueries({ queryKey: ["sim_activations"] });
     }, Math.max(0, retryDeadline - Date.now()));
     return () => clearTimeout(t);
@@ -448,6 +458,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
 
   function startOver() {
     activatedRouterRef.current = false;
+    retryingRef.current = false;
     // The saved run stays open; starting the next activation closes it and pauses its SIM.
     recordIdRef.current = null;
     setRetryDeadline(null);
@@ -595,8 +606,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                 </p>
                 <p className="mt-1 flex justify-between text-xs text-muted-foreground">
                   <span>{h.ip ?? "—"}{h.simulated ? " · test" : ""}</span>
-                  <span className={h.status === "complete" ? "text-primary" : h.status === "failed" ? "text-destructive" : ""}>
-                    {h.status === "waiting_ip" ? "waiting" : h.status === "needs_retry" ? "needs retry" : h.status}
+                  <span className={h.status === "COMPLETED" ? "text-primary" : h.status === "UNFINISHED" || h.status === "TERMINATED" ? "text-destructive" : ""}>
+                    {historyLabels[h.status] ?? h.status}
                   </span>
                 </p>
               </div>
