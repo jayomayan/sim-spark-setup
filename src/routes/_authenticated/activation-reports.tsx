@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/activation-reports")({
 });
 
 const equipmentLabels: Record<string, string> = { ur35: "Router", gps_battery: "GPS-Battery", gps_genset: "GPS-Genset", other: "Other" };
-const statusLabels: Record<string, string> = { complete: "Complete", failed: "Failed", waiting_ip: "Waiting for IP", running: "In progress" };
+const statusLabels: Record<string, string> = { complete: "Complete", failed: "Failed", waiting_ip: "Waiting for IP", running: "In progress", needs_retry: "Waiting for retry", terminating: "Stopping", unfinished: "Unfinished" };
 const date = (value: string) => new Date(value).toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" });
 
 function ReportError() {
@@ -101,12 +101,12 @@ function ActivationReports() {
           <td className="px-3 py-3 align-top"><p className="font-mono">{row.iccid}</p><p className="mt-1 text-muted-foreground">{row.site_id || "—"}</p></td>
           <td className="px-3 py-3 align-top">{row.equipment.map((key) => equipmentLabels[key] ?? key).join(", ") || "—"}</td>
           <td className="whitespace-nowrap px-3 py-3 align-top font-mono">{row.ip || "—"}</td>
-          <td className="max-w-56 px-3 py-3 align-top"><p className={row.status === "failed" ? "text-destructive" : row.status === "complete" ? "text-primary" : "text-muted-foreground"}>{statusLabels[row.status] ?? row.status}{row.simulated ? " · Test mode" : ""}</p>{row.finished_at && <time className="mt-1 block text-muted-foreground" dateTime={row.finished_at}>{date(row.finished_at)}</time>}{row.error && <p className="mt-1 break-words text-destructive">{row.error}</p>}</td>
+          <td className="max-w-56 px-3 py-3 align-top"><p className={(row.status === "failed" || row.status === "unfinished") ? "text-destructive" : row.status === "complete" ? "text-primary" : "text-muted-foreground"}>{statusLabels[row.status] ?? row.status}{row.simulated ? " · Test mode" : ""}</p>{row.finished_at && <time className="mt-1 block text-muted-foreground" dateTime={row.finished_at}>{date(row.finished_at)}</time>}{row.error && <p className="mt-1 break-words text-destructive">{row.error}</p>}</td>
         </tr>)}</tbody>
       </table>
     </div>
     <div className="divide-y border-y md:hidden">{rows.map((row) => <article key={row.id} className="space-y-2 py-3 text-sm">
-      <div className="flex flex-wrap justify-between gap-2"><p className="break-all font-mono text-xs">{row.iccid}</p><span className={row.status === "failed" ? "text-destructive" : "text-primary"}>{statusLabels[row.status] ?? row.status}</span></div>
+      <div className="flex flex-wrap justify-between gap-2"><p className="break-all font-mono text-xs">{row.iccid}</p><span className={(row.status === "failed" || row.status === "unfinished") ? "text-destructive" : "text-primary"}>{statusLabels[row.status] ?? row.status}</span></div>
       <p className="break-words">{row.site_id || "—"} · {row.equipment.map((key) => equipmentLabels[key] ?? key).join(", ") || "—"}</p>
       <p className="font-mono text-xs">{row.ip || "No IP address"}{row.simulated ? " · Test mode" : ""}</p>
       <p className="break-words text-xs text-muted-foreground">{row.activated_by} · <time dateTime={row.created_at}>{date(row.created_at)}</time></p>

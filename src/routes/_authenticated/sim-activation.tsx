@@ -3,7 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { activateSim, getSimIp, setRouterSimState } from "@/lib/activation.functions";
+import { activateSim, closeUnfinishedActivations, getSimIp, setRouterSimState } from "@/lib/activation.functions";
+import { ACTIVITY_HEARTBEAT_MS, RETRY_WINDOW_MS } from "@/lib/activation-process";
 import { runJob } from "@/lib/jobs";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader, meta } from "@/components/PageHeader";
@@ -92,6 +93,11 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   const [suspended, setSuspended] = useState(false);
   const activatedRouterRef = useRef(false);
   const ipCooldownUntil = useRef(0);
+  const closeUnfinished = useServerFn(closeUnfinishedActivations);
+  const recordIdRef = useRef<string | null>(null);
+  // Set while the run waits for a retry; after 3 idle minutes the run is closed and the SIM paused.
+  const [retryDeadline, setRetryDeadline] = useState<number | null>(null);
+  const [terminated, setTerminated] = useState(false);
 
   // The on/off switch lives in Admin Settings; the view exposes only that flag to signed-in users.
   const miscFlags = useQuery({
@@ -113,9 +119,16 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     queryFn: async () => (await supabase.from("sim_activations").select("*").order("created_at", { ascending: false }).limit(10)).data ?? [],
   });
 
+  /** Saves where the run is so it can be monitored, and keeps it out of the 3-minute cleanup. */
+  const touch = (patch: { status?: string; step?: string; sim_activated?: boolean } = {}) => {
+    const id = recordIdRef.current;
+    if (!id) return Promise.resolve();
+    return supabase.from("sim_activations").update({ ...patch, last_activity_at: new Date().toISOString() }).eq("id", id).then(() => undefined);
+  };
   const set = (i: number, s: State) => {
     stepRef.current = i;
     setStates((p) => p.map((v, j) => (j === i ? s : v)));
+    if (s === "running") void touch({ status: "running", step: STEPS[i] });
   };
   const showIp = (v: string | null) => {
     ipRef.current = v;
@@ -226,8 +239,9 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     if (!got) {
       set(1, "waiting");
       setWaitingForIp(true);
-      await pauseIncompleteRouter(sim);
-      if (id) await supabase.from("sim_activations").update({ status: "waiting_ip" }).eq("id", id);
+      // The SIM stays active so a retry can still get the IP; cleanup pauses it after 3 idle minutes.
+      await touch({ status: "waiting_ip", step: STEPS[1] });
+      setRetryDeadline(Date.now() + RETRY_WINDOW_MS);
       return;
     }
     showIp(got);
@@ -248,14 +262,14 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     if (stepRef.current === MISC) setMiscStatus("Failed · see error below");
     set(stepRef.current, "error");
     let msg = e instanceof Error ? e.message : "Something went wrong";
-    // A Router SIM is only usable once its firewall rules are in place.
-    if (equipment === "ur35" && activatedRouterRef.current && !sim) {
-      try {
-        await pauseIncompleteRouter(sim);
-        msg += " The SIM is in Pause until the router settings are applied. Retry to resume it.";
-      } catch (se) {
-        msg += ` WARNING: Pause could not be confirmed (${se instanceof Error ? se.message : "error"}). Pause the SIM in Console Connect.`;
-      }
+    // IP and router-step failures stay retryable; the SIM is not paused unless nobody retries.
+    const retryable = id !== null && (stepRef.current === 1 || stepRef.current === FIREWALL || stepRef.current === MISC);
+    if (retryable) {
+      if (equipment === "ur35" && activatedRouterRef.current && !sim) msg += " Retry within 3 minutes, or the process will be stopped and the SIM set to Pause.";
+      setError(msg);
+      await supabase.from("sim_activations").update({ status: "needs_retry", ip: ipRef.current, error: msg, simulated: sim, last_activity_at: new Date().toISOString() }).eq("id", id);
+      setRetryDeadline(Date.now() + RETRY_WINDOW_MS);
+      return;
     }
     setError(msg);
     await finishRecord(id, { status: "failed", ip: ipRef.current, error: msg, simulated: sim });
@@ -275,8 +289,17 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     let sim = false;
     activatedRouterRef.current = false;
     setSuspended(false);
+    setTerminated(false);
+    setRetryDeadline(null);
     let id: string | null = null;
     try {
+      // Any run this user left unfinished is closed first, pausing its Router SIM.
+      try {
+        const closed = await closeUnfinished({ data: {} });
+        if (closed.closed) toast.info("Your previous unfinished activation was stopped and its SIM set to Pause.");
+      } catch {
+        toast.warning("Could not close your previous unfinished activation. Check its SIM in Console Connect.");
+      }
       const { data: u } = await supabase.auth.getUser();
       const { data: rec } = await supabase
         .from("sim_activations")
@@ -284,6 +307,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
         .select("id")
         .single();
       id = rec?.id ?? null;
+      recordIdRef.current = id;
       setRecordId(id);
       set(0, "running");
       // Site ID goes to Console Connect's Label# field; equipment is not sent to Console Connect.
@@ -291,6 +315,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       if (a.alreadyActive) throw new Error(`SIM with ICCID ${iccid} is already Active.`);
       activatedRouterRef.current = equipment === "ur35";
       sim = a.simulated;
+      await touch({ sim_activated: true });
       setSimulated(sim);
       set(0, "done");
       if (a.labelWarning) toast.warning(a.labelWarning);
@@ -317,8 +342,10 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     if (runningRef.current) return;
     runningRef.current = true;
     setBusy(true);
+    if (terminated) return;
     setError(null);
     setWaitingForIp(false);
+    setRetryDeadline(null);
     try {
       if (suspended) {
         await setSimState({ data: { iccid, state: "ACTIVE" } });
@@ -339,9 +366,11 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     const target = ipRef.current;
     const jobRef = step === FIREWALL ? routerJobRef : miscJobRef;
     if (runningRef.current || !target || equipment !== "ur35" || states[step] !== "error") return;
+    if (terminated) return;
     runningRef.current = true;
     setBusy(true);
     setError(null);
+    setRetryDeadline(null);
     try {
       if (suspended) {
         (step === FIREWALL ? setFirewallStatus : setMiscStatus)("Resuming SIM…");
@@ -388,6 +417,32 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     }
   }
 
+  // Keep the saved run fresh while a step is working, so cleanup only closes idle runs.
+  useEffect(() => {
+    if (!busy) return;
+    const t = setInterval(() => void touch(), ACTIVITY_HEARTBEAT_MS);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
+
+  // No retry within 3 minutes: stop the process and pause the SIM.
+  useEffect(() => {
+    if (retryDeadline === null || busy || terminated) return;
+    const id = recordIdRef.current;
+    const t = setTimeout(async () => {
+      setRetryDeadline(null);
+      setTerminated(true);
+      setWaitingForIp(false);
+      try {
+        await closeUnfinished({ data: { id: id ?? undefined } });
+      } catch { /* the helper check-in cleanup will retry */ }
+      setError("No retry within 3 minutes. The process was stopped and the SIM set to Pause. Start a new activation to try again.");
+      qc.invalidateQueries({ queryKey: ["sim_activations"] });
+    }, Math.max(0, retryDeadline - Date.now()));
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryDeadline, busy, terminated]);
+
   // Warn before leaving while router settings are still being applied.
   useEffect(() => {
     const routerBusy = equipment === "ur35" && (states[FIREWALL] === "running" || states[MISC] === "running");
@@ -399,6 +454,10 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
 
   function startOver() {
     activatedRouterRef.current = false;
+    // The saved run stays open; starting the next activation closes it and pauses its SIM.
+    recordIdRef.current = null;
+    setRetryDeadline(null);
+    setTerminated(false);
     setSuspended(false);
     setFirewallProgress([]);
     setFirewallStatus("");
@@ -415,7 +474,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
 
   const complete = states[COMPLETE] === "done";
   const routerFailed = states[FIREWALL] === "error" || states[MISC] === "error";
-  const locked = busy || waitingForIp || routerFailed;
+  const ipFailed = states[1] === "error";
+  const locked = busy || ((waitingForIp || routerFailed || ipFailed) && !terminated);
   const visibleSteps = STEPS.map((label, i) => ({ label, i })).filter(({ i }) =>
     (i !== MISC || miscEnabled) && (equipment === "ur35" || (i !== FIREWALL && i !== MISC && (equipment !== "other" || i !== 1))),
   );
@@ -482,12 +542,12 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                     {states[i] === "running" ? <span className="spinner" /> : states[i] === "done" ? "✓" : states[i] === "error" ? "!" : states[i] === "skipped" ? "–" : states[i] === "waiting" ? "↻" : n + 1}
                   </span>
                   <span className="step-label flex-1 text-muted-foreground">{s}</span>
-                  {i === FIREWALL && states[FIREWALL] === "error" && ip && (
+                  {i === FIREWALL && states[FIREWALL] === "error" && ip && !terminated && (
                     <Button size="sm" variant="outline" disabled={busy} onClick={() => retryRouterStep(FIREWALL)}>
                       <RotateCcw aria-hidden="true" />Retry firewall rules
                     </Button>
                   )}
-                  {i === MISC && states[MISC] === "error" && ip && (
+                  {i === MISC && states[MISC] === "error" && ip && !terminated && (
                     <Button size="sm" variant="outline" disabled={busy} onClick={() => retryRouterStep(MISC)}>
                       <RotateCcw aria-hidden="true" />Retry miscellaneous settings
                     </Button>
@@ -497,7 +557,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                   {i === 1 && states[1] === "running" && <span className="font-mono text-xs text-muted-foreground">{fmtClock(secondsLeft)} left</span>}
                   {i === 2 && states[2] === "done" && <span className="badge-active">{suspended ? "PAUSE" : "ACTIVE"}</span>}
                   {i === 1 && ip && <span className="font-mono text-sm text-primary">{ip}</span>}
-                  {i === 1 && states[1] === "error" && (
+                  {i === 1 && states[1] === "error" && !terminated && (
                     <Button size="sm" variant="outline" disabled={busy} onClick={checkAgain}>
                       <RotateCcw aria-hidden="true" />Retry IP address check
                     </Button>
@@ -508,7 +568,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                 </li>
               ))}
             </ol>
-            {routerFailed && <Button variant="link" size="sm" disabled={busy} onClick={startOver} className="mt-3">Start over with a different SIM</Button>}
+            {(routerFailed || ipFailed) && !terminated && <Button variant="link" size="sm" disabled={busy} onClick={startOver} className="mt-3">Start over with a different SIM</Button>}
             {waitingForIp && (
               <div className="mt-3 rounded-md border border-input bg-accent p-3">
                 <p className="text-sm font-semibold text-accent-foreground">No IP address yet after 2 minutes</p>
@@ -542,7 +602,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                 <p className="mt-1 flex justify-between text-xs text-muted-foreground">
                   <span>{h.ip ?? "—"}{h.simulated ? " · test" : ""}</span>
                   <span className={h.status === "complete" ? "text-primary" : h.status === "failed" ? "text-destructive" : ""}>
-                    {h.status === "waiting_ip" ? "waiting" : h.status}
+                    {h.status === "waiting_ip" ? "waiting" : h.status === "needs_retry" ? "needs retry" : h.status}
                   </span>
                 </p>
               </div>
