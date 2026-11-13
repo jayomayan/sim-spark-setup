@@ -106,6 +106,13 @@
       "when": 1794298072530,
       "tag": "0014_site_connectivity_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794556852742,
+      "tag": "0015_activation_process_tracking",
+      "breakpoints": true
     }
   ]
 }
