@@ -1,1 +1,2 @@
 - Stale open activation runs are closed by `activation-sweep.server.ts` on helper check-ins, so abandoned runs pause without a browser.
+- Activation status values come only from `ACTIVATION_STATUSES` in `src/lib/activation-process.ts`; the database column is constrained to them, and a run that never completes closes as TERMINATED (3-minute timeout) or UNFINISHED (abandoned or unrecoverable).

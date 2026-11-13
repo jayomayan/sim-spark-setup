@@ -7,11 +7,17 @@ const ago = (ms: number) => new Date(now - ms).toISOString();
 describe("unfinished SIM activation cleanup", () => {
   it("uses a 3-minute retry window", () => expect(RETRY_WINDOW_MS).toBe(180_000));
   it("closes an idle run waiting for retry after 3 minutes", () => {
-    expect(isStale({ status: "needs_retry", last_activity_at: ago(180_000), finished_at: null }, now)).toBe(true);
-    expect(isStale({ status: "waiting_ip", last_activity_at: ago(179_000), finished_at: null }, now)).toBe(false);
+    expect(isStale({ status: "RETRYING", last_activity_at: ago(180_000), finished_at: null }, now)).toBe(true);
+    expect(isStale({ status: "IN_PROGRESS", last_activity_at: ago(179_000), finished_at: null }, now)).toBe(false);
   });
   it("never closes finished runs", () => {
-    expect(isStale({ status: "complete", last_activity_at: ago(600_000), finished_at: ago(600_000) }, now)).toBe(false);
+    expect(isStale({ status: "COMPLETED", last_activity_at: ago(600_000), finished_at: ago(600_000) }, now)).toBe(false);
+    expect(isStale({ status: "TERMINATED", last_activity_at: ago(600_000), finished_at: ago(600_000) }, now)).toBe(false);
+    expect(isStale({ status: "UNFINISHED", last_activity_at: ago(600_000), finished_at: ago(600_000) }, now)).toBe(false);
+  });
+  it("ignores statuses outside the published vocabulary", () => {
+    expect(isStale({ status: "needs_retry", last_activity_at: ago(600_000), finished_at: null }, now)).toBe(false);
+    expect(isStale({ status: "waiting_ip", last_activity_at: ago(600_000), finished_at: null }, now)).toBe(false);
   });
   it("pauses only Router SIMs the app activated", () => {
     expect(needsPause({ equipment: ["ur35"], sim_activated: true, simulated: false })).toBe(true);
