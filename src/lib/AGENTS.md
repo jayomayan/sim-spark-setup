@@ -1,0 +1,1 @@
+- Stale open activation runs are closed by `activation-sweep.server.ts` on helper check-ins, so abandoned runs pause without a browser.
