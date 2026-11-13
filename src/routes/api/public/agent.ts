@@ -39,6 +39,13 @@ export const Route = createFileRoute("/api/public/agent")({
             version: String(body.version ?? "").slice(0, 40),
             hostname: String(body.hostname ?? "").slice(0, 120),
           }).eq("id", 1);
+          // Close SIM activations left without a retry for 3 minutes; never blocks the check-in.
+          try {
+            const { sweepStaleActivations } = await import("@/lib/activation-sweep.server");
+            await sweepStaleActivations(db);
+          } catch (e) {
+            console.error("activation sweep failed", e instanceof Error ? e.message : e);
+          }
           // Busy-helper check-ins never claim a second task or expire active work.
           if (body.claimJobs === false) return Response.json({ job: null, ...release });
           // Fail jobs a helper picked up but never finished.

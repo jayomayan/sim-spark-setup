@@ -27,10 +27,10 @@ async function run() {
   await import("../../deploy/migrate.mjs");
 }
 describe("standalone migration runner", () => {
-  it("applies all fifteen checked-in migrations in order and grants device sequence access", async () => {
+  it("applies all sixteen checked-in migrations in order and grants device sequence access", async () => {
     await run();
     const sources = mock.statements.slice(1, -1);
-    expect(sources).toHaveLength(15);
+    expect(sources).toHaveLength(16);
     expect(sources[0]).toContain("create type public.app_role");
     expect(sources[7]).toContain("ADD COLUMN router_logins_cipher");
     expect(sources[8]).toContain("ADD COLUMN IF NOT EXISTS site_id");

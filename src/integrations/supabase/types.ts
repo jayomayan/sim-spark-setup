@@ -434,9 +434,13 @@ export type Database = {
           iccid: string
           id: string
           ip: string | null
+          last_activity_at: string
+          sim_activated: boolean
+          sim_paused: boolean
           simulated: boolean
           site_id: string | null
           status: string
+          step: string | null
         }
         Insert: {
           created_at?: string
@@ -447,9 +451,13 @@ export type Database = {
           iccid: string
           id?: string
           ip?: string | null
+          last_activity_at?: string
+          sim_activated?: boolean
+          sim_paused?: boolean
           simulated?: boolean
           site_id?: string | null
           status?: string
+          step?: string | null
         }
         Update: {
           created_at?: string
@@ -460,9 +468,13 @@ export type Database = {
           iccid?: string
           id?: string
           ip?: string | null
+          last_activity_at?: string
+          sim_activated?: boolean
+          sim_paused?: boolean
           simulated?: boolean
           site_id?: string | null
           status?: string
+          step?: string | null
         }
         Relationships: []
       }
