@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const CLI_ERROR = /(?:^|\n)\s*(?:%|error\b|invalid\b|unknown command|unrecognized|permission denied|not permitted|command not found|incomplete command|ambiguous command|failed\b)/i;
 const MORE = /[ \t]*(?:-+ ?\(?more\)?[^\n]*?-+|<-+ ?more ?-+>|press any key[^\n]*)[ \t]*\x08*$/i;
+const MORE = /[ \t]*(?:-+ ?\(?more\)?[^\n]*?-+|<-+ ?more ?-+>|press any key[^\n]*)[ \t]*\x08*$/i;
 const PROMPT = /(?:^|\n)([\w.-]+(?:\([^\r\n]*\))?[>#])\s*$/;
 
 export function firewallCommands(rules) {
