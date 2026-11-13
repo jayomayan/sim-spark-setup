@@ -251,12 +251,6 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     await applyRouterSettings(got, sim, id);
   }
 
-  async function pauseIncompleteRouter(sim: boolean) {
-    if (equipment !== "ur35" || !activatedRouterRef.current || sim || suspended) return;
-    await setSimState({ data: { iccid, state: "PAUSE" } });
-    setSuspended(true);
-  }
-
   async function failRun(e: unknown, id: string | null, sim: boolean) {
     if (stepRef.current === FIREWALL) setFirewallStatus("Failed · see error below");
     if (stepRef.current === MISC) setMiscStatus("Failed · see error below");
