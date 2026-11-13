@@ -114,3 +114,6 @@ References:
   The console still stores the passwords encrypted and never sends them to the browser.
 - Updates come from the console's own address over HTTPS and are syntax-checked
   before the running copy is replaced.
+
+Release 1.9.8 answers "More" paging prompts during long router readbacks and
+uses a 20-second idle timeout (2-minute cap) so slow cellular links are not cut off.
