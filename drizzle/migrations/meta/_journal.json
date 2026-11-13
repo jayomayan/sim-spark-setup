@@ -113,6 +113,13 @@
       "when": 1794556852742,
       "tag": "0015_activation_process_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794557145689,
+      "tag": "0016_activation_status_vocabulary",
+      "breakpoints": true
     }
   ]
 }
