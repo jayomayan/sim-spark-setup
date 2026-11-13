@@ -120,7 +120,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   });
 
   /** Saves where the run is so it can be monitored, and keeps it out of the 3-minute cleanup. */
-  const touch = (patch: { status?: string; step?: string; sim_activated?: boolean } = {}) => {
+  const touch = (patch: { status?: string; step?: string | undefined; sim_activated?: boolean } = {}) => {
     const id = recordIdRef.current;
     if (!id) return Promise.resolve();
     return supabase.from("sim_activations").update({ ...patch, last_activity_at: new Date().toISOString() }).eq("id", id).then(() => undefined);
