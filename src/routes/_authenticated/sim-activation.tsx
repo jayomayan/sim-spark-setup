@@ -40,6 +40,11 @@ const EQUIPMENT = [
 // "Other" is an admin-only choice: it skips the IP wait and firewall rules.
 const ADMIN_ONLY_EQUIPMENT = new Set<string>(["other"]);
 
+/** Short words for the saved run in the recent-activations list. */
+const historyLabels: Record<string, string> = {
+  INITIATED: "started", IN_PROGRESS: "in progress", RETRYING: "needs retry", COMPLETED: "complete", UNFINISHED: "unfinished", TERMINATED: "terminated",
+};
+
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
@@ -284,6 +289,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     setStates(STEPS.map(() => "idle"));
     let sim = false;
     activatedRouterRef.current = false;
+    retryingRef.current = false;
     setSuspended(false);
     setTerminated(false);
     setRetryDeadline(null);
@@ -337,6 +343,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
   async function checkAgain() {
     if (runningRef.current) return;
     runningRef.current = true;
+    retryingRef.current = true;
     setBusy(true);
     if (terminated) return;
     setError(null);
@@ -364,6 +371,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
     if (runningRef.current || !target || equipment !== "ur35" || states[step] !== "error") return;
     if (terminated) return;
     runningRef.current = true;
+    retryingRef.current = true;
     setBusy(true);
     setError(null);
     setRetryDeadline(null);
@@ -432,7 +440,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
       try {
         await closeUnfinished({ data: { id: id ?? undefined } });
       } catch { /* the helper check-in cleanup will retry */ }
-      setError("No retry within 3 minutes. The process was stopped and the SIM set to Pause. Start a new activation to try again.");
+      setError("No retry within 3 minutes. The process was automatically terminated and the SIM set to Pause. Start a new activation to try again.");
       qc.invalidateQueries({ queryKey: ["sim_activations"] });
     }, Math.max(0, retryDeadline - Date.now()));
     return () => clearTimeout(t);
@@ -450,6 +458,7 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
 
   function startOver() {
     activatedRouterRef.current = false;
+    retryingRef.current = false;
     // The saved run stays open; starting the next activation closes it and pauses its SIM.
     recordIdRef.current = null;
     setRetryDeadline(null);
@@ -597,8 +606,8 @@ export function SimActivation({ isAdmin = false }: { isAdmin?: boolean }) {
                 </p>
                 <p className="mt-1 flex justify-between text-xs text-muted-foreground">
                   <span>{h.ip ?? "—"}{h.simulated ? " · test" : ""}</span>
-                  <span className={h.status === "complete" ? "text-primary" : h.status === "failed" ? "text-destructive" : ""}>
-                    {h.status === "waiting_ip" ? "waiting" : h.status === "needs_retry" ? "needs retry" : h.status}
+                  <span className={h.status === "COMPLETED" ? "text-primary" : h.status === "UNFINISHED" || h.status === "TERMINATED" ? "text-destructive" : ""}>
+                    {historyLabels[h.status] ?? h.status}
                   </span>
                 </p>
               </div>
