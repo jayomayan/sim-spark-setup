@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { matchCustomFields } from "@/lib/sim-custom-fields";
-import { checkConsoleRateLimit, ConsoleRateLimitError } from "@/lib/console-rate-limit";
+import { ConsoleRateLimitError } from "@/lib/console-rate-limit";
+import { changeState, findSubscription } from "@/lib/sim-subscription";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const validIccid = (s: string) => /^\d{18,22}$/.test(s);
@@ -127,30 +128,24 @@ export const setRouterSimState = createServerFn({ method: "POST" })
     return { ok: true, simulated: false };
   });
 
-async function changeState(request: ConsoleRequest, imsi: string, state: "ACTIVE" | "PAUSE") {
-  const res = await request("/sica/subscriptions/requests/state-changes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ subscriptions: { identifier_type: "IMSI", identifiers: [imsi] }, change: { state } }),
-  });
-  checkConsoleRateLimit(res);
-  if (!res.ok) throw new Error(`${state === "ACTIVE" ? "Activation" : "Pause"} failed (${res.status})`);
-}
 
-type ConsoleRequest = (path: string, init?: RequestInit) => Promise<Response>;
-
-/** Aeris Subscription Search: resolve an ICCID to its IMSI and current state. */
-async function findSubscription(request: ConsoleRequest, iccid: string) {
-  // Aeris Subscription Search: identifierType must be "ICC" (ICCID), per the published spec.
-  const res = await request("/subscriptions/details", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ identifierType: "ICC", identifierValues: [iccid] }),
+/**
+ * Closes unfinished activations: the caller's own open runs when starting a new one,
+ * or one specific run whose 3-minute retry window ran out on the page.
+ */
+export const closeUnfinishedActivations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id?: string | undefined }) => {
+    if (d.id !== undefined && !/^[0-9a-f-]{36}$/i.test(d.id)) throw new Error("Invalid activation");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const { memberConsoleConfig } = await import("@/lib/console-connect.server");
+    const { closeActivations } = await import("@/lib/activation-sweep.server");
+    const config = await memberConsoleConfig(context.supabase, context.userId, "sim_activation");
+    let q = context.supabase.from("sim_activations").select("id,iccid,equipment,sim_activated,simulated,status")
+      .is("finished_at", null).eq("created_by", context.userId).in("status", ["running", "waiting_ip", "needs_retry"]);
+    if (data.id) q = q.eq("id", data.id);
+    const { data: rows } = await q.limit(10);
+    return closeActivations(context.supabase, config, rows ?? [], data.id ? "No retry within 3 minutes" : "A new activation was started");
   });
-  checkConsoleRateLimit(res);
-  if (!res.ok) throw new Error(`SIM lookup failed (${res.status})`);
-  const j = (await res.json()) as { subscriptions?: { imsi?: string; state?: string; subscriptionState?: string; ips?: unknown }[] };
-  const sub = j.subscriptions?.[0];
-  if (!sub?.imsi) throw new Error("No SIM found in Console Connect for that ICCID");
-  return { imsi: sub.imsi, state: sub.state ?? sub.subscriptionState, ips: sub.ips };
-}
