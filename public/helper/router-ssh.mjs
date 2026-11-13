@@ -124,14 +124,20 @@ export async function connectRouterSsh(ip, login, progress = () => {}) {
     client.on("connect", () => { tcpConnected = true; progress({ stage: "connected" }); });
     client.on("handshake", () => { progress({ stage: "authenticating" }); });
     const fail = (message, auth = false, unreachable = false) => {
-      if (pending) { const current = pending; pending = undefined; clearTimeout(current.timer); current.reject(new Error(message)); }
+      if (pending) { const current = pending; pending = undefined; clearPending(current); current.reject(new Error(message)); }
       const error = Object.assign(new Error(message), { authenticationRejected: auth, unreachable });
       client.end();
       if (!ready) reject(error);
     };
+    // Idle timer: resets whenever the router sends data, so long readbacks over slow
+    // cellular links are not cut off; a hard cap still bounds every command.
+    const MORE = /[ \t]*(?:-+ ?\(?more\)?[^\n]*?-+|<-+ ?more ?-+>|press any key[^\n]*)[ \t]*\x08*$/i;
+    const IDLE_MS = 20_000, CAP_MS = 120_000;
+    const timeout = () => fail("Router SSH command timed out; check the router before retrying");
     const waitPrompt = () => new Promise((ok, no) => {
-      pending = { resolve: ok, reject: no, timer: setTimeout(() => fail("Router SSH command timed out; check the router before retrying"), 15_000) };
+      pending = { resolve: ok, reject: no, timer: setTimeout(timeout, IDLE_MS), cap: setTimeout(timeout, CAP_MS) };
     });
+    const clearPending = (p) => { clearTimeout(p.timer); clearTimeout(p.cap); };
     const session = {
       get prompt() { return prompt; },
       async command(command) {
@@ -142,7 +148,7 @@ export async function connectRouterSsh(ip, login, progress = () => {}) {
         if (CLI_ERROR.test(output)) throw new Error("Router rejected an SSH command; check firmware support and permissions before retrying");
         return output;
       },
-      close() { if (pending) clearTimeout(pending.timer); stream?.end(); client.end(); },
+      close() { if (pending) clearPending(pending); stream?.end(); client.end(); },
     };
     client.on("error", (error) => {
       const auth = error.level === "client-authentication";
@@ -176,11 +182,14 @@ export async function connectRouterSsh(ip, login, progress = () => {}) {
         initial.then(() => { ready = true; resolve(session); }, () => reject(new Error("Router SSH CLI prompt unsupported; no settings were sent")));
         const receive = (data) => {
           buffer += data.toString().replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").replace(/\r/g, "");
+          // Long output (show running-config) pages with a "More" prompt; keep it flowing.
+          if (MORE.test(buffer)) { buffer = buffer.replace(MORE, "\n"); stream.write(" "); }
+          if (pending) { clearTimeout(pending.timer); pending.timer = setTimeout(timeout, IDLE_MS); }
           if (buffer.length > 1024 * 1024) { fail("Router SSH response too large; check router before retrying"); return; }
           const match = buffer.match(PROMPT);
           if (match && pending) {
             prompt = match[1];
-            const done = pending; pending = undefined; clearTimeout(done.timer); done.resolve(buffer);
+            const done = pending; pending = undefined; clearPending(done); done.resolve(buffer);
           }
         };
         stream.on("data", receive);
