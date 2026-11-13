@@ -5,7 +5,6 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const CLI_ERROR = /(?:^|\n)\s*(?:%|error\b|invalid\b|unknown command|unrecognized|permission denied|not permitted|command not found|incomplete command|ambiguous command|failed\b)/i;
-const MORE = /[ \t]*(?:-+ ?\(?more\)?[^\n]*?-+|<-+ ?more ?-+>|press any key[^\n]*)[ \t]*\x08*$/i;
 const PROMPT = /(?:^|\n)([\w.-]+(?:\([^\r\n]*\))?[>#])\s*$/;
 
 export function firewallCommands(rules) {
@@ -132,6 +131,7 @@ export async function connectRouterSsh(ip, login, progress = () => {}) {
     };
     // Idle timer: resets whenever the router sends data, so long readbacks over slow
     // cellular links are not cut off; a hard cap still bounds every command.
+    const MORE = /[ \t]*(?:-+ ?\(?more\)?[^\n]*?-+|<-+ ?more ?-+>|press any key[^\n]*)[ \t]*\x08*$/i;
     const IDLE_MS = 20_000, CAP_MS = 120_000;
     const timeout = () => fail("Router SSH command timed out; check the router before retrying");
     const waitPrompt = () => new Promise((ok, no) => {
