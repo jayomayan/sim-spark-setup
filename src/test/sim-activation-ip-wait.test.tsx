@@ -214,7 +214,8 @@ describe("SIM activation IP wait", () => {
     expect(mocks.runJob.mock.calls.every((c) => c[1]?.["ip"] === "10.20.30.40")).toBe(true);
     expect(mocks.activateSim).toHaveBeenCalledTimes(1);
     expect(mocks.setRouterSimState).not.toHaveBeenCalled();
-    expect(mocks.finished).toEqual(["needs_retry", "complete"]);
+    expect(mocks.saved).toContain("RETRYING");
+    expect(mocks.finished).toEqual(["COMPLETED"]);
   });
 
   it("does not queue a second router job when the browser timed out but the helper is still running", async () => {
